@@ -24,6 +24,7 @@
 - No query log, no telemetry.
 - Web app binds `127.0.0.1` only.
 - Fixtures and test data contain no real person's data. Reserved ranges only: `example.com`, RFC 5737 (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`), RFC 3849 (`2001:db8::/32`).
+- Ruff line length is 120 and CI runs `ruff check` plus `ruff format --check`. Every code block in this plan is already within that limit; keep it that way.
 - Commits are bare lowercase one-line, linear, GPG-signed. No `--no-gpg-sign`.
 - Never push. The repo owner pushes.
 
@@ -163,7 +164,11 @@ DETECTORS = dict(TIER1)
         (EntityType.COORDINATES, "91.0, 0.0", None),
         (EntityType.ICAO24, "7c6b2d", "7c6b2d"),
         (EntityType.BTC_ADDRESS, "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2", "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2"),
-        (EntityType.ETH_ADDRESS, "0x52908400098527886E0F7030069857D2E4169EE7", "0x52908400098527886e0f7030069857d2e4169ee7"),
+        (
+            EntityType.ETH_ADDRESS,
+            "0x52908400098527886E0F7030069857D2E4169EE7",
+            "0x52908400098527886e0f7030069857d2e4169ee7",
+        ),
     ],
 )
 def test_tier1_detector(entity_type, raw, expected):
@@ -257,8 +262,9 @@ def _cve(s: str) -> str | None:
 
 
 def _mac(s: str) -> str | None:
-    m = re.fullmatch(r"(?i)([0-9a-f]{2})[:-]([0-9a-f]{2})[:-]([0-9a-f]{2})[:-]([0-9a-f]{2})[:-]([0-9a-f]{2})[:-]([0-9a-f]{2})", s)
-    return ":".join(g.lower() for g in m.groups()) if m else None
+    if not re.fullmatch(r"(?i)[0-9a-f]{2}([:-][0-9a-f]{2}){5}", s):
+        return None
+    return ":".join(part.lower() for part in re.split(r"[:-]", s))
 
 
 def _coordinates(s: str) -> str | None:
