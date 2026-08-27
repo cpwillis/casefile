@@ -1184,7 +1184,18 @@ def test_index_has_no_result_markup():
 Run: `uv run pytest tests/test_web.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'casefile.web'`
 
-- [ ] **Step 4: Write `app.py`**
+- [ ] **Step 4: Create the package and asset directories**
+
+```bash
+mkdir -p src/casefile/web/templates src/casefile/web/static
+echo '# Local web app. Loopback only.' > src/casefile/web/__init__.py
+```
+
+`web/__init__.py` must exist rather than relying on namespace packages, because
+`[tool.hatch.build.targets.wheel] packages = ["src/casefile"]` walks real packages when
+building the wheel.
+
+- [ ] **Step 5: Write `app.py`**
 
 ```python
 """Starlette app. Binds loopback only; this is a local tool, not a service."""
@@ -1244,7 +1255,7 @@ def serve(port: int = 8765, host: str = "127.0.0.1") -> int:
     return 0
 ```
 
-- [ ] **Step 5: Write `base.html`**
+- [ ] **Step 6: Write `base.html`**
 
 ```html
 <!doctype html>
@@ -1267,7 +1278,7 @@ def serve(port: int = 8765, host: str = "127.0.0.1") -> int:
 </html>
 ```
 
-- [ ] **Step 6: Write `index.html`**
+- [ ] **Step 7: Write `index.html`**
 
 ```html
 {% extends "base.html" %}
@@ -1279,7 +1290,7 @@ def serve(port: int = 8765, host: str = "127.0.0.1") -> int:
 {% endblock %}
 ```
 
-- [ ] **Step 7: Write a minimal `casefile.css`**
+- [ ] **Step 8: Write a minimal `casefile.css`**
 
 ```css
 :root { --fg: #1a1a1a; --bg: #fdfdfc; --muted: #6b6b6b; --line: #e0dedb; --accent: #2d5f8a; }
@@ -1297,12 +1308,12 @@ a { color: var(--accent); }
 .intro { max-width: 640px; margin: 15vh auto; padding: 0 16px; }
 ```
 
-- [ ] **Step 8: Run the test to verify it passes**
+- [ ] **Step 9: Run the test to verify it passes**
 
 Run: `uv run pytest tests/test_web.py -v`
 Expected: both PASS.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add src/casefile/web tests/test_web.py pyproject.toml
