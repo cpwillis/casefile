@@ -22,6 +22,8 @@
 - Catalogue is TOML, parsed with stdlib `tomllib`.
 - Exactly one positional value on the CLI. No `--input-file`, no target lists, no batch mode, ever.
 - No query log, no telemetry.
+- Catalogue URLs must be `https://`. Enforced at load time; a non-https entry fails CI.
+- The web app is GET-only with no mutating routes, so there is no CSRF surface to defend.
 - Web app binds `127.0.0.1` only.
 - Fixtures and test data contain no real person's data. Reserved ranges only: `example.com`, RFC 5737 (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`), RFC 3849 (`2001:db8::/32`).
 - Ruff line length is 120 and CI runs `ruff check` plus `ruff format --check`. Every code block in this plan is already within that limit; keep it that way.
@@ -682,6 +684,20 @@ def test_every_url_carries_the_value_placeholder():
         assert "{value}" in source.url, f"{source.id} has no {{value}} in its url"
 
 
+def test_every_url_is_https():
+    """Blocks a contributed entry shipping javascript: or data: as a clickable link."""
+    for source in load_catalog(CATALOG_DIR):
+        assert source.url.startswith("https://"), f"{source.id} url is not https"
+
+
+def test_non_https_scheme_is_rejected(tmp_path):
+    (tmp_path / "evil.toml").write_bytes(
+        b'[[source]]\nid = "x"\nname = "X"\naccepts = ["domain"]\nurl = "javascript:alert({value})"\n'
+    )
+    with pytest.raises(CatalogError, match="https"):
+        load_catalog(tmp_path)
+
+
 def test_every_accepts_entry_is_a_known_type():
     known = set(EntityType)
     for source in load_catalog(CATALOG_DIR):
@@ -763,6 +779,8 @@ def _parse_source(raw: dict, origin: Path) -> Source:
         )
     except (KeyError, ValueError) as exc:
         raise CatalogError(f"{origin.name}: invalid source entry {raw.get('id', '<no id>')}: {exc}") from exc
+    if not source.url.startswith("https://"):
+        raise CatalogError(f"{origin.name}: source {source.id} url must start with https://")
     if PLACEHOLDER not in source.url:
         raise CatalogError(f"{origin.name}: source {source.id} url has no {PLACEHOLDER}")
     if not source.accepts:
@@ -796,6 +814,11 @@ def sources_for(catalog: tuple[Source, ...], entity_type: EntityType) -> tuple[S
 def build_url(source: Source, value: str) -> str:
     return source.url.replace(PLACEHOLDER, quote(value, safe=""))
 ```
+
+The https-only rule is a supply-chain guard, not pedantry. This repo invites catalogue
+pull requests, and without it a single entry reading `url = "javascript:alert({value})"`
+would render as a clickable link in every result page. Scheme is pinned at load time so a
+bad entry fails CI rather than shipping.
 
 - [ ] **Step 4: Write the first catalogue file**
 
@@ -1187,6 +1210,21 @@ def test_index_has_a_heading_and_skip_link():
     text = client.get("/").text
     assert "<h1" in text
     assert 'class="skip"' in text
+
+
+def test_query_is_escaped_not_injected():
+    payload = "<script>alert(1)</script>"
+    text = client.get("/q", params={"v": payload}).text
+    assert payload not in text
+    assert "&lt;script&gt;" in text
+
+
+def test_serve_defaults_to_loopback():
+    import inspect
+
+    from casefile.web.app import serve
+
+    assert inspect.signature(serve).parameters["host"].default == "127.0.0.1"
 ```
 
 `TestClient` needs `httpx`, which arrives in phase 3. Add it to the dev group for now: `dev = ["pytest>=8.3", "ruff>=0.8", "httpx>=0.28"]`.
