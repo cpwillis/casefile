@@ -360,6 +360,7 @@ DETECTORS = dict(TIER2)
         (EntityType.IMO, "IMO 9074729", "9074729"),
         (EntityType.MMSI, "503000000", "503000000"),
         (EntityType.TAIL_NUMBER, "vh-oqa", "VH-OQA"),
+        (EntityType.TAIL_NUMBER, "AS64496", None),
     ],
 )
 def test_tier2_detector(entity_type, raw, expected):
@@ -425,6 +426,8 @@ def _mmsi(s: str) -> str | None:
 
 
 def _tail_number(s: str) -> str | None:
+    if re.fullmatch(r"(?i)as\d+", s):  # AS64496 is an ASN, not a tail number
+        return None
     return s.upper() if re.fullmatch(r"(?i)[a-z]{1,2}-?[a-z0-9]{1,5}", s) and any(c.isalpha() for c in s) else None
 
 
@@ -440,12 +443,12 @@ TIER2: tuple[tuple[EntityType, Detector], ...] = (
 )
 ```
 
-`plate` is deliberately absent from `TIER2`: number plate formats vary so widely by jurisdiction that any regex either matches almost everything or almost nothing. It is reachable only when the user picks it explicitly, which Task 5 handles.
+`plate` is deliberately absent from `TIER2`: number plate formats vary so widely by jurisdiction that any regex either matches almost everything or almost nothing. It stays in `EntityType` and may hold catalogue entries, but **nothing detects it in v1**, so it is exempt from the coverage floor in Task 6. Making it reachable needs an explicit type override in the UI, which is not a phase 1 concern.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `uv run pytest tests/test_detect_tier2.py -v`
-Expected: PASS, 17 cases.
+Expected: PASS, 18 cases.
 
 - [ ] **Step 5: Commit**
 
@@ -835,13 +838,13 @@ Two to three minutes each. The allocation below is roughly four hours of work. D
 |---|---|---|---|---|---|
 | `domain` | 12 | `url` | 5 | `mac` | 3 |
 | `ip` | 10 | `cve` | 4 | `vin` | 3 |
-| `email` | 8 | `asn` | 4 | `plate` | 3 |
+| `email` | 8 | `asn` | 4 | | |
 | `person` | 8 | `btc_address` | 4 | `mmsi` | 3 |
 | `company` | 8 | `coordinates` | 4 | `imo` | 3 |
 | `phone` | 5 | `eth_address` | 3 | `icao24` | 3 |
 | `hash` | 5 | | | `tail_number` | 3 |
 
-`username` has no minimum here: WhatsMyName supplies 700 sites in phase 4. Add username link entries only where a site is worth a direct pivot regardless.
+Two types have no minimum. `username` because WhatsMyName supplies 700 sites in phase 4; add username link entries only where a site is worth a direct pivot regardless. `plate` because nothing detects it in v1, so its entries would be unreachable.
 
 - [ ] **Step 1: Write the failing coverage test**
 
@@ -859,7 +862,7 @@ CATALOG_DIR = Path(__file__).resolve().parents[1] / "catalog"
 
 MINIMUM_SLOTS = 100
 FLOOR_PER_TYPE = 3
-EXEMPT = {EntityType.USERNAME}
+EXEMPT = {EntityType.USERNAME, EntityType.PLATE}  # WMN covers username; nothing detects plate in v1
 
 
 def test_every_type_has_a_floor_of_sources():
@@ -1455,7 +1458,7 @@ def test_catalogue_meets_the_phase_1_bar():
     catalog = load_catalog(CATALOG_DIR)
     assert sum(len(s.accepts) for s in catalog) >= 100
     for entity_type in EntityType:
-        if entity_type is EntityType.USERNAME:
+        if entity_type in {EntityType.USERNAME, EntityType.PLATE}:
             continue
         assert len(sources_for(catalog, entity_type)) >= 3, entity_type
 
