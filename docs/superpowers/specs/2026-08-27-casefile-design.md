@@ -165,6 +165,13 @@ is:
 A string can appear in several tiers. `example.com` is a domain, and also a plausible
 company. Both render, domain first.
 
+### URLs also yield their host
+
+A `url` candidate additionally produces a `domain` candidate built from its host, because
+pasting a link and wanting the domain's sources is the common case. This is the only
+derived candidate in the system; everything else comes from a detector matching the raw
+input.
+
 ### Normalisation
 
 Each detector returns the value normalised for its own type: phone to E.164 digits,
@@ -200,6 +207,11 @@ containing `{value}`), optional `tags`, `notes`, `provenance`.
 No `auth` field. A link never needs a key, so key requirements are a property of the
 fetcher, not the entry. Tags record exceptions only: every link is free and keyless by
 definition, so tagging them `free` and `no-key` labels the default.
+
+**`url` must begin with `https://`, enforced at load time.** This is a supply-chain guard.
+The repo invites catalogue pull requests, and without it one entry reading
+`url = "javascript:alert({value})"` would render as a clickable link on every result page.
+A bad scheme fails CI rather than shipping.
 
 TOML rather than YAML or JSON. The catalogue is read-only at runtime, which is exactly
 `tomllib`'s only limitation and irrelevant here, so stdlib covers it and `pyyaml`

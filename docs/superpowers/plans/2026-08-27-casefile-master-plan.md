@@ -126,16 +126,21 @@ three slots, so roughly 70 to 80 unique entries deliver the ~110 slots below.
 | `ip` | 10 | `eth_address` | 3 |
 | `email` | 8 | `mac` | 3 |
 | `person` | 8 | `vin` | 3 |
-| `company` | 8 | `plate` | 3 |
+| `company` | 8 | `plate` | none |
 | `phone` | 5 | `mmsi` | 3 |
 | `hash` | 5 | `imo` | 3 |
 | `url` | 5 | `icao24` | 3 |
 | `cve` | 4 | `tail_number` | 3 |
-| `asn` | 4 | `username` | via WMN |
+| `asn` | 4 | `username` | none |
 | `btc_address` | 4 | | |
 
 Minimum three per type is the rule from the spec: fewer than three and the type has
 nowhere useful to send you, so it should not ship.
+
+Two exemptions. `username` because WhatsMyName supplies 700 sites in phase 4, so hand
+authoring it would be wasted work. `plate` because nothing detects it in v1: number plate
+formats vary so widely by jurisdiction that any regex matches nearly every short string or
+nearly none, so its entries would be unreachable until an explicit type override exists.
 
 ### Growth after phase 1
 
@@ -157,7 +162,10 @@ Required by end of phase 2:
   three-slots-minimum rule, the `provenance` convention, and an explicit statement that
   sources requiring an account are still welcome as link entries.
 - A pull request template whose body is a checklist: entry validates, URL tested by hand,
-  `accepts` types correct, no PII in any example.
+  `accepts` types correct, scheme is `https://`, no PII in any example.
+- The loader pins catalogue URLs to `https://`. This is a supply-chain guard, not
+  pedantry: without it a single contributed entry reading `url = "javascript:..."` would
+  render as a clickable link on every result page. A bad scheme fails CI.
 - `casefile check-links` documented as the thing to run before submitting a batch.
 - The validation test running on every PR, so review is "did CI pass and is the URL real"
   rather than a schema argument.
@@ -253,7 +261,14 @@ Each would be its own spec. None is a v1 concern.
 
 ---
 
-## Next step
+## Phase plans
 
-Write `docs/superpowers/plans/2026-08-27-casefile-phase-1.md` as a task-level plan, once
-the layout blocker is resolved.
+| Phase | Plan | Status |
+|---|---|---|
+| 1 | [2026-08-27-casefile-phase-1.md](2026-08-27-casefile-phase-1.md) | written, ready to execute |
+| 2 | not yet written | write after phase 1 lands |
+| 3 | not yet written | write after phase 2 lands |
+| 4 | not yet written | write after phase 3 lands |
+
+Each phase plan is written immediately before that phase starts. Drafting phase 4's tasks
+against code that does not exist yet would be fiction.
