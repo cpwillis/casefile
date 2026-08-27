@@ -38,7 +38,7 @@ rendered output to disk. It demonstrates the tool and cannot perform lookups.
 | Language | Python, pure | The datasets make external binaries unnecessary for v1 |
 | Distribution | PyPI as `casefile`, run via `uvx casefile` | One command, uv fetches its own Python |
 | Licence | MIT, holder `cpwillis` | Permissive; dictates subprocess-not-import for any GPL tool |
-| UI | FastAPI + Jinja + HTMX | No Node, no build step, one template set |
+| UI | Starlette + Jinja + HTMX | No Node, no build step, one template set. FastAPI adds OpenAPI, DI and request validation, none of which a localhost HTMX app uses |
 | Demo | Static prerender of the real app | Cannot drift from reality; inert by construction |
 | Demo hosting | Cloudflare static assets | Free and unlimited request volume |
 | External binaries | None in v1 | Keeps `uvx` as the entire install story |
@@ -63,12 +63,15 @@ final state of the same pipeline run against fixtures.
 ### Modules
 
 - `casefile.detect` pure functions, string to ranked candidate types
-- `casefile.catalog` YAML loading, pydantic models, lookup by entity type
-- `casefile.fetchers` async source plugins behind a registry decorator
-- `casefile.limits` per-domain concurrency and rate limiting
-- `casefile.web` FastAPI app, Jinja templates, HTMX partials
-- `casefile.cli` typer entry point, launches the web app or prints results
-- `scripts/build_demo.py` renders the app against fixtures into `dist/`
+- `casefile.catalog` YAML loading, dataclasses, lookup by entity type
+- `casefile.fetchers` async source plugins behind a registry decorator, plus the
+  per-domain concurrency and rate limiting they are the only caller of
+- `casefile.web` Starlette app, Jinja templates, HTMX partials
+- `casefile.cli` argparse entry point: launch the web app, print results, build the demo
+
+No `limits` module. Roughly fifteen lines of semaphore and jitter in a file exporting one
+thing is a file for the sake of a file. No `scripts/` either: `casefile build-demo`
+reuses the argparse that already exists.
 
 ## Entity detection
 
@@ -76,11 +79,22 @@ Detection returns a **ranked list of candidate types, not a single type**. `cpwi
 is plausibly a username, a person, and a company. `8.8.8.8` is unambiguous. The UI
 presents one section per candidate, most likely first.
 
-Initial taxonomy (25):
+A type ships only when at least three catalogue entries accept it. A detector with
+nowhere to send you is a detector, a test and a maintenance burden for no output.
 
-`domain`, `ip`, `cidr`, `asn`, `url`, `email`, `username`, `person`, `company`,
-`phone`, `hash`, `cve`, `btc_address`, `eth_address`, `coordinates`, `image_file`,
-`vin`, `plate`, `mmsi`, `imo`, `icao24`, `tail_number`, `mac`, `bssid`, `telegram_id`
+Taxonomy (21):
+
+`domain`, `ip`, `asn`, `url`, `email`, `username`, `person`, `company`, `phone`,
+`hash`, `cve`, `btc_address`, `eth_address`, `coordinates`, `mac`, `vin`, `plate`,
+`mmsi`, `imo`, `icao24`, `tail_number`
+
+Cut against the earlier draft, and why:
+
+- `image_file` needs EXIF parsing, and ExifTool is explicitly out of scope. Nothing to
+  point it at.
+- `bssid` has one real source and it needs an account.
+- `cidr` folds into `ip`. Same sources, one detector.
+- `telegram_id` has too few public sources to justify the detector.
 
 Implementation is regex plus a small number of heuristics, all pure functions. This is
 the module that most warrants real test coverage, because a wrong detection means the
@@ -102,12 +116,15 @@ lists are organised, which keeps files small and pull requests readable.
   name: crt.sh
   accepts: [domain]
   url: "https://crt.sh/?q={value}"
-  tags: [free, no-key]
   provenance: awesome-osint
 ```
 
 Fields: `id` (unique), `name`, `accepts` (list of entity types), `url` (template
-containing `{value}`), optional `tags`, `notes`, `provenance`, `auth`.
+containing `{value}`), optional `tags`, `notes`, `provenance`.
+
+No `auth` field. A link never needs a key, so key requirements are a property of the
+fetcher, not the entry. Tags record exceptions only: every link is free and keyless by
+definition, so tagging them `free` and `no-key` labels the default.
 
 YAML rather than JSON because contributors will hand-edit these and JSON is hostile to
 that. Loaded and validated once at startup.
@@ -146,17 +163,22 @@ Every source is a link. Some sources are additionally fetchable.
 
 ### Validation
 
-One pydantic model and one test that loads every YAML file and asserts: every entry
-validates, every `url` contains `{value}`, every `accepts` value is a known entity
-type, no duplicate ids across files. That single test is what stops a 400-entry
-catalogue rotting.
+One `@dataclass` and one test that loads every YAML file and asserts: every entry
+parses, every `url` contains `{value}`, every `accepts` value is a known entity type,
+no duplicate ids across files. That single test is what stops a 400-entry catalogue
+rotting.
+
+No pydantic. The test is the validation, and it has to exist either way. Adding a
+validation library to get error messages a test already produces is a dependency doing
+work that is already done.
 
 ## Fetchers, rate limiting, politeness
 
 - Global and per-domain concurrency caps, with jitter.
 - 700 concurrent requests from one residential IP gets throttled, blocked or
   captcha-walled. Concurrency control is a v1 feature, not polish.
-- Response caching in SQLite keyed on source id plus value, with a TTL.
+- Response caching in SQLite (stdlib `sqlite3`) keyed on source id plus value, with a
+  TTL. Added in phase 3, not phase 2: at three fetchers there is nothing to cache.
 - Every fetcher failure is contained. A dead source renders as a dead panel, never as a
   failed page.
 - Keys are read from a local `.env`. Every key is optional; a source needing one that is
@@ -170,7 +192,9 @@ v1 feature.
 
 ## Web application
 
-- FastAPI serving Jinja templates. HTMX for progressive result loading.
+- Starlette serving Jinja templates. HTMX for progressive result loading.
+- Stdlib `http.server` was considered and rejected: routing and async fan-out would be
+  hand-rolled for no dependency saving worth the code.
 - One result page per query, sections per candidate entity type, panels per source.
 - Client-side filtering of the link catalogue in a small amount of vanilla JS, so it
   also works in the static demo.
@@ -196,9 +220,12 @@ resolves without splitting the canonical URL.
 
 ## CLI
 
-`typer` entry point. `casefile` with no arguments launches the local web app. `casefile
-<value>` prints results to the terminal. The CLI is close to free once the core library
-exists, so it ships in v1.
+`argparse` entry point, stdlib, already scaffolded. `casefile` with no arguments
+launches the local web app. `casefile <value>` prints results. `casefile build-demo`
+renders the static demo.
+
+No typer. Two commands and a flag do not need a subcommand framework. Because the CLI is
+close to free, it ships as part of phase 1 rather than waiting for a phase of its own.
 
 ## Licence hygiene
 
@@ -220,14 +247,12 @@ casefile/
   src/casefile/
     detect.py
     catalog.py
-    limits.py
-    fetchers/
-    web/
+    fetchers/            registry, rate limiting, one module per source
+    web/                 starlette app, jinja templates, static
     cli.py
   catalog/*.yaml
   vendor/                 wmn-data.json + licence + provenance
   fixtures/
-  scripts/build_demo.py
   tests/
   docs/superpowers/specs/
 ```
@@ -236,7 +261,8 @@ casefile/
 
 - `detect.py` gets real table-driven coverage. Wrong detection breaks everything downstream.
 - One catalogue validation test across all YAML.
-- Fetchers tested against recorded responses with `respx`. No live network in tests.
+- Fetchers tested against recorded responses with `httpx.MockTransport`, which httpx
+  already ships. No live network in tests, and no `respx` dependency.
 - One test asserting the demo build produces the expected files and contains no live
   endpoint references.
 
@@ -244,10 +270,10 @@ casefile/
 
 In:
 
-- Entity detection across the 25 types
+- Entity detection across the 21 types
 - YAML link catalogue, seeded broadly
 - WhatsMyName checker
-- 15 to 30 fetchers for keyless or generous free sources
+- 8 fetchers, one per entity type family
 - Local web app with progressive loading
 - CLI
 - Static demo build and deploy
@@ -270,8 +296,9 @@ from `dist/` to Cloudflare.
 
 ## v1 fetcher list
 
-All keyless. Each must be verified as still keyless and still free at implementation
-time, since free tiers move.
+Eight fetchers, chosen for one per entity family rather than for breadth. Twenty sources
+is twenty response formats to maintain before the tool has a single user. Each must be
+re-verified as keyless and free at implementation time, since free tiers move.
 
 | Source | Accepts | Notes |
 |---|---|---|
@@ -279,24 +306,31 @@ time, since free tiers move.
 | RDAP (rdap.org) | domain, ip, asn | Structured registration data, replaces WHOIS parsing |
 | crt.sh | domain | Certificate transparency, yields subdomains |
 | Shodan InternetDB | ip | Keyless endpoint, open ports and hostnames |
-| BGPView | ip, asn, domain | Prefixes, peers, upstreams |
-| Wayback CDX | domain, url | Historical snapshots |
-| URLhaus (abuse.ch) | domain, ip, url | Malicious URL reputation |
-| MalwareBazaar (abuse.ch) | hash | Sample metadata |
-| NVD | cve | Rate limited without a key, acceptable |
-| GLEIF | company | LEI records, keyless |
-| OpenSanctions (yente) | person, company | Public instance |
-| Wikidata | person, company | Entity lookup |
+| `phonenumbers` (offline) | phone | Carrier, region, validity. No network at all |
 | GitHub API | username | 60 requests/hour unauthenticated |
-| Gravatar | email | Avatar presence by email hash |
-| blockstream.info | btc_address | Balance and transaction history |
-| Nominatim (OSM) | coordinates | Reverse geocode, strict usage policy |
-| macvendors | mac, bssid | OUI vendor lookup |
-| adsb.lol | icao24, tail_number | Live aircraft position |
-| `phonenumbers` (offline) | phone | Carrier, region, validity, no network at all |
-| WhatsMyName | username | Separate code path, 700+ sites |
+| Wikidata | person, company | Entity lookup |
+| MalwareBazaar (abuse.ch) | hash | Sample metadata |
 
-Maritime (`mmsi`, `imo`) ships as links only in v1. No keyless AIS API is reliable
+Plus the WhatsMyName checker for `username`, which is its own code path and lands in
+phase 3.
+
+Every other entity type is links-only in v1: `url`, `cve`, `btc_address`,
+`eth_address`, `coordinates`, `mac`, `vin`, `plate`, `mmsi`, `imo`, `icao24`,
+`tail_number`. Links are the product for most of the catalogue, so this is the normal
+case, not a gap.
+
+### Fetcher backlog
+
+Verified keyless, deliberately not in v1. Each is a small addition once the registry
+exists, and each should be added because someone wants it rather than because the list
+looked short.
+
+BGPView (ip, asn, domain), Wayback CDX (domain, url), URLhaus (domain, ip, url), NVD
+(cve), GLEIF (company), OpenSanctions yente (person, company), Gravatar (email),
+blockstream.info (btc_address), Nominatim (coordinates, strict usage policy),
+macvendors (mac), adsb.lol (icao24, tail_number).
+
+Maritime (`mmsi`, `imo`) stays links-only indefinitely. No keyless AIS API is reliable
 enough to depend on.
 
 ## Phasing
@@ -304,11 +338,10 @@ enough to depend on.
 v1 is large for a single pass. The implementation plan should sequence it so each phase
 is independently useful and shippable:
 
-1. Detection plus catalogue plus link rendering. Useful on its own, no network.
-2. Fetcher registry, rate limiting, caching, and the first three fetchers.
-3. Remaining fetchers plus the WhatsMyName checker.
+1. Detection, catalogue, link rendering, CLI. Useful on its own, no network at all.
+2. Fetcher registry, rate limiting, and the first three fetchers.
+3. Remaining fetchers, the WhatsMyName checker, and the SQLite cache.
 4. Demo build and deploy.
-5. CLI.
 
 ## Open questions
 
