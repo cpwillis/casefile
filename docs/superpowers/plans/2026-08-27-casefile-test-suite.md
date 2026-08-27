@@ -197,13 +197,16 @@ by hand.
 
 | Phase | Modules |
 |---|---|
-| 1 | `test_detect.py` (all detectors plus ranking), `test_catalog.py`, `test_catalog_coverage.py`, `test_cli.py`, `test_web.py`, `test_constraints.py` |
+| 1 | `test_detect.py` (all detectors plus ranking), `test_catalog.py`, `test_catalog_coverage.py`, `test_report.py`, `test_cli.py`, `test_web.py`, `test_constraints.py` |
 | 2 | `test_demo_build.py`, plus the demo-data PII constraint |
 | 3 | `test_fetchers.py`, `test_limits.py`, `test_panel_states.py`, `test_live_sources.py` (marked `live`) |
 | 4 | `test_wmn.py`, `test_cache.py`, remaining fetcher cases, remaining live cases |
 
 One test module per source module, with `test_constraints.py` as the deliberate exception:
-its tests are grouped by what they defend rather than by what they import.
+its tests are grouped by what they defend rather than by what they import. Constraint tests
+that have a natural home stay there (the single-positional check lives in `test_cli.py`, the
+loopback default in `test_web.py`); `test_constraints.py` holds the cross-cutting ones that
+belong to no single module.
 
 `tests/conftest.py` holds shared fixtures only once two modules genuinely need the same
 one. An empty conftest added in advance is a file waiting for a reason.

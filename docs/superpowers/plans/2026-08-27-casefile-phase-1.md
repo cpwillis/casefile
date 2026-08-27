@@ -37,6 +37,7 @@
 | `src/casefile/types.py` | `EntityType` enum and `Candidate` dataclass. Imported by everything, imports nothing. |
 | `src/casefile/detect.py` | Three tiers of pure detector functions plus `detect()`. |
 | `src/casefile/catalog.py` | `Source` dataclass, TOML loading, lookup by type, URL building. |
+| `src/casefile/report.py` | `Link`, `Section`, and `build_report()`. The single source of the result shape, consumed by the text, JSON and HTML renderers. |
 | `src/casefile/cli.py` | argparse entry point: text output, JSON output, app launch. |
 | `src/casefile/web/app.py` | Starlette routes and template wiring. |
 | `src/casefile/web/templates/*.html` | `base.html`, `index.html`, `result.html`. |
@@ -165,7 +166,7 @@ Tier 1 is the structurally unambiguous set. If the pattern matches, the input *i
 **Files:**
 - Create: `src/casefile/types.py`
 - Create: `src/casefile/detect.py`
-- Create: `tests/test_detect_tier1.py`
+- Create: `tests/test_detect.py`
 
 **Interfaces:**
 - Consumes: nothing.
@@ -176,7 +177,7 @@ Tier 1 is the structurally unambiguous set. If the pattern matches, the input *i
 
 - [ ] **Step 1: Write the failing test**
 
-Create `tests/test_detect_tier1.py`:
+Create `tests/test_detect.py`:
 
 ```python
 import pytest
@@ -184,7 +185,7 @@ import pytest
 from casefile.detect import TIER1
 from casefile.types import EntityType
 
-DETECTORS = dict(TIER1)
+TIER1_DETECTORS = dict(TIER1)
 
 
 @pytest.mark.parametrize(
@@ -216,12 +217,12 @@ DETECTORS = dict(TIER1)
     ],
 )
 def test_tier1_detector(entity_type, raw, expected):
-    assert DETECTORS[entity_type](raw) == expected
+    assert TIER1_DETECTORS[entity_type](raw) == expected
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `uv run pytest tests/test_detect_tier1.py -v`
+Run: `uv run pytest tests/test_detect.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'casefile.detect'`
 
 - [ ] **Step 3: Write `types.py`**
@@ -352,7 +353,7 @@ TIER1: tuple[tuple[EntityType, Detector], ...] = (
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `uv run pytest tests/test_detect_tier1.py -v`
+Run: `uv run pytest tests/test_detect.py -v`
 Expected: PASS, 19 cases.
 
 Note on `_icao24`: a six-hex-digit string is ambiguous with a plate or a short id, and an all-digit string is far more likely to be something else, so all-digits is rejected. This is a deliberate false-negative trade, not an oversight.
@@ -369,7 +370,7 @@ test that can only ever pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/casefile/types.py src/casefile/detect.py tests/test_detect_tier1.py
+git add src/casefile/types.py src/casefile/detect.py tests/test_detect.py
 git commit -m "add entity taxonomy and tier-1 detectors, drop smoke test"
 ```
 
@@ -381,7 +382,7 @@ Tier 2 is format-constrained: the pattern is strong but not proof.
 
 **Files:**
 - Modify: `src/casefile/detect.py`
-- Create: `tests/test_detect_tier2.py`
+- Modify: `tests/test_detect.py`
 
 **Interfaces:**
 - Consumes: `EntityType`, `Detector` from Task 2.
@@ -389,15 +390,11 @@ Tier 2 is format-constrained: the pattern is strong but not proof.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `tests/test_detect_tier2.py`:
+Append to `tests/test_detect.py`, and add `TIER2` to the existing `casefile.detect`
+import:
 
 ```python
-import pytest
-
-from casefile.detect import TIER2
-from casefile.types import EntityType
-
-DETECTORS = dict(TIER2)
+TIER2_DETECTORS = dict(TIER2)
 
 
 @pytest.mark.parametrize(
@@ -426,12 +423,12 @@ DETECTORS = dict(TIER2)
     ],
 )
 def test_tier2_detector(entity_type, raw, expected):
-    assert DETECTORS[entity_type](raw) == expected
+    assert TIER2_DETECTORS[entity_type](raw) == expected
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `uv run pytest tests/test_detect_tier2.py -v`
+Run: `uv run pytest tests/test_detect.py -v`
 Expected: FAIL with `ImportError: cannot import name 'TIER2'`
 
 - [ ] **Step 3: Add the tier-2 detectors to `detect.py`**
@@ -517,13 +514,13 @@ TIER2: tuple[tuple[EntityType, Detector], ...] = (
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `uv run pytest tests/test_detect_tier2.py -v`
-Expected: PASS, 18 cases.
+Run: `uv run pytest tests/test_detect.py -v`
+Expected: PASS, 18 new cases on top of tier 1's 19.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/casefile/detect.py tests/test_detect_tier2.py
+git add src/casefile/detect.py tests/test_detect.py
 git commit -m "add tier-2 format-constrained detectors"
 ```
 
@@ -533,7 +530,7 @@ git commit -m "add tier-2 format-constrained detectors"
 
 **Files:**
 - Modify: `src/casefile/detect.py`
-- Create: `tests/test_detect.py`
+- Modify: `tests/test_detect.py`
 
 **Interfaces:**
 - Consumes: `TIER1`, `TIER2`, `Candidate`, `EntityType`.
@@ -541,13 +538,9 @@ git commit -m "add tier-2 format-constrained detectors"
 
 - [ ] **Step 1: Write the failing test**
 
-Create `tests/test_detect.py`:
+Append to `tests/test_detect.py`, adding `detect` to the existing import:
 
 ```python
-from casefile.detect import detect
-from casefile.types import EntityType
-
-
 def types_of(raw):
     return [c.type for c in detect(raw)]
 
@@ -605,7 +598,7 @@ def test_no_duplicate_types():
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `uv run pytest tests/test_detect.py -v`
+Run: `uv run pytest tests/test_detect.py -k 'not tier' -v`
 Expected: FAIL with `ImportError: cannot import name 'detect'`
 
 - [ ] **Step 3: Add tier 3 and `detect()` to `detect.py`**
@@ -675,8 +668,8 @@ because plenty of real usernames contain dots.
 
 - [ ] **Step 4: Run the whole detect suite**
 
-Run: `uv run pytest tests/test_detect.py tests/test_detect_tier1.py tests/test_detect_tier2.py -v`
-Expected: all PASS.
+Run: `uv run pytest tests/test_detect.py -v`
+Expected: all PASS, 44 cases.
 
 - [ ] **Step 5: Commit**
 
@@ -780,6 +773,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'casefile.catalog'`
 
 import tomllib
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote
 
@@ -826,7 +820,9 @@ def _parse_source(raw: dict, origin: Path) -> Source:
     return source
 
 
+@lru_cache(maxsize=8)
 def load_catalog(directory: Path | None = None) -> tuple[Source, ...]:
+    """Cached: the web route calls this per request and the files never change at runtime."""
     directory = directory or Path(__file__).resolve().parent / "catalog"
     sources: list[Source] = []
     seen: dict[str, Path] = {}
@@ -1029,17 +1025,92 @@ git commit -m "seed catalogue to 100 type-slots across all 21 types"
 
 ---
 
-### Task 7: CLI text and JSON output
+### Task 7: Result model, CLI text and JSON output
 
 **Files:**
+- Create: `src/casefile/report.py`
+- Create: `tests/test_report.py`
 - Modify: `src/casefile/cli.py`
 - Create: `tests/test_cli.py`
 
 **Interfaces:**
-- Consumes: `detect`, `load_catalog`, `sources_for`, `build_url`.
+- Consumes: `build_report`, `Section` from `report.py`.
 - Produces: `main(argv: list[str] | None = None) -> int`. The renderers are private; `main` is the only caller.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing test for the result model**
+
+Create `tests/test_report.py`:
+
+```python
+from casefile.report import build_report
+
+
+def test_sections_follow_detection_order():
+    sections = build_report("example.com")
+    assert [s.type for s in sections] == ["domain", "username", "person", "company"]
+
+
+def test_links_carry_encoded_urls():
+    (section,) = [s for s in build_report("example.com") if s.type == "domain"]
+    crtsh = next(link for link in section.links if link.id == "crtsh")
+    assert crtsh.url == "https://crt.sh/?q=example.com"
+
+
+def test_unrecognised_input_yields_no_sections():
+    assert build_report("!!!") == ()
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `uv run pytest tests/test_report.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'casefile.report'`
+
+- [ ] **Step 3: Write `report.py`**
+
+```python
+"""The result shape. One builder, three renderers: text, JSON and HTML."""
+
+from dataclasses import dataclass
+
+from casefile.catalog import build_url, load_catalog, sources_for
+from casefile.detect import detect
+
+
+@dataclass(frozen=True)
+class Link:
+    id: str
+    name: str
+    url: str
+    notes: str | None = None
+
+
+@dataclass(frozen=True)
+class Section:
+    type: str
+    value: str
+    links: tuple[Link, ...]
+
+
+def build_report(raw: str) -> tuple[Section, ...]:
+    catalog = load_catalog()
+    return tuple(
+        Section(
+            type=candidate.type.value,
+            value=candidate.value,
+            links=tuple(
+                Link(s.id, s.name, build_url(s, candidate.value), s.notes)
+                for s in sources_for(catalog, candidate.type)
+            ),
+        )
+        for candidate in detect(raw)
+    )
+```
+
+This exists so the CLI and the web app cannot drift. Both render the same `Section` tuple,
+which makes "the demo is a prerender of the real app" structurally true rather than a thing
+we remember to keep true.
+
+- [ ] **Step 4: Write the failing CLI test**
 
 Create `tests/test_cli.py`:
 
@@ -1078,12 +1149,12 @@ def test_only_one_positional_value_is_accepted():
         main(["one.example", "two.example"])
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [ ] **Step 5: Run it to verify it fails**
 
 Run: `uv run pytest tests/test_cli.py -v`
 Expected: FAIL. The placeholder `main()` takes no arguments.
 
-- [ ] **Step 3: Rewrite `cli.py`**
+- [ ] **Step 6: Rewrite `cli.py`**
 
 ```python
 """argparse entry point: print results, emit JSON, or launch the local web app."""
@@ -1091,46 +1162,29 @@ Expected: FAIL. The placeholder `main()` takes no arguments.
 import argparse
 import json
 import sys
+from dataclasses import asdict
 
 from casefile import __version__
-from casefile.catalog import build_url, load_catalog, sources_for
-from casefile.detect import detect
-from casefile.types import Candidate
+from casefile.report import Section, build_report
 
 REPO = "https://github.com/cpwillis/casefile"
 
 
-def _links(catalog, candidate: Candidate) -> list[dict[str, str]]:
-    return [
-        {"id": s.id, "name": s.name, "url": build_url(s, candidate.value)}
-        for s in sources_for(catalog, candidate.type)
-    ]
-
-
-def _render_text(raw: str, candidates: tuple[Candidate, ...], catalog) -> str:
-    lines = [f"{raw}"]
-    for index, candidate in enumerate(candidates):
+def _render_text(raw: str, sections: tuple[Section, ...]) -> str:
+    lines = [raw]
+    for index, section in enumerate(sections):
         marker = "most likely" if index == 0 else ""
         lines.append("")
-        lines.append(f"  {candidate.type.value.upper():<14} {candidate.value:<40} {marker}")
-        links = _links(catalog, candidate)
-        if not links:
+        lines.append(f"  {section.type.upper():<14} {section.value:<40} {marker}")
+        if not section.links:
             lines.append("    no sources")
-        for link in links:
-            lines.append(f"    {link['name']:<28} {link['url']}")
+        for link in section.links:
+            lines.append(f"    {link.name:<28} {link.url}")
     return "\n".join(lines)
 
 
-def _render_json(raw: str, candidates: tuple[Candidate, ...], catalog) -> str:
-    return json.dumps(
-        {
-            "input": raw,
-            "candidates": [
-                {"type": c.type.value, "value": c.value, "links": _links(catalog, c)} for c in candidates
-            ],
-        },
-        indent=2,
-    )
+def _render_json(raw: str, sections: tuple[Section, ...]) -> str:
+    return json.dumps({"input": raw, "candidates": [asdict(s) for s in sections]}, indent=2)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1150,29 +1204,28 @@ def main(argv: list[str] | None = None) -> int:
 
         return serve(port=args.port)
 
-    catalog = load_catalog()
-    candidates = detect(args.value)
-    if not candidates:
+    sections = build_report(args.value)
+    if not sections:
         print(f"nothing recognised in {args.value!r}", file=sys.stderr)
         return 1
 
     render = _render_json if args.json else _render_text
-    print(render(args.value, candidates, catalog))
+    print(render(args.value, sections))
     return 0
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [ ] **Step 7: Run both modules to verify they pass**
 
-Run: `uv run pytest tests/test_cli.py -v`
-Expected: three PASS, and `test_only_one_positional_value_is_accepted` passes because argparse rejects the extra positional.
+Run: `uv run pytest tests/test_report.py tests/test_cli.py -v`
+Expected: all PASS. `test_only_one_positional_value_is_accepted` passes because argparse rejects the extra positional.
 
 The web import sits inside the branch that needs it so `casefile <value>` never imports Starlette.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/casefile/cli.py tests/test_cli.py
-git commit -m "add cli text and json output"
+git add src/casefile/report.py src/casefile/cli.py tests/test_report.py tests/test_cli.py
+git commit -m "add result model, cli text and json output"
 ```
 
 ---
@@ -1187,7 +1240,7 @@ git commit -m "add cli text and json output"
 - Modify: `pyproject.toml` (add `starlette`, `uvicorn`, `jinja2`)
 
 **Interfaces:**
-- Consumes: `detect`, `load_catalog`, `sources_for`, `build_url`.
+- Consumes: `build_report` from `report.py`.
 - Produces: `app` (Starlette instance), `serve(port: int, host: str = "127.0.0.1") -> int`.
 
 - [ ] **Step 1: Add the dependencies**
@@ -1284,8 +1337,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
-from casefile.catalog import build_url, load_catalog, sources_for
-from casefile.detect import detect
+from casefile.report import build_report
 
 HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=HERE / "templates")
@@ -1299,18 +1351,7 @@ async def result(request: Request) -> HTMLResponse:
     raw = request.query_params.get("v", "").strip()
     if not raw:
         return templates.TemplateResponse(request, "index.html")
-    catalog = load_catalog()
-    sections = [
-        {
-            "type": candidate.type.value,
-            "value": candidate.value,
-            "links": [
-                {"id": s.id, "name": s.name, "url": build_url(s, candidate.value), "notes": s.notes}
-                for s in sources_for(catalog, candidate.type)
-            ],
-        }
-        for candidate in detect(raw)
-    ]
+    sections = build_report(raw)
     return templates.TemplateResponse(request, "result.html", {"raw": raw, "sections": sections})
 
 
@@ -1381,8 +1422,9 @@ a { color: var(--accent); }
 .muted { color: var(--muted); }
 .topbar { border-bottom: 1px solid var(--line); padding: 12px 16px; }
 .search { display: flex; gap: 8px; max-width: 1200px; margin: 0 auto; }
-.search input { flex: 1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); }
-.search button { padding: 8px 16px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); cursor: pointer; }
+.search input, .search button { border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); }
+.search input { flex: 1; padding: 8px 10px; }
+.search button { padding: 8px 16px; cursor: pointer; }
 .intro { max-width: 640px; margin: 15vh auto; padding: 0 16px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .skip { position: absolute; left: -9999px; }
@@ -1550,12 +1592,12 @@ git commit -m "add result page with rail and pane layout"
 
 ---
 
-### Task 10: Link filter, launch, and phase acceptance
+### Task 10: Link filter, constraint tests, and launch
 
 **Files:**
 - Create: `src/casefile/web/static/casefile.js`
 - Modify: `src/casefile/web/templates/base.html`
-- Create: `tests/test_phase1_acceptance.py`
+- Create: `tests/test_constraints.py`
 
 **Interfaces:**
 - Consumes: everything above.
@@ -1563,42 +1605,24 @@ git commit -m "add result page with rail and pane layout"
 
 - [ ] **Step 1: Write the acceptance test**
 
-Create `tests/test_phase1_acceptance.py`:
+Create `tests/test_constraints.py`:
 
 ```python
-"""Phase 1 acceptance criteria from the spec, as one runnable gate."""
+"""Tests that defend decisions rather than behaviour. A failure here is a reversal."""
 
 from pathlib import Path
 
 from starlette.testclient import TestClient
 
-from casefile.catalog import load_catalog, sources_for
-from casefile.cli import main
 from casefile.detect import detect
-from casefile.types import EntityType
 from casefile.web.app import app
 
 
-def test_cli_prints_ranked_types_with_links(capsys):
-    assert main(["example.com"]) == 0
-    out = capsys.readouterr().out
-    assert out.index("DOMAIN") < out.index("COMPANY")
-    assert "https://" in out
-
-
-def test_web_renders_the_same_readings():
+def test_cli_and_web_render_the_same_readings():
+    """The demo is a prerender of the web app, so the two must never diverge."""
     text = TestClient(app).get("/q", params={"v": "example.com"}).text
     for candidate in detect("example.com"):
         assert f'id="type-{candidate.type.value}"' in text
-
-
-def test_catalogue_meets_the_phase_1_bar():
-    catalog = load_catalog()
-    assert sum(len(s.accepts) for s in catalog) >= 100
-    for entity_type in EntityType:
-        if entity_type in {EntityType.USERNAME, EntityType.PLATE}:
-            continue
-        assert len(sources_for(catalog, entity_type)) >= 3, entity_type
 
 
 def test_no_network_dependency_in_this_phase():
@@ -1608,9 +1632,15 @@ def test_no_network_dependency_in_this_phase():
     assert not offenders, f"httpx imported in phase 1: {offenders}"
 ```
 
+Two tests, not four. The draft also asserted that the CLI prints ranked types with links
+and that the catalogue meets the slot bar, both of which are already covered verbatim by
+`test_cli.py` and `test_catalog_coverage.py`. An acceptance module that restates module
+tests inflates the count and doubles the maintenance without adding a single new way to
+fail.
+
 - [ ] **Step 2: Run it to see what is missing**
 
-Run: `uv run pytest tests/test_phase1_acceptance.py -v`
+Run: `uv run pytest tests/test_constraints.py -v`
 Expected: PASS if Tasks 1-9 are complete. Any failure names the gap.
 
 - [ ] **Step 3: Write the link filter**
