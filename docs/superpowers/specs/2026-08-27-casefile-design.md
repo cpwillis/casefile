@@ -49,16 +49,38 @@ rendered output to disk. It demonstrates the tool and cannot perform lookups.
 
 ```
 input string
-  -> detect()            ranked candidate entity types
-  -> catalogue lookup    per candidate type
-  -> links               rendered immediately, no network
-  -> fetchers            dispatched concurrently, per-domain rate limited
-  -> results             streamed into the page via HTMX as each lands
+  -> detect()          ranked candidate types, value normalised per type
+  -> catalogue lookup  per candidate type
+  -> shell page        links rendered inline, one empty panel per fetchable source
+  -> browser           each panel self-loads via hx-get, independently
+  -> panel             renders its findings, or its own failure, on its own
 ```
 
 The page is useful at roughly zero milliseconds. Everything after that is enrichment.
 This property is also what makes the static demo trivially correct: the demo is the
 final state of the same pipeline run against fixtures.
+
+### The browser is the orchestrator
+
+Each fetchable source gets an empty `div` in the shell page carrying
+`hx-get="/panel/{source_id}?v=..."` and `hx-trigger="load"`. The browser issues one
+request per source and each renders when it lands.
+
+This deletes an entire subsystem. There is no server-side job state, no SSE, no queue,
+no session, no polling, and no request that waits on the slowest source. Every endpoint
+is stateless and handles exactly one source, which also makes each one trivially
+testable. The browser's own per-host connection limit supplies back-pressure for free.
+
+The CLI cannot borrow the browser, so it fans out with `asyncio.gather` over the same
+bounded limiter. That is three lines, and it is the only place server-side concurrency
+orchestration exists.
+
+WhatsMyName is the exception: 700 sites cannot be 700 panels. It gets one endpoint that
+applies bounded internal concurrency and returns the completed panel, showing a spinner
+until then.
+
+<!-- ponytail: WMN returns as one slow panel (30-60s). Chunk into ~10 panels of 70 sites
+     if that latency actually annoys anyone. -->
 
 ### Modules
 
@@ -99,6 +121,30 @@ Cut against the earlier draft, and why:
 Implementation is regex plus a small number of heuristics, all pure functions. This is
 the module that most warrants real test coverage, because a wrong detection means the
 entire page is wrong.
+
+### Ranking rules
+
+Deterministic, no scoring model. Candidates are ordered by how constrained the format
+is:
+
+1. **Structurally unambiguous**: `ip`, `hash`, `cve`, `coordinates`, `asn`, `mac`,
+   `btc_address`, `eth_address`, `icao24`. If it matches, it is that.
+2. **Format-constrained**: `email`, `url`, `domain`, `phone`, `vin`, `imo`, `mmsi`,
+   `tail_number`, `plate`.
+3. **Free-form, always last**: `username`, `person`, `company`. Almost any string is a
+   plausible member of all three, so they are appended rather than ranked between.
+
+A string can appear in several tiers. `example.com` is a domain, and also a plausible
+company. Both render, domain first.
+
+### Normalisation
+
+Each detector returns the value normalised for its own type: phone to E.164 digits,
+domain lowercased and IDNA-encoded, hash lowercased, `btc_address` case-preserved.
+
+Normalisation lives here rather than in the templates, so URL substitution stays a
+single uniform `quote(value, safe="")` for every entry in the catalogue. No per-entry
+encoding option, which is exactly the kind of knob nobody would ever set differently.
 
 ## Catalogue data model
 
@@ -174,15 +220,65 @@ work that is already done.
 
 ## Fetchers, rate limiting, politeness
 
-- Global and per-domain concurrency caps, with jitter.
+Concrete defaults, because "caps with jitter" is not implementable:
+
+- Global concurrency 20, per-domain 4, jitter 0 to 250 ms before each request.
+- Timeouts: 5 s connect, 20 s read. One retry on 429 or 5xx with exponential backoff,
+  then give up. Never more than one retry: a source that fails twice is down.
 - 700 concurrent requests from one residential IP gets throttled, blocked or
   captcha-walled. Concurrency control is a v1 feature, not polish.
-- Response caching in SQLite (stdlib `sqlite3`) keyed on source id plus value, with a
-  TTL. Added in phase 3, not phase 2: at three fetchers there is nothing to cache.
 - Every fetcher failure is contained. A dead source renders as a dead panel, never as a
   failed page.
 - Keys are read from a local `.env`. Every key is optional; a source needing one that is
-  absent is skipped with a visible "needs a key" state rather than silently omitted.
+  absent renders a visible "needs a key" state rather than being silently omitted.
+
+### Panel states
+
+A panel is always in exactly one of these, and they render differently because they mean
+different things:
+
+| State | Meaning |
+|---|---|
+| `ok` | Source responded, findings present |
+| `empty` | Source responded, nothing found |
+| `needs_key` | Source requires a key that is not configured |
+| `rate_limited` | 429, retry exhausted |
+| `timeout` | No response within the timeout |
+| `error` | Anything else, with the reason shown |
+
+`empty` versus `error` is the distinction that matters most. In an investigation,
+"looked and found nothing" and "failed to look" are opposite conclusions, and collapsing
+them into a blank panel invites a false negative.
+
+### Result model
+
+```python
+@dataclass(frozen=True)
+class Finding:
+    label: str
+    value: str
+    url: str | None = None
+
+@dataclass(frozen=True)
+class SourceResult:
+    source_id: str
+    state: str
+    findings: tuple[Finding, ...] = ()
+    detail: str | None = None   # error reason, or a note on the state
+    elapsed_ms: int = 0
+```
+
+Deliberately flat. No nesting, no per-source result subclasses, no severity field
+nothing consumes.
+
+### Cache
+
+- SQLite (stdlib `sqlite3`) at `${XDG_CACHE_HOME:-~/.cache}/casefile/cache.db`, keyed on
+  source id plus normalised value. No `platformdirs` dependency for one path.
+- Default TTL 24 hours. `--no-cache` bypasses, `--clear-cache` purges.
+- Added in phase 3, not phase 2: at three fetchers there is nothing worth caching.
+- The cache holds third-party data pulled from public sources, so `--clear-cache` is a
+  privacy control, not just a debugging one. The README says so.
 
 ### Egress note
 
@@ -210,9 +306,21 @@ the same Jinja templates and writes static HTML plus assets to `dist/`.
 - Fixture targets are synthetic or unambiguously public entities. Never a real private
   individual.
 - Links between pre-rendered targets are real static files, so navigation works.
-- Any input that would require the backend renders a "this instance is a demo" panel
-  containing the exact clone-and-run command.
 - Inert by construction: there is no backend, so nothing can work.
+
+### How the form behaves with no backend
+
+The shell template renders the search form with no `action` when built for the demo. A
+small script intercepts `submit` and reveals a panel containing the clone-and-run
+command. With scripting disabled the form simply does nothing, which is the correct
+failure mode for a page that cannot search.
+
+The pre-rendered example targets are plain `<a>` links, so the demo's whole navigable
+surface works without JavaScript.
+
+Panels are prerendered in their real states, including at least one `empty` and one
+`error`, so the demo shows honest output rather than an implausible page where every
+source succeeded.
 
 Deployed to Cloudflare as static assets at `casefile.cpwillis.dev`.
 `osint.cpwillis.dev` redirects to it, so the more searchable subdomain still
@@ -259,12 +367,21 @@ casefile/
 
 ## Testing
 
-- `detect.py` gets real table-driven coverage. Wrong detection breaks everything downstream.
+- `detect.py` gets real table-driven coverage, including the ranking order and the
+  normalisation output. Wrong detection breaks everything downstream.
 - One catalogue validation test across all YAML.
 - Fetchers tested against recorded responses with `httpx.MockTransport`, which httpx
   already ships. No live network in tests, and no `respx` dependency.
-- One test asserting the demo build produces the expected files and contains no live
-  endpoint references.
+- One test per panel state, asserting `empty` and `error` render differently. This is the
+  test that stops a false negative reading as a clean result.
+- One test asserting the demo build produces the expected files and references no
+  `127.0.0.1`, `localhost` or `/panel/` endpoint.
+
+CI runs `ruff check`, `ruff format --check`, `pytest`, and the demo build. Nothing else.
+
+No link-rot checking in CI. Firing 400 requests at other people's services on every push
+is both flaky and rude. A `casefile check-links` command exists for running by hand when
+someone cares.
 
 ## v1 scope boundary
 
@@ -338,10 +455,27 @@ enough to depend on.
 v1 is large for a single pass. The implementation plan should sequence it so each phase
 is independently useful and shippable:
 
-1. Detection, catalogue, link rendering, CLI. Useful on its own, no network at all.
-2. Fetcher registry, rate limiting, and the first three fetchers.
-3. Remaining fetchers, the WhatsMyName checker, and the SQLite cache.
-4. Demo build and deploy.
+Each phase has an acceptance test, so "done" is observable rather than argued.
+
+**Phase 1: detection, catalogue, link rendering, CLI.** No network at all.
+Done when: `casefile example.com` prints ranked candidate types with their link sets,
+the web app renders the same at `127.0.0.1`, the catalogue validation test passes over
+at least 100 entries spanning every one of the 21 types, and `detect` has table-driven
+coverage including ranking order.
+
+**Phase 2: fetcher registry, rate limiting, first three fetchers.** DNS, RDAP, crt.sh.
+Done when: panels self-load via `hx-get`, all six panel states render distinctly, a
+killed source degrades to one dead panel without affecting the page, and the limiter is
+shown to cap concurrency under test.
+
+**Phase 3: remaining fetchers, WhatsMyName, SQLite cache.**
+Done when: all 8 fetchers plus the WMN checker return typed `SourceResult`s, a repeat
+query inside the TTL issues no network calls, and `--clear-cache` empties the database.
+
+**Phase 4: demo build and deploy.**
+Done when: `casefile build-demo` writes `dist/`, the output contains no live endpoint
+references, every prerendered target navigates without JavaScript, and the site serves
+from `casefile.cpwillis.dev`.
 
 ## Open questions
 
