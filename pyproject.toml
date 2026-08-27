@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://osint.cpwillis.com"
+Homepage = "https://casefile.cpwillis.dev"
 Source = "https://github.com/cpwillis/casefile"
 
 [project.scripts]

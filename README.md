@@ -12,7 +12,7 @@ uvx casefile
 
 ## Demo
 
-[osint.cpwillis.com](https://osint.cpwillis.com) is a static, deliberately
+[casefile.cpwillis.dev](https://casefile.cpwillis.dev) is a static, deliberately
 non-functional showcase built from real output against fixture data. It shows
 what the tool does. It cannot look anything up. Run it locally for that.
 
