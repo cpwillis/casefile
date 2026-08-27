@@ -588,22 +588,30 @@ each has an acceptance test so "done" is observable rather than argued.
 **Phase 1: detection, catalogue, link rendering, CLI.** No network at all.
 Done when: `casefile example.com` prints ranked candidate types with their link sets,
 the web app renders the same at `127.0.0.1`, the catalogue validation test passes over
-at least 100 entries spanning every one of the 21 types, and `detect` has table-driven
-coverage including ranking order.
+at least 100 type-slots spanning every one of the 21 types, `detect` has table-driven
+coverage including ranking order, and `ci.yml` runs lint and tests on every push.
 
-**Phase 2: fetcher registry, rate limiting, first three fetchers.** DNS, RDAP, crt.sh.
+**Phase 2: demo build and deploy, links-only.**
+Done when: `casefile build-demo` writes `dist/`, the output references no `127.0.0.1`,
+`localhost` or `/panel/` endpoint, every prerendered target navigates without
+JavaScript, the fixture PII test passes, the site serves from `casefile.cpwillis.dev`
+with `osint.cpwillis.dev` redirecting to it, and Trusted Publishing has replaced the
+PyPI API token.
+
+**Phase 3: fetcher registry, rate limiting, first three fetchers.** DNS, RDAP, crt.sh.
 Done when: panels self-load via `hx-get`, all six panel states render distinctly, a
-killed source degrades to one dead panel without affecting the page, and the limiter is
-shown to cap concurrency under test.
+killed source degrades to one dead panel without affecting the page, the limiter is
+shown to cap concurrency under test, and every request carries the project User-Agent.
 
-**Phase 3: remaining fetchers, WhatsMyName, SQLite cache.**
-Done when: all 8 fetchers plus the WMN checker return typed `SourceResult`s, a repeat
-query inside the TTL issues no network calls, and `--clear-cache` empties the database.
+**Phase 4: remaining five fetchers, WhatsMyName, SQLite cache.**
+Done when: all 8 fetchers plus the WMN checker return typed `SourceResult`s, the
+WhatsMyName attribution renders in the username panel, a repeat query inside the TTL
+issues no network calls, and `--clear-cache` empties the database.
 
-**Phase 4: demo build and deploy.**
-Done when: `casefile build-demo` writes `dist/`, the output contains no live endpoint
-references, every prerendered target navigates without JavaScript, and the site serves
-from `casefile.cpwillis.dev`.
+The demo moves ahead of the fetchers because it does not depend on them: after phase 1
+casefile genuinely is a link dispatcher, so a links-only demo represents it honestly
+rather than as a stub. The demo is rebuilt at the end of phases 3 and 4, which is one
+command, not a phase.
 
 ## Open questions
 

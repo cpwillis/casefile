@@ -61,6 +61,27 @@ Phases 2 and 3 are independent of each other and could run in either order. Phas
 is recommended: a live public site is worth more than three fetchers, and it puts the
 project somewhere findable while the interesting work continues.
 
+### Which phase owns which spec section
+
+Every spec section maps to exactly one phase, so nothing cross-cutting is orphaned.
+
+| Spec section | Phase |
+|---|---|
+| Entity detection, ranking, normalisation | 1 |
+| Catalogue data model, validation | 1 |
+| Web application, CLI, repo layout | 1 |
+| `ci.yml` (lint + tests + demo smoke) | 1 |
+| Static demo, fixture data rules and PII test | 2 |
+| `demo.yml`, `release.yml`, Trusted Publishing | 2 |
+| Contribution surface | 2 |
+| Fetcher registry, rate limiting, panel states, result model | 3 |
+| Request conduct: User-Agent, jitter, retry policy | 3 |
+| WhatsMyName checker and its UI attribution | 4 |
+| SQLite cache, `--no-cache`, `--clear-cache` | 4 |
+
+`ci.yml` lands in phase 1 rather than phase 2. Tests without CI is a habit that does not
+survive the second week.
+
 ### Release meaning
 
 - `0.0.0` is the published placeholder holding the PyPI name. Permanently spent.
