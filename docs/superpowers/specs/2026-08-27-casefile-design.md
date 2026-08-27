@@ -29,6 +29,8 @@ rendered output to disk. It demonstrates the tool and cannot perform lookups.
 - Wrapping the Go or Perl tool ecosystem (amass, subfinder, nuclei, ExifTool).
 - Scheduled monitoring and change-diffing. Considered for later, out of v1.
 - Authentication, multi-user, or shared state.
+- Bulk or batch input. One target per query, permanently. See Scope limits below.
+- Query logging and telemetry of any kind.
 
 ## Locked decisions
 
@@ -36,7 +38,7 @@ rendered output to disk. It demonstrates the tool and cannot perform lookups.
 |---|---|---|
 | Execution model | Local only | Removes key-burning, abuse surface, doxxing liability, quota management |
 | Language | Python, pure | The datasets make external binaries unnecessary for v1 |
-| Distribution | PyPI as `casefile`, run via `uvx casefile` | One command, uv fetches its own Python |
+| Distribution | PyPI as `casefile`, run via `uvx casefile` | One command, uv fetches its own Python. `0.0.0` is a published placeholder holding the name; first real release is `0.1.0` |
 | Licence | MIT, holder `cpwillis` | Permissive; dictates subprocess-not-import for any GPL tool |
 | UI | Starlette + Jinja + HTMX | No Node, no build step, one template set. FastAPI adds OpenAPI, DI and request validation, none of which a localhost HTMX app uses |
 | Demo | Static prerender of the real app | Cannot drift from reality; inert by construction |
@@ -44,6 +46,29 @@ rendered output to disk. It demonstrates the tool and cannot perform lookups.
 | External binaries | None in v1 | Keeps `uvx` as the entire install story |
 | Repo | `cpwillis/casefile` | Matches the package name and the `casefile.cpwillis.dev` demo host |
 | Commits | Bare lowercase one-line, linear | House style |
+
+## Dependencies
+
+Five runtime, down from eight in the first draft. Each has to earn its place against the
+standard library.
+
+| Dep | Why stdlib does not cover it |
+|---|---|
+| `httpx` | Async HTTP with connection pooling, and `MockTransport` for tests. `urllib` is sync and unpleasant |
+| `starlette` | ASGI routing. See Web application for why not `http.server` |
+| `uvicorn` | Starlette needs an ASGI server |
+| `jinja2` | Templating, shared by the running app and the demo build |
+| `phonenumbers` | Google's libphonenumber dataset. Offline, and reimplementing it would be absurd |
+
+Removed during the audit: `fastapi` (OpenAPI, DI and validation all unused),
+`pydantic` (the validation test is the validation), `typer` (two commands),
+`pyyaml` (`tomllib`), `respx` (`httpx.MockTransport`).
+
+Stdlib doing real work: `tomllib`, `sqlite3`, `argparse`, `json`, `asyncio`,
+`dataclasses`, `urllib.parse`.
+
+Each dependency is added to `pyproject.toml` by the phase that first imports it, so the
+declared list is never aspirational.
 
 ## Architecture
 
@@ -85,9 +110,11 @@ until then.
 ### Modules
 
 - `casefile.detect` pure functions, string to ranked candidate types
-- `casefile.catalog` YAML loading, dataclasses, lookup by entity type
+- `casefile.catalog` TOML loading, dataclasses, lookup by entity type
 - `casefile.fetchers` async source plugins behind a registry decorator, plus the
-  per-domain concurrency and rate limiting they are the only caller of
+  `Finding` and `SourceResult` dataclasses and the per-domain concurrency and rate
+  limiting they are the only caller of. No separate `models.py` for two frozen
+  dataclasses with one consumer
 - `casefile.web` Starlette app, Jinja templates, HTMX partials
 - `casefile.cli` argparse entry point: launch the web app, print results, build the demo
 
@@ -151,18 +178,19 @@ encoding option, which is exactly the kind of knob nobody would ever set differe
 Three data paths, because the cardinalities differ by an order of magnitude and one
 schema for all three would be worse than three fit-for-purpose ones.
 
-### 1. YAML link catalogue
+### 1. TOML link catalogue
 
 Hundreds of entries, zero code. Split by category, mirroring how the awesome-osint
 lists are organised, which keeps files small and pull requests readable.
 
-```yaml
-# catalog/certificates.yaml
-- id: crtsh
-  name: crt.sh
-  accepts: [domain]
-  url: "https://crt.sh/?q={value}"
-  provenance: awesome-osint
+```toml
+# catalog/certificates.toml
+[[source]]
+id = "crtsh"
+name = "crt.sh"
+accepts = ["domain"]
+url = "https://crt.sh/?q={value}"
+provenance = "awesome-osint"
 ```
 
 Fields: `id` (unique), `name`, `accepts` (list of entity types), `url` (template
@@ -172,8 +200,14 @@ No `auth` field. A link never needs a key, so key requirements are a property of
 fetcher, not the entry. Tags record exceptions only: every link is free and keyless by
 definition, so tagging them `free` and `no-key` labels the default.
 
-YAML rather than JSON because contributors will hand-edit these and JSON is hostile to
-that. Loaded and validated once at startup.
+TOML rather than YAML or JSON. The catalogue is read-only at runtime, which is exactly
+`tomllib`'s only limitation and irrelevant here, so stdlib covers it and `pyyaml`
+disappears. TOML is comment-friendly and hand-editable, unlike JSON, and every Python
+contributor already reads it from `pyproject.toml`. Arrays of tables are a natural fit
+for a list of records.
+
+Cost, stated honestly: roughly 25% more lines than the equivalent YAML across a
+400-entry catalogue. Worth one fewer dependency.
 
 ### 2. WhatsMyName dataset
 
@@ -203,13 +237,13 @@ code and less pain than the abstraction that would replace them.
 
 ### The unifying simplification
 
-A source with a fetcher **also** has a YAML link entry. Tier A and Tier B are not an
+A source with a fetcher **also** has a link entry. Tier A and Tier B are not an
 architectural split; they collapse to "is there a fetcher registered for this `id`".
 Every source is a link. Some sources are additionally fetchable.
 
 ### Validation
 
-One `@dataclass` and one test that loads every YAML file and asserts: every entry
+One `@dataclass` and one test that loads every catalogue file and asserts: every entry
 parses, every `url` contains `{value}`, every `accepts` value is a known entity type,
 no duplicate ids across files. That single test is what stops a 400-entry catalogue
 rotting.
@@ -289,8 +323,11 @@ v1 feature.
 ## Web application
 
 - Starlette serving Jinja templates. HTMX for progressive result loading.
-- Stdlib `http.server` was considered and rejected: routing and async fan-out would be
-  hand-rolled for no dependency saving worth the code.
+- Stdlib `http.server` was considered and rejected. `wsgiref.simple_server` is
+  single-threaded, which would serialise the eight panel requests and destroy the whole
+  point of progressive loading. `ThreadingHTTPServer` works but means hand-rolling
+  routing and request parsing: more code for two fewer dependencies, which is the wrong
+  side of the trade.
 - One result page per query, sections per candidate entity type, panels per source.
 - Client-side filtering of the link catalogue in a small amount of vanilla JS, so it
   also works in the static demo.
@@ -301,10 +338,16 @@ v1 feature.
 `scripts/build_demo.py` runs the application in-process against fixture data, renders
 the same Jinja templates and writes static HTML plus assets to `dist/`.
 
-- 3 to 4 pre-baked example targets with full realistic results, covering different
-  subject areas: a domain, a username, a company, and a vessel or aircraft.
-- Fixture targets are synthetic or unambiguously public entities. Never a real private
-  individual.
+- 4 pre-baked example targets covering different subject areas: a domain, a username, a
+  company, and a vessel. The vessel deliberately shows the links-only case, which is the
+  normal case for most of the catalogue.
+- Fixture targets are synthetic or institutional. Never a real private individual,
+  including the author.
+
+There is a real tension in the username target: a fictional username exists nowhere, so
+honest WhatsMyName output for it would be 700 empty results, which misrepresents the
+tool. Resolution: use an **organisational** handle (a public project or company account),
+which is institutional rather than personal, and produces genuine hits.
 - Links between pre-rendered targets are real static files, so navigation works.
 - Inert by construction: there is no backend, so nothing can work.
 
@@ -328,9 +371,19 @@ resolves without splitting the canonical URL.
 
 ## CLI
 
-`argparse` entry point, stdlib, already scaffolded. `casefile` with no arguments
-launches the local web app. `casefile <value>` prints results. `casefile build-demo`
-renders the static demo.
+`argparse` entry point, stdlib, already scaffolded.
+
+| Invocation | Effect |
+|---|---|
+| `casefile` | Launch the local web app on `127.0.0.1` |
+| `casefile <value>` | Detect, fan out, print results |
+| `casefile <value> --json` | Same, as JSON on stdout |
+| `casefile <value> --no-cache` | Bypass the response cache |
+| `casefile --clear-cache` | Purge the cache database |
+| `casefile build-demo` | Render the static demo into `dist/` |
+| `casefile check-links` | Validate catalogue URLs by hand, never in CI |
+
+Exactly one positional value. No `--input-file` and no target lists, by design.
 
 No typer. Two commands and a flag do not need a subcommand framework. Because the CLI is
 close to free, it ships as part of phase 1 rather than waiting for a phase of its own.
@@ -424,7 +477,7 @@ casefile/
     fetchers/            registry, rate limiting, one module per source
     web/                 starlette app, jinja templates, static
     cli.py
-  catalog/*.yaml
+  catalog/*.toml
   vendor/                 wmn-data.json + licence + provenance
   fixtures/
   tests/
@@ -435,7 +488,7 @@ casefile/
 
 - `detect.py` gets real table-driven coverage, including the ranking order and the
   normalisation output. Wrong detection breaks everything downstream.
-- One catalogue validation test across all YAML.
+- One catalogue validation test across all catalogue files.
 - Fetchers tested against recorded responses with `httpx.MockTransport`, which httpx
   already ships. No live network in tests, and no `respx` dependency.
 - One test per panel state, asserting `empty` and `error` render differently. This is the
@@ -454,7 +507,7 @@ someone cares.
 In:
 
 - Entity detection across the 21 types
-- YAML link catalogue, seeded broadly
+- TOML link catalogue, seeded broadly
 - WhatsMyName checker
 - 8 fetchers, one per entity type family
 - Local web app with progressive loading
