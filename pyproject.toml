@@ -8,33 +8,25 @@ license = "MIT"
 authors = [{ name = "cpwillis" }]
 keywords = ["osint", "investigation", "recon", "intelligence"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 1 - Planning",
   "Environment :: Web Environment",
   "Intended Audience :: Information Technology",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3.12",
   "Topic :: Security",
 ]
-dependencies = [
-  "fastapi>=0.115",
-  "uvicorn>=0.32",
-  "jinja2>=3.1",
-  "httpx>=0.28",
-  "pydantic>=2.9",
-  "pyyaml>=6.0",
-  "typer>=0.15",
-  "phonenumbers>=8.13",
-]
+# Runtime dependencies are added by the phase that first imports them.
+dependencies = []
 
 [project.urls]
 Homepage = "https://casefile.cpwillis.dev"
 Source = "https://github.com/cpwillis/casefile"
 
 [project.scripts]
-casefile = "casefile.cli:app"
+casefile = "casefile.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.8", "respx>=0.22"]
+dev = ["pytest>=8.3", "ruff>=0.8"]
 
 [build-system]
 requires = ["hatchling"]
@@ -50,5 +42,4 @@ line-length = 120
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
