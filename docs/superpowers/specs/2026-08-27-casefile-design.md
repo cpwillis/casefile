@@ -329,6 +329,59 @@ v1 feature.
   point of progressive loading. `ThreadingHTTPServer` works but means hand-rolling
   routing and request parsing: more code for two fewer dependencies, which is the wrong
   side of the trade.
+
+### Result page layout
+
+Sticky left rail plus results pane above 900px, single column below it.
+
+```
++----------------------------------------------------------------+
+|  example.com                                        [ Search ] |
++----------------+-----------------------------------------------+
+| DOMAIN         |  DOMAIN                                       |
+|  * DNS         |  [ DNS ................................ ok  ] |
+|  * RDAP        |  [ RDAP ............................... ok  ] |
+|  o crt.sh      |  [ crt.sh ........................... empty ] |
+|  ! Shodan      |  [ Shodan ......................... timeout ] |
+|  > 12 links    |                                               |
+|                |  LINKS . DOMAIN (12)        [ filter...     ] |
+| COMPANY        |  [crt.sh] [Censys] [SecurityTrails] [ViewDNS] |
+|  * Wikidata    |                                               |
+|  o GLEIF       |  COMPANY                                      |
+|  > 8 links     |  [ Wikidata ........................... ok  ] |
+| -------------- |                                               |
+| 4 ok . 2 empty |                                               |
+| 1 timeout      |                                               |
++----------------+-----------------------------------------------+
+```
+
+**Rail.** One block per candidate entity type, most likely first. Each block lists that
+type's fetchable sources with a state glyph, then a `N links` entry. A footer carries the
+aggregate tally, which is the fastest answer to "what did this find and what broke".
+
+**Rail entries are anchor links that scroll the pane.** Not filters. Scrolling is an
+`href="#id"` and no JavaScript; filtering would need state and would break the demo
+prerender.
+
+**Pane.** One section per candidate type in the same order. Within a section: source
+panels first, then that type's link grid with a filter box.
+
+**Panels are expanded by default, never collapsed.** Six panels does not justify hiding
+findings behind a second click, and expanded panels print and prerender honestly.
+
+**Links stay inline, per type.** They render at roughly zero milliseconds with no
+network, while panels take seconds. A links tab was designed and rejected: it gives the
+default view to the slow content and hides the instant content behind a click.
+
+**Below 900px** the rail becomes a one-line summary strip and the pane becomes the whole
+page. This is a media query and no template change, because the pane already holds
+everything in reading order. That collapsed form is exactly the single-column layout
+considered as the main alternative, so the narrow rendering is not a degraded special
+case.
+
+**No card grid or masonry.** Panels arrive one at a time with unpredictable heights, so a
+grid reflows on every arrival and the page jumps under the cursor mid-read. Progressive
+loading and masonry are incompatible.
 - One result page per query, sections per candidate entity type, panels per source.
 - Client-side filtering of the link catalogue in a small amount of vanilla JS, so it
   also works in the static demo.
@@ -617,5 +670,5 @@ command, not a phase.
 
 - Whether the catalogue seeds from Mitaka and Sputnik template sets. The policy for
   deciding is in Upstream curation; what is missing is the licence verification itself.
-- Layout and result presentation, deferred to implementation with a visual pass. The only
-  open question the spec deliberately does not try to answer in prose.
+- Nothing else. Layout was the last one, resolved by a visual pass and recorded under
+  Result page layout above.

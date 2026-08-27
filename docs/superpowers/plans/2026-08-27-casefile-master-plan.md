@@ -10,7 +10,7 @@ fiction.
 
 **Spec:** [2026-08-27-casefile-design.md](../specs/2026-08-27-casefile-design.md)
 
-**Status:** phase 1 blocked on one open decision. See Blockers.
+**Status:** phase 1 unblocked. See Blockers for what gates phases 2 and 4.
 
 ---
 
@@ -196,9 +196,9 @@ of phases 3 and 4.
 
 Resolve before the phase that needs it. Nothing else is unresolved.
 
-**Blocking phase 1: result page layout.**
-The one design question the spec deliberately declines to answer in prose, because it is
-visual. Phase 1's deliverable is a rendered page, so this cannot be deferred past it.
+**Phase 1: unblocked.** Layout resolved 2026-08-27 by a visual pass: sticky rail plus
+pane, rail entries scroll rather than filter, panels expanded, links inline per type,
+collapsing to a single column below 900px. Recorded in the spec under Result page layout.
 
 **Blocking phase 2: Cloudflare setup.** DNS for `casefile.cpwillis.dev`, the
 `osint.cpwillis.dev` 301 redirect rule, and a scoped API token in repository secrets.
