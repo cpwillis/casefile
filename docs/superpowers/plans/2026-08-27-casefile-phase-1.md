@@ -54,7 +54,9 @@
 
 **Files:**
 - Create: `.github/workflows/ci.yml`
+- Create: `Makefile`
 - Create: `tests/test_smoke.py` (deleted again in Task 2, see below)
+- Modify: `pyproject.toml` (pytest markers and default marker filter)
 
 **Interfaces:**
 - Consumes: nothing.
@@ -86,6 +88,7 @@ name: ci
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -101,16 +104,56 @@ jobs:
       - run: uv run pytest -q
 ```
 
-- [ ] **Step 4: Verify lint and format pass locally**
+`workflow_dispatch` lets the suite be run by hand from the Actions tab without pushing a
+commit to trigger it.
 
-Run: `uv run ruff check && uv run ruff format --check && uv run pytest -q`
-Expected: all three pass. Fix any formatting `ruff format` wants before committing.
+- [ ] **Step 4: Add the local entrypoint and marker config**
 
-- [ ] **Step 5: Commit**
+Create `Makefile`:
+
+```make
+.PHONY: check test live fmt lint
+check: lint test
+test:
+	uv run pytest
+live:
+	uv run pytest -m live -v
+lint:
+	uv run ruff check
+	uv run ruff format --check
+fmt:
+	uv run ruff format
+	uv run ruff check --fix
+```
+
+Tabs, not spaces, in the recipe lines. Make requires it.
+
+Then replace the `[tool.pytest.ini_options]` block in `pyproject.toml` with:
+
+```toml
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-m", "not live"]
+markers = [
+  "live: hits real third-party services. Excluded by default; run with `make live`.",
+]
+```
+
+The default run never touches the network, so a contributor offline gets a full green run.
+Live source checks arrive in phase 3 with the first fetchers, along with
+`.github/workflows/live.yml`. See
+[the test suite plan](2026-08-27-casefile-test-suite.md).
+
+- [ ] **Step 5: Verify lint and format pass locally**
+
+Run: `make check`
+Expected: passes. Fix any formatting `ruff format` wants before committing.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add .github/workflows/ci.yml tests/test_smoke.py
-git commit -m "add ci workflow and test harness"
+git add .github/workflows/ci.yml Makefile pyproject.toml tests/test_smoke.py
+git commit -m "add ci workflow, makefile and test harness"
 ```
 
 ---
