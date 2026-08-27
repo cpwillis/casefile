@@ -249,6 +249,7 @@ In:
 - Local web app with progressive loading
 - CLI
 - Static demo build and deploy
+- JSON output from the CLI
 - CI: ruff, pytest, demo build
 
 Out:
@@ -265,9 +266,50 @@ Out:
 Repo creation and pushing are performed by the repo owner, not by tooling. Demo deploys
 from `dist/` to Cloudflare.
 
+## v1 fetcher list
+
+All keyless. Each must be verified as still keyless and still free at implementation
+time, since free tiers move.
+
+| Source | Accepts | Notes |
+|---|---|---|
+| DNS over HTTPS (Cloudflare) | domain, email | A/AAAA/MX/TXT/NS, SPF and DMARC presence |
+| RDAP (rdap.org) | domain, ip, asn | Structured registration data, replaces WHOIS parsing |
+| crt.sh | domain | Certificate transparency, yields subdomains |
+| Shodan InternetDB | ip | Keyless endpoint, open ports and hostnames |
+| BGPView | ip, asn, domain | Prefixes, peers, upstreams |
+| Wayback CDX | domain, url | Historical snapshots |
+| URLhaus (abuse.ch) | domain, ip, url | Malicious URL reputation |
+| MalwareBazaar (abuse.ch) | hash | Sample metadata |
+| NVD | cve | Rate limited without a key, acceptable |
+| GLEIF | company | LEI records, keyless |
+| OpenSanctions (yente) | person, company | Public instance |
+| Wikidata | person, company | Entity lookup |
+| GitHub API | username | 60 requests/hour unauthenticated |
+| Gravatar | email | Avatar presence by email hash |
+| blockstream.info | btc_address | Balance and transaction history |
+| Nominatim (OSM) | coordinates | Reverse geocode, strict usage policy |
+| macvendors | mac, bssid | OUI vendor lookup |
+| adsb.lol | icao24, tail_number | Live aircraft position |
+| `phonenumbers` (offline) | phone | Carrier, region, validity, no network at all |
+| WhatsMyName | username | Separate code path, 700+ sites |
+
+Maritime (`mmsi`, `imo`) ships as links only in v1. No keyless AIS API is reliable
+enough to depend on.
+
+## Phasing
+
+v1 is large for a single pass. The implementation plan should sequence it so each phase
+is independently useful and shippable:
+
+1. Detection plus catalogue plus link rendering. Useful on its own, no network.
+2. Fetcher registry, rate limiting, caching, and the first three fetchers.
+3. Remaining fetchers plus the WhatsMyName checker.
+4. Demo build and deploy.
+5. CLI.
+
 ## Open questions
 
-- Which 15 to 30 fetchers make v1, ranked by value per unit of effort.
 - Whether the catalogue seeds from Mitaka and Sputnik template sets, subject to
   verifying their licences individually.
 - Layout and result presentation, deferred to implementation with a visual pass.
