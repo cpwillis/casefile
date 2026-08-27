@@ -24,7 +24,7 @@ Copied verbatim from the spec. Every phase plan inherits these without restating
 - Each dependency is added to `pyproject.toml` by the phase that first imports it. The
   declared list is never aspirational.
 - MIT, copyright holder `cpwillis`. No GPL code imported; any GPL tool is subprocessed.
-- Catalogue is TOML, parsed with stdlib `tomllib`.
+- Catalogue is TOML, parsed with stdlib `tomllib`, and lives inside the package at `src/casefile/catalog/`.
 - Exactly one positional value on the CLI. No `--input-file`, no target lists, no batch
   mode, ever.
 - No query log, no telemetry. The response cache is the only thing written to disk.
@@ -166,7 +166,6 @@ Required by end of phase 2:
 - The loader pins catalogue URLs to `https://`. This is a supply-chain guard, not
   pedantry: without it a single contributed entry reading `url = "javascript:..."` would
   render as a clickable link on every result page. A bad scheme fails CI.
-- `casefile check-links` documented as the thing to run before submitting a batch.
 - The validation test running on every PR, so review is "did CI pass and is the URL real"
   rather than a schema argument.
 
@@ -226,7 +225,7 @@ is the plan; those sets are an optional accelerator that needs a licence check f
 
 | Risk | Reality | Mitigation |
 |---|---|---|
-| Catalogue rot | URLs and query formats change constantly. Some fraction is always broken. | `check-links` run by hand; PRs fix drift; accept rot as the steady state rather than engineering against it |
+| Catalogue rot | URLs and query formats change constantly. Some fraction is always broken. | Accept rot as the steady state. PRs fix drift. No checker until rot is the top complaint: a dead link is dead whether or not a command reported it |
 | Source API drift | Recorded-response tests cannot see it | Manual re-verification at phase 3 and 4 start; a broken fetcher degrades to one dead panel, never a failed page |
 | WMN format change | Would break the username checker | Vendored file is pinned. Updating is a deliberate act, so this can never break unannounced |
 | A free tier closes | Loses one of eight fetchers | Backlog holds verified alternatives per entity type |

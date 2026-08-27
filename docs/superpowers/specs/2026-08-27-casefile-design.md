@@ -447,7 +447,6 @@ resolves without splitting the canonical URL.
 | `casefile <value> --no-cache` | Bypass the response cache |
 | `casefile --clear-cache` | Purge the cache database |
 | `casefile build-demo` | Render the static demo into `dist/` |
-| `casefile check-links` | Validate catalogue URLs by hand, never in CI |
 
 Exactly one positional value. No `--input-file` and no target lists, by design.
 
@@ -458,7 +457,7 @@ close to free, it ships as part of phase 1 rather than waiting for a phase of it
 
 ### Licence hygiene
 
-- `catalog/` is first-party MIT data.
+- `src/casefile/catalog/` is first-party MIT data.
 - `vendor/` holds third-party datasets verbatim with their own licence files.
 - Every catalogue entry carries optional `provenance`, so the origin of a definition is
   never guesswork.
@@ -543,7 +542,7 @@ casefile/
     fetchers/            registry, rate limiting, one module per source
     web/                 starlette app, jinja templates, static
     cli.py
-  catalog/*.toml
+  src/casefile/catalog/*.toml
   vendor/                 wmn-data.json + licence + provenance
   fixtures/
   tests/
@@ -564,9 +563,10 @@ casefile/
 
 CI runs `ruff check`, `ruff format --check`, `pytest`, and the demo build. Nothing else.
 
-No link-rot checking in CI. Firing 400 requests at other people's services on every push
-is both flaky and rude. A `casefile check-links` command exists for running by hand when
-someone cares.
+No link-rot checking, in CI or anywhere. Firing 400 requests at other people's services is
+flaky and rude in CI and only marginally less so by hand, and catalogue rot is not a v1
+problem: a dead link is a dead link whether or not a command told you so. If rot becomes
+the top complaint, that is the moment to build a checker, not before.
 
 ## v1 scope boundary
 

@@ -42,7 +42,7 @@
 | `src/casefile/web/templates/*.html` | `base.html`, `index.html`, `result.html`. |
 | `src/casefile/web/static/casefile.css` | Layout, including the 900px collapse. |
 | `src/casefile/web/static/casefile.js` | Link filter only. Nothing else needs JS. |
-| `catalog/*.toml` | Link catalogue, one file per category. |
+| `src/casefile/catalog/*.toml` | Link catalogue, one file per category. |
 | `tests/*.py` | One test module per source module. |
 | `.github/workflows/ci.yml` | Lint and test on push and pull request. |
 
@@ -54,8 +54,7 @@
 
 **Files:**
 - Create: `.github/workflows/ci.yml`
-- Create: `tests/test_smoke.py`
-- Modify: `pyproject.toml`
+- Create: `tests/test_smoke.py` (deleted again in Task 2, see below)
 
 **Interfaces:**
 - Consumes: nothing.
@@ -110,7 +109,7 @@ Expected: all three pass. Fix any formatting `ruff format` wants before committi
 - [ ] **Step 5: Commit**
 
 ```bash
-git add .github/workflows/ci.yml tests/test_smoke.py pyproject.toml
+git add .github/workflows/ci.yml tests/test_smoke.py
 git commit -m "add ci workflow and test harness"
 ```
 
@@ -315,11 +314,20 @@ Expected: PASS, 19 cases.
 
 Note on `_icao24`: a six-hex-digit string is ambiguous with a plate or a short id, and an all-digit string is far more likely to be something else, so all-digits is rejected. This is a deliberate false-negative trade, not an oversight.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Delete the smoke test**
+
+```bash
+git rm tests/test_smoke.py
+```
+
+It existed to prove the harness ran in Task 1. Real tests now do that, so keeping it is a
+test that can only ever pass.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/casefile/types.py src/casefile/detect.py tests/test_detect_tier1.py
-git commit -m "add entity taxonomy and tier-1 detectors"
+git commit -m "add entity taxonomy and tier-1 detectors, drop smoke test"
 ```
 
 ---
@@ -640,9 +648,8 @@ git commit -m "add tier-3 detectors and ranked detect entry point"
 
 **Files:**
 - Create: `src/casefile/catalog.py`
-- Create: `catalog/certificates.toml`
+- Create: `src/casefile/catalog/certificates.toml`
 - Create: `tests/test_catalog.py`
-- Modify: `pyproject.toml` (package the `catalog/` directory)
 
 **Interfaces:**
 - Consumes: `EntityType` from Task 2.
@@ -658,35 +665,31 @@ git commit -m "add tier-3 detectors and ranked detect entry point"
 Create `tests/test_catalog.py`:
 
 ```python
-from pathlib import Path
-
 import pytest
 
 from casefile.catalog import CatalogError, Source, build_url, load_catalog, sources_for
 from casefile.types import EntityType
 
-CATALOG_DIR = Path(__file__).resolve().parents[1] / "catalog"
-
 
 def test_loads_the_real_catalog():
-    catalog = load_catalog(CATALOG_DIR)
+    catalog = load_catalog()
     assert catalog
     assert all(isinstance(s, Source) for s in catalog)
 
 
 def test_source_ids_are_unique_across_files():
-    ids = [s.id for s in load_catalog(CATALOG_DIR)]
+    ids = [s.id for s in load_catalog()]
     assert len(ids) == len(set(ids)), f"duplicate ids: {sorted({i for i in ids if ids.count(i) > 1})}"
 
 
 def test_every_url_carries_the_value_placeholder():
-    for source in load_catalog(CATALOG_DIR):
+    for source in load_catalog():
         assert "{value}" in source.url, f"{source.id} has no {{value}} in its url"
 
 
 def test_every_url_is_https():
     """Blocks a contributed entry shipping javascript: or data: as a clickable link."""
-    for source in load_catalog(CATALOG_DIR):
+    for source in load_catalog():
         assert source.url.startswith("https://"), f"{source.id} url is not https"
 
 
@@ -700,13 +703,13 @@ def test_non_https_scheme_is_rejected(tmp_path):
 
 def test_every_accepts_entry_is_a_known_type():
     known = set(EntityType)
-    for source in load_catalog(CATALOG_DIR):
+    for source in load_catalog():
         assert set(source.accepts) <= known, f"{source.id} accepts an unknown type"
         assert source.accepts, f"{source.id} accepts nothing"
 
 
 def test_sources_for_filters_by_type():
-    catalog = load_catalog(CATALOG_DIR)
+    catalog = load_catalog()
     for source in sources_for(catalog, EntityType.DOMAIN):
         assert EntityType.DOMAIN in source.accepts
 
@@ -733,7 +736,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'casefile.catalog'`
 """TOML link catalogue: loading, validation, lookup and URL building."""
 
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote
 
@@ -752,17 +755,9 @@ class Source:
     name: str
     accepts: tuple[EntityType, ...]
     url: str
-    tags: tuple[str, ...] = field(default=())
+    tags: tuple[str, ...] = ()
     notes: str | None = None
     provenance: str | None = None
-
-
-def _default_directory() -> Path:
-    """Packaged catalogue first, repo checkout second."""
-    packaged = Path(__file__).resolve().parent / "catalog"
-    if packaged.is_dir():
-        return packaged
-    return Path(__file__).resolve().parents[2] / "catalog"
 
 
 def _parse_source(raw: dict, origin: Path) -> Source:
@@ -789,7 +784,7 @@ def _parse_source(raw: dict, origin: Path) -> Source:
 
 
 def load_catalog(directory: Path | None = None) -> tuple[Source, ...]:
-    directory = directory or _default_directory()
+    directory = directory or Path(__file__).resolve().parent / "catalog"
     sources: list[Source] = []
     seen: dict[str, Path] = {}
     for path in sorted(directory.glob("*.toml")):
@@ -822,7 +817,7 @@ bad entry fails CI rather than shipping.
 
 - [ ] **Step 4: Write the first catalogue file**
 
-Create `catalog/certificates.toml`:
+Create `src/casefile/catalog/certificates.toml`:
 
 ```toml
 # Certificate transparency and TLS inspection.
@@ -850,21 +845,20 @@ notes = "public endpoint, rate limited"
 provenance = "awesome-osint"
 ```
 
-- [ ] **Step 5: Package the catalogue directory**
+The catalogue lives **inside the package** at `src/casefile/catalog/`, not at the repo
+root. One lookup path instead of a packaged-or-checkout branch, no `parents[2]` guess about
+layout depth, and no `force-include` in `pyproject.toml`, because hatchling ships
+non-Python files inside a package directory by default.
 
-Add to `pyproject.toml` under `[tool.hatch.build.targets.wheel]`:
+The cost is discoverability: contributors will not trip over it at the repo root. Paid for
+by `CONTRIBUTING.md` naming the path and a one-line README pointer, both due in phase 2.
 
-```toml
-[tool.hatch.build.targets.wheel.force-include]
-"catalog" = "casefile/catalog"
-```
-
-- [ ] **Step 6: Run the test to verify it passes**
+- [ ] **Step 5: Run the test to verify it passes**
 
 Run: `uv run pytest tests/test_catalog.py -v`
 Expected: PASS, 7 cases.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/casefile/catalog.py catalog/certificates.toml tests/test_catalog.py pyproject.toml
@@ -878,7 +872,7 @@ git commit -m "add catalogue dataclass, toml loader and url builder"
 This task is data, not code. Its gate is Task 5's test suite plus the coverage test added here.
 
 **Files:**
-- Create: `catalog/domains.toml`, `catalog/network.toml`, `catalog/people.toml`, `catalog/companies.toml`, `catalog/crypto.toml`, `catalog/vehicles.toml`, `catalog/maritime.toml`, `catalog/aviation.toml`, `catalog/malware.toml`, `catalog/geo.toml`, `catalog/social.toml`
+- Create: `src/casefile/catalog/domains.toml`, `src/casefile/catalog/network.toml`, `src/casefile/catalog/people.toml`, `src/casefile/catalog/companies.toml`, `src/casefile/catalog/crypto.toml`, `src/casefile/catalog/vehicles.toml`, `src/casefile/catalog/maritime.toml`, `src/casefile/catalog/aviation.toml`, `src/casefile/catalog/malware.toml`, `src/casefile/catalog/geo.toml`, `src/casefile/catalog/social.toml`
 - Create: `tests/test_catalog_coverage.py`
 
 **Interfaces:**
@@ -915,14 +909,8 @@ Two types have no minimum. `username` because WhatsMyName supplies 700 sites in 
 Create `tests/test_catalog_coverage.py`:
 
 ```python
-from pathlib import Path
-
-import pytest
-
 from casefile.catalog import load_catalog, sources_for
 from casefile.types import EntityType
-
-CATALOG_DIR = Path(__file__).resolve().parents[1] / "catalog"
 
 MINIMUM_SLOTS = 100
 FLOOR_PER_TYPE = 3
@@ -930,7 +918,7 @@ EXEMPT = {EntityType.USERNAME, EntityType.PLATE}  # WMN covers username; nothing
 
 
 def test_every_type_has_a_floor_of_sources():
-    catalog = load_catalog(CATALOG_DIR)
+    catalog = load_catalog()
     thin = {
         t.value: len(sources_for(catalog, t))
         for t in EntityType
@@ -940,14 +928,10 @@ def test_every_type_has_a_floor_of_sources():
 
 
 def test_total_slot_coverage():
-    catalog = load_catalog(CATALOG_DIR)
+    catalog = load_catalog()
     slots = sum(len(s.accepts) for s in catalog)
     assert slots >= MINIMUM_SLOTS, f"{slots} slots, need {MINIMUM_SLOTS}"
 
-
-@pytest.mark.parametrize("entity_type", [t for t in EntityType if t not in EXEMPT])
-def test_type_is_reachable(entity_type):
-    assert sources_for(load_catalog(CATALOG_DIR), entity_type)
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
@@ -960,7 +944,7 @@ Expected: FAIL. `test_every_type_has_a_floor_of_sources` lists every type at zer
 Work type by type, committing per file so progress is durable. Worked examples of the three shapes you will meet:
 
 ```toml
-# catalog/network.toml  — a source accepting several types fills several slots
+# src/casefile/catalog/network.toml: a source accepting several types fills several slots
 [[source]]
 id = "shodan"
 name = "Shodan"
@@ -968,7 +952,7 @@ accepts = ["ip", "domain", "asn"]
 url = "https://www.shodan.io/search?query={value}"
 provenance = "awesome-osint"
 
-# catalog/companies.toml — a value that is not the last path segment
+# src/casefile/catalog/companies.toml: a value that is not the last path segment
 [[source]]
 id = "opencorporates"
 name = "OpenCorporates"
@@ -976,7 +960,7 @@ accepts = ["company"]
 url = "https://opencorporates.com/companies?q={value}&utf8=%E2%9C%93"
 provenance = "awesome-osint"
 
-# catalog/maritime.toml — a site needing a note about its limits
+# src/casefile/catalog/maritime.toml: a site needing a note about its limits
 [[source]]
 id = "marinetraffic"
 name = "MarineTraffic"
@@ -1010,7 +994,7 @@ git commit -m "seed catalogue to 100 type-slots across all 21 types"
 
 **Interfaces:**
 - Consumes: `detect`, `load_catalog`, `sources_for`, `build_url`.
-- Produces: `main(argv: list[str] | None = None) -> int`, `render_text(...) -> str`, `render_json(...) -> str`.
+- Produces: `main(argv: list[str] | None = None) -> int`. The renderers are private; `main` is the only caller.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1080,7 +1064,7 @@ def _links(catalog, candidate: Candidate) -> list[dict[str, str]]:
     ]
 
 
-def render_text(raw: str, candidates: tuple[Candidate, ...], catalog) -> str:
+def _render_text(raw: str, candidates: tuple[Candidate, ...], catalog) -> str:
     lines = [f"{raw}"]
     for index, candidate in enumerate(candidates):
         marker = "most likely" if index == 0 else ""
@@ -1094,7 +1078,7 @@ def render_text(raw: str, candidates: tuple[Candidate, ...], catalog) -> str:
     return "\n".join(lines)
 
 
-def render_json(raw: str, candidates: tuple[Candidate, ...], catalog) -> str:
+def _render_json(raw: str, candidates: tuple[Candidate, ...], catalog) -> str:
     return json.dumps(
         {
             "input": raw,
@@ -1129,7 +1113,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"nothing recognised in {args.value!r}", file=sys.stderr)
         return 1
 
-    render = render_json if args.json else render_text
+    render = _render_json if args.json else _render_text
     print(render(args.value, candidates, catalog))
     return 0
 ```
@@ -1195,9 +1179,6 @@ def test_index_renders_a_search_form():
     assert "<form" in response.text
     assert 'name="v"' in response.text
 
-
-def test_index_has_no_result_markup():
-    assert "LINKS" not in client.get("/").text
 
 
 def test_search_input_is_labelled():
@@ -1433,7 +1414,7 @@ Expected: FAIL, `result.html` does not exist.
 
 ```html
 {% extends "base.html" %}
-{% block title %}{{ raw }} — casefile{% endblock %}
+{% block title %}{{ raw }} · casefile{% endblock %}
 {% block content %}
 {% if not sections %}
 <main class="intro"><p>Nothing recognised in <code>{{ raw }}</code>.</p></main>
@@ -1554,8 +1535,6 @@ from casefile.detect import detect
 from casefile.types import EntityType
 from casefile.web.app import app
 
-CATALOG_DIR = Path(__file__).resolve().parents[1] / "catalog"
-
 
 def test_cli_prints_ranked_types_with_links(capsys):
     assert main(["example.com"]) == 0
@@ -1571,7 +1550,7 @@ def test_web_renders_the_same_readings():
 
 
 def test_catalogue_meets_the_phase_1_bar():
-    catalog = load_catalog(CATALOG_DIR)
+    catalog = load_catalog()
     assert sum(len(s.accepts) for s in catalog) >= 100
     for entity_type in EntityType:
         if entity_type in {EntityType.USERNAME, EntityType.PLATE}:
