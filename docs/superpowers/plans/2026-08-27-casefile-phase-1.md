@@ -224,6 +224,7 @@ class Candidate:
 import ipaddress
 import re
 from collections.abc import Callable
+from urllib.parse import urlsplit
 
 from casefile.types import EntityType
 
@@ -355,6 +356,8 @@ DETECTORS = dict(TIER2)
         (EntityType.PHONE, "+61 2 9374 4000", "+61293744000"),
         (EntityType.PHONE, "(02) 9374 4000", "0293744000"),
         (EntityType.PHONE, "123", None),
+        (EntityType.PHONE, "192.0.2.10", None),
+        (EntityType.PHONE, "1.800.555.0199", "18005550199"),
         (EntityType.VIN, "1HGCM82633A004352", "1HGCM82633A004352"),
         (EntityType.VIN, "1HGCM82633A00435I", None),
         (EntityType.IMO, "IMO 9074729", "9074729"),
@@ -403,6 +406,8 @@ def _domain(s: str) -> str | None:
 
 def _phone(s: str) -> str | None:
     """Regex-only. libphonenumber arrives in phase 4 with the fetcher that needs it."""
+    if _ip(s):  # 192.0.2.10 is seven digits and all-dots, which would otherwise pass
+        return None
     plus = s.strip().startswith("+")
     digits = re.sub(r"\D", "", s)
     if not 7 <= len(digits) <= 15:
@@ -423,6 +428,12 @@ def _imo(s: str) -> str | None:
 
 def _mmsi(s: str) -> str | None:
     return s if re.fullmatch(r"\d{9}", s) else None
+
+
+def _domain_from_url(value: str) -> str | None:
+    """A URL is also a pivot on its host, so paste a URL and get the domain sources too."""
+    host = urlsplit(value).hostname
+    return _domain(host) if host else None
 
 
 def _tail_number(s: str) -> str | None:
@@ -486,11 +497,24 @@ def test_unambiguous_input_suppresses_free_form():
     assert types_of("192.0.2.10") == [EntityType.IP]
 
 
-def test_domain_also_offers_free_form_with_domain_first():
-    result = types_of("example.com")
-    assert result[0] is EntityType.DOMAIN
-    assert EntityType.COMPANY in result
-    assert result.index(EntityType.DOMAIN) < result.index(EntityType.COMPANY)
+def test_domain_readings_are_pinned_in_order():
+    assert types_of("example.com") == [
+        EntityType.DOMAIN,
+        EntityType.USERNAME,
+        EntityType.PERSON,
+        EntityType.COMPANY,
+    ]
+
+
+def test_url_also_yields_its_host_as_a_domain():
+    result = detect("https://example.com/a?b=c")
+    assert result[0].type is EntityType.URL
+    domain = next(c for c in result if c.type is EntityType.DOMAIN)
+    assert domain.value == "example.com"
+
+
+def test_url_without_a_resolvable_host_yields_no_domain():
+    assert EntityType.DOMAIN not in types_of("https://localhost/x")
 
 
 def test_bare_word_is_free_form_only():
@@ -570,6 +594,11 @@ def detect(raw: str) -> tuple[Candidate, ...]:
 
     tier1 = tuple(Candidate(t, v) for t, d in TIER1 if (v := d(value)) is not None)
     tier2 = tuple(Candidate(t, v) for t, d in TIER2 if (v := d(value)) is not None)
+
+    have = {c.type for c in tier2}
+    if EntityType.URL in have and EntityType.DOMAIN not in have and (host := _domain_from_url(value)):
+        tier2 = (*tier2, Candidate(EntityType.DOMAIN, host))
+
     if tier1:
         return tier1 + tier2
 
@@ -578,6 +607,12 @@ def detect(raw: str) -> tuple[Candidate, ...]:
 ```
 
 Add `Candidate` to the existing import from `casefile.types`.
+
+`username` deliberately survives a domain match, so `example.com` yields a username
+reading too. That is mild noise now and the right call for later: WhatsMyName brings 700
+username sites in phase 4, making `username` the highest-value type in the taxonomy.
+Suppressing it whenever the input parses as a domain would cost far more than the noise,
+because plenty of real usernames contain dots.
 
 - [ ] **Step 4: Run the whole detect suite**
 
