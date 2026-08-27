@@ -28,7 +28,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://osint.cpwillis.com"
-Source = "https://github.com/cpwillis/osint"
+Source = "https://github.com/cpwillis/casefile"
 
 [project.scripts]
 casefile = "casefile.cli:app"

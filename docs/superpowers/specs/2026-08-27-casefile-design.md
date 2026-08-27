@@ -42,7 +42,7 @@ rendered output to disk. It demonstrates the tool and cannot perform lookups.
 | Demo | Static prerender of the real app | Cannot drift from reality; inert by construction |
 | Demo hosting | Cloudflare static assets | Free and unlimited request volume |
 | External binaries | None in v1 | Keeps `uvx` as the entire install story |
-| Repo | `cpwillis/osint` | Domain is `osint.cpwillis.com` |
+| Repo | `cpwillis/casefile` | Matches the package name. Demo keeps the `osint.cpwillis.com` subdomain |
 | Commits | Bare lowercase one-line, linear | House style |
 
 ## Architecture
@@ -210,7 +210,7 @@ exists, so it ships in v1.
 ## Repo layout
 
 ```
-osint/
+casefile/
   LICENSE                 MIT, cpwillis
   README.md
   pyproject.toml
