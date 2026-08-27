@@ -2,6 +2,7 @@
 
 Date: 2026-08-27
 Status: approved, pre-implementation
+Revised: 2026-08-27, after a ponytail audit and three enhancement passes
 
 ## Summary
 
@@ -224,7 +225,7 @@ Unmodified, since share-alike attaches to modifications.
 
 ### 3. Python fetcher plugins
 
-Roughly 15 to 30, each a small async function.
+Eight in v1, each a small async function, plus a backlog that grows on demand.
 
 ```python
 @fetcher(accepts=["domain"], id="crtsh")
@@ -335,8 +336,8 @@ v1 feature.
 
 ## Static demo
 
-`scripts/build_demo.py` runs the application in-process against fixture data, renders
-the same Jinja templates and writes static HTML plus assets to `dist/`.
+`casefile build-demo` runs the application in-process against fixture data, renders the
+same Jinja templates and writes static HTML plus assets to `dist/`.
 
 - 4 pre-baked example targets covering different subject areas: a domain, a username, a
   company, and a vessel. The vessel deliberately shows the links-only case, which is the
@@ -527,8 +528,18 @@ Out:
 
 ## Deployment
 
-Repo creation and pushing are performed by the repo owner, not by tooling. Demo deploys
-from `dist/` to Cloudflare.
+Current state:
+
+- `cpwillis/casefile` exists, public, `main` pushed.
+- `casefile 0.0.0` published to PyPI as a name-holding placeholder with zero runtime
+  dependencies and a stdlib stub CLI.
+
+Remaining:
+
+- Demo deploys from `dist/` to Cloudflare static assets at `casefile.cpwillis.dev`.
+- A Cloudflare Single Redirect rule 301s `osint.cpwillis.dev` to it. No Worker needed.
+- Releases are cut by the repo owner. Trusted Publishing via GitHub Actions replaces the
+  API token before the next upload.
 
 ## v1 fetcher list
 
@@ -571,10 +582,8 @@ enough to depend on.
 
 ## Phasing
 
-v1 is large for a single pass. The implementation plan should sequence it so each phase
-is independently useful and shippable:
-
-Each phase has an acceptance test, so "done" is observable rather than argued.
+v1 is large for a single pass, so each phase is independently useful and shippable, and
+each has an acceptance test so "done" is observable rather than argued.
 
 **Phase 1: detection, catalogue, link rendering, CLI.** No network at all.
 Done when: `casefile example.com` prints ranked candidate types with their link sets,
@@ -598,6 +607,7 @@ from `casefile.cpwillis.dev`.
 
 ## Open questions
 
-- Whether the catalogue seeds from Mitaka and Sputnik template sets, subject to
-  verifying their licences individually.
-- Layout and result presentation, deferred to implementation with a visual pass.
+- Whether the catalogue seeds from Mitaka and Sputnik template sets. The policy for
+  deciding is in Upstream curation; what is missing is the licence verification itself.
+- Layout and result presentation, deferred to implementation with a visual pass. The only
+  open question the spec deliberately does not try to answer in prose.
