@@ -70,9 +70,10 @@ Every spec section maps to exactly one phase, so nothing cross-cutting is orphan
 | Entity detection, ranking, normalisation | 1 |
 | Catalogue data model, validation | 1 |
 | Web application, CLI, repo layout | 1 |
-| `ci.yml` (lint + tests + demo smoke) | 1 |
+| `ci.yml`, `Makefile`, pytest markers | 1 |
 | Static demo, fixture data rules and PII test | 2 |
 | `demo.yml`, `release.yml`, Trusted Publishing | 2 |
+| `live.yml` and the live source tests | 3 |
 | Contribution surface | 2 |
 | Fetcher registry, rate limiting, panel states, result model | 3 |
 | Request conduct: User-Agent, jitter, retry policy | 3 |
@@ -175,11 +176,17 @@ volume this project does not have.
 
 ---
 
-## Cross-cutting decision 3: CI/CD
+## Cross-cutting decision 3: CI/CD and testing
+
+Full detail in [the test suite plan](2026-08-27-casefile-test-suite.md). Summary:
 
 Three workflows, no more.
 
-**`ci.yml`** on push and pull request:
+One hermetic suite that never touches the network, run by `make check` locally and on every
+push, plus a `live` marked suite run manually to check sources are still alive and still
+keyless. Three workflows, all accepting `workflow_dispatch`.
+
+**`ci.yml`** on push, pull request and manual dispatch:
 `ruff check`, `ruff format --check`, `pytest`, then `casefile build-demo` as a smoke test.
 No link checking, for the reason the spec gives: firing 400 requests at other people's
 services on every push is flaky and rude.
@@ -187,6 +194,10 @@ services on every push is flaky and rude.
 **`demo.yml`** on push to `main`:
 build the demo, deploy `dist/` to Cloudflare. Needs a scoped Cloudflare API token in
 repository secrets. Set up in phase 2.
+
+**`live.yml`** on manual dispatch only:
+run the `live` marked tests against real sources. Allowed to go red; it gates nothing. This
+is the mechanism for the source re-verification phases 3 and 4 require.
 
 **`release.yml`** on tag `v*`:
 build and publish to PyPI via **Trusted Publishing**, not an API token. Configured once in
