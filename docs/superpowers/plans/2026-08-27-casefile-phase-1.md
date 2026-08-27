@@ -1175,6 +1175,18 @@ def test_index_renders_a_search_form():
 
 def test_index_has_no_result_markup():
     assert "LINKS" not in client.get("/").text
+
+
+def test_search_input_is_labelled():
+    text = client.get("/").text
+    assert 'for="target"' in text
+    assert 'id="target"' in text
+
+
+def test_index_has_a_heading_and_skip_link():
+    text = client.get("/").text
+    assert "<h1" in text
+    assert 'class="skip"' in text
 ```
 
 `TestClient` needs `httpx`, which arrives in phase 3. Add it to the dev group for now: `dev = ["pytest>=8.3", "ruff>=0.8", "httpx>=0.28"]`.
@@ -1267,9 +1279,12 @@ def serve(port: int = 8765, host: str = "127.0.0.1") -> int:
 <link rel="stylesheet" href="/static/casefile.css">
 </head>
 <body>
+<a class="skip" href="#pane">Skip to results</a>
 <header class="topbar">
-  <form action="/q" method="get" class="search">
-    <input type="search" name="v" value="{{ raw | default('') }}" placeholder="domain, ip, email, username, company, hash…" autofocus>
+  <form action="/q" method="get" class="search" role="search">
+    <label class="visually-hidden" for="target">Identifier to look up</label>
+    <input id="target" type="search" name="v" value="{{ raw | default('') }}"
+           placeholder="domain, ip, email, username, company, hash…" autofocus>
     <button type="submit">Search</button>
   </form>
 </header>
@@ -1283,7 +1298,8 @@ def serve(port: int = 8765, host: str = "127.0.0.1") -> int:
 ```html
 {% extends "base.html" %}
 {% block content %}
-<main class="intro">
+<main class="intro" id="pane">
+  <h1 class="visually-hidden">casefile</h1>
   <p>Paste any identifier. casefile works out what it could be, then shows every relevant public source.</p>
   <p class="muted">Runs entirely on this machine. Requests go out over your own connection.</p>
 </main>
@@ -1306,6 +1322,10 @@ a { color: var(--accent); }
 .search input { flex: 1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); }
 .search button { padding: 8px 16px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); cursor: pointer; }
 .intro { max-width: 640px; margin: 15vh auto; padding: 0 16px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: 8px; top: 8px; z-index: 1; background: var(--bg); padding: 8px; border: 1px solid var(--line); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ```
 
 - [ ] **Step 9: Run the test to verify it passes**
@@ -1380,8 +1400,9 @@ Expected: FAIL, `result.html` does not exist.
 {% if not sections %}
 <main class="intro"><p>Nothing recognised in <code>{{ raw }}</code>.</p></main>
 {% else %}
+<h1 class="visually-hidden">casefile results for {{ raw }}</h1>
 <div class="layout">
-  <nav class="rail">
+  <nav class="rail" aria-label="Readings and sources">
     {% for section in sections %}
     <div class="rail-block">
       <a class="rail-type" href="#type-{{ section.type }}">{{ section.type }}</a>
@@ -1391,7 +1412,7 @@ Expected: FAIL, `result.html` does not exist.
     <p class="rail-tally muted">{{ sections | length }} reading{{ 's' if sections | length != 1 }}</p>
   </nav>
 
-  <main class="pane">
+  <main class="pane" id="pane">
     {% for section in sections %}
     <section class="type-section" id="type-{{ section.type }}">
       <h2>{{ section.type }}
@@ -1400,7 +1421,9 @@ Expected: FAIL, `result.html` does not exist.
       </h2>
 
       <h3 id="links-{{ section.type }}">Links ({{ section.links | length }})</h3>
-      <input class="filter" type="search" placeholder="filter links…" data-filters="links-{{ section.type }}-list">
+      <label class="visually-hidden" for="filter-{{ section.type }}">Filter {{ section.type }} links</label>
+      <input class="filter" id="filter-{{ section.type }}" type="search" placeholder="filter links…"
+             data-filters="links-{{ section.type }}-list">
       <ul class="links" id="links-{{ section.type }}-list">
         {% for link in section.links %}
         <li><a href="{{ link.url }}" rel="noreferrer noopener" target="_blank">{{ link.name }}</a>
@@ -1419,6 +1442,9 @@ Expected: FAIL, `result.html` does not exist.
 ```
 
 `target="_blank"` with `rel="noreferrer"` matters here: it stops the target site seeing casefile's page as the referrer.
+
+The filter uses the `hidden` attribute rather than `display: none` in a class, so filtered-out
+links leave the accessibility tree as well as the layout.
 
 - [ ] **Step 4: Add the layout CSS**
 
