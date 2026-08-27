@@ -670,5 +670,8 @@ command, not a phase.
 
 - Whether the catalogue seeds from Mitaka and Sputnik template sets. The policy for
   deciding is in Upstream curation; what is missing is the licence verification itself.
-- Nothing else. Layout was the last one, resolved by a visual pass and recorded under
-  Result page layout above.
+
+Layout, previously the only question blocking implementation, was resolved on 2026-08-27
+by a visual pass and is recorded under Result page layout. The remaining item above gates
+nothing: manual authoring is the seeding plan, and those template sets are an optional
+accelerator.
