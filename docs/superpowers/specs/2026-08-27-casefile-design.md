@@ -539,12 +539,13 @@ casefile/
   src/casefile/
     detect.py
     catalog.py
+    report.py            one result shape, rendered as text, json and html
     fetchers/            registry, rate limiting, one module per source
     web/                 starlette app, jinja templates, static
     cli.py
   src/casefile/catalog/*.toml
   vendor/                 wmn-data.json + licence + provenance
-  fixtures/
+  demo_data/             canned results for the static demo, not pytest fixtures
   tests/
   docs/superpowers/specs/
 ```
