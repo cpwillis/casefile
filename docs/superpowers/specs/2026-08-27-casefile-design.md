@@ -335,7 +335,9 @@ renders the static demo.
 No typer. Two commands and a flag do not need a subcommand framework. Because the CLI is
 close to free, it ships as part of phase 1 rather than waiting for a phase of its own.
 
-## Licence hygiene
+## Licence, attribution and conduct
+
+### Licence hygiene
 
 - `catalog/` is first-party MIT data.
 - `vendor/` holds third-party datasets verbatim with their own licence files.
@@ -343,6 +345,70 @@ close to free, it ships as part of phase 1 rather than waiting for a phase of it
   never guesswork.
 - No GPL code is imported. If a GPL tool is ever wrapped, it is wrapped as a
   subprocess, and that decision gets recorded here.
+
+### WhatsMyName attribution
+
+CC BY-SA 4.0 requires attribution wherever the material is used, which includes the
+running UI and not only the repository. Concretely:
+
+- `vendor/wmn-data.json` stays byte-for-byte unmodified. Any per-site override casefile
+  needs lives in a separate first-party file that references site ids. This keeps
+  share-alike off the first-party catalogue.
+- The username panel carries a visible attribution line naming WhatsMyName, its authors
+  and the licence, linking upstream.
+- The README and `vendor/README.md` repeat it.
+
+### Upstream curation
+
+awesome-osint and similar lists are the source of *which tools exist*. Individual facts
+(a tool's name and its URL) are not copyrightable, and the URL templates casefile needs
+are not present in those lists at all, so entries are written from scratch. `provenance`
+records where a tool was learned of.
+
+Compilation and database rights over a curated selection do vary by jurisdiction, so
+before bulk-ingesting any upstream template set (Mitaka, Sputnik) its licence gets
+verified individually and recorded. Reading a list for ideas and copying a list wholesale
+are different acts.
+
+### Request conduct
+
+- Every outbound request carries
+  `User-Agent: casefile/<version> (+https://github.com/cpwillis/casefile)`.
+  Site operators who want to block it can identify and block it. Spoofing a browser UA to
+  evade that would be the wrong call.
+- One request per site per query. No crawling, no pagination beyond what a source's own
+  API defines, no content scraping past the success indicator a source's data specifies.
+- Rate limits and jitter apply to every path including WhatsMyName.
+- Robots and ToS vary per source and casefile makes no claim to have cleared them. The
+  operator is responsible for the lookups they run.
+
+### Scope limits that exist for ethical reasons
+
+These are architectural, not just words in a README:
+
+- **No bulk input.** One target per query. No `--input-file`, no target lists, no batch
+  mode. Mass enumeration is the difference between an investigative tool and a harvesting
+  tool, and the cheapest way to not build the second one is to never accept a list.
+- **No query log and no telemetry, ever.** Nothing about what was searched is written to
+  disk beyond the response cache, which `--clear-cache` purges.
+- **Local only.** Already a locked decision, restated here because it is the single
+  largest reason casefile cannot be turned into a doxxing service by someone finding a
+  URL.
+
+### Fixture data
+
+Fixtures ship in a public repo and must contain no real person's data. Required:
+
+- Targets are synthetic or institutional: a domain the project controls, a public
+  company, a public-interest organisation. Never a private individual, including the
+  author.
+- Reserved placeholders only: `example.com`, RFC 5737 (`192.0.2.0/24`,
+  `198.51.100.0/24`, `203.0.113.0/24`), RFC 3849 (`2001:db8::/32`), obviously fictional
+  personal names.
+- One test asserts fixtures contain no IP outside the reserved ranges and no email
+  outside `example.*`. It cannot detect PII in general, but it catches the common slip.
+- Jurisdictional note: nothing here is legal advice, and the project makes no claim about
+  the legality of a given lookup anywhere.
 
 ## Repo layout
 
