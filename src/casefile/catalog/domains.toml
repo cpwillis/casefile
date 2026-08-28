@@ -185,3 +185,11 @@ url = "https://hunter.io/search/{value}"
 notes = "Email addresses and patterns associated with a domain."
 provenance = "awesome-osint"
 
+[[source]]
+id = "icann-lookup"
+name = "ICANN Lookup"
+accepts = ["domain"]
+url = "https://lookup.icann.org/en/lookup?q={value}"
+notes = "Official ICANN registration data lookup tool; replaces the old whois.icann.org. Verified live."
+provenance = "verified 2026-08-28"
+

@@ -10,6 +10,14 @@ notes = "Largest open database of companies across global jurisdictions; free-te
 provenance = "awesome-osint"
 
 [[source]]
+id = "opencorporates-officers"
+name = "OpenCorporates Officers"
+accepts = ["person"]
+url = "https://opencorporates.com/officers?q={value}"
+notes = "Officer/director search on the same registry; may show a bot-check before results in an automated fetch, loads normally in a browser."
+provenance = "verified 2026-08-28"
+
+[[source]]
 id = "gleif-lei"
 name = "GLEIF LEI Search"
 accepts = ["company"]

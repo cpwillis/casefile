@@ -22,3 +22,19 @@ accepts = ["domain"]
 url = "https://api.certspotter.com/v1/issuances?domain={value}&include_subdomains=true&expand=dns_names"
 notes = "public JSON API, rate limited without a key"
 provenance = "awesome-osint"
+
+[[source]]
+id = "ssllabs-ssltest"
+name = "Qualys SSL Labs Server Test"
+accepts = ["domain"]
+url = "https://www.ssllabs.com/ssltest/analyze.html?d={value}"
+notes = "Deep TLS configuration analysis; documented ?d= deep-link starts a fresh test."
+provenance = "verified 2026-08-28"
+
+[[source]]
+id = "mozilla-observatory"
+name = "Mozilla HTTP Observatory"
+accepts = ["domain"]
+url = "https://developer.mozilla.org/en-US/observatory/analyze?host={value}"
+notes = "HTTP security header grading; observatory now lives under MDN. Verified live."
+provenance = "verified 2026-08-28"

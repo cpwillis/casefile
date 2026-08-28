@@ -65,3 +65,11 @@ url = "https://zoom.earth/#view={value},12z"
 notes = "Hash view=lat,lon,zoom; near-live satellite and weather imagery over the point."
 provenance = "Zoom Earth satellite imagery viewer"
 
+[[source]]
+id = "yandex-maps-coordinates"
+name = "Yandex Maps"
+accepts = ["coordinates"]
+url = "https://yandex.com/maps/?text={value}"
+notes = "text accepts a 'lat,lon' string and centres the map with a location card. Verified live."
+provenance = "verified 2026-08-28"
+

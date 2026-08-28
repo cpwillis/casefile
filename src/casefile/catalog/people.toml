@@ -132,9 +132,9 @@ provenance = "major social network"
 [[source]]
 id = "github-user"
 name = "GitHub Profile"
-accepts = ["person", "company"]
+accepts = ["person", "company", "username"]
 url = "https://github.com/{value}"
-notes = "Direct username/org profile."
+notes = "Direct username/org profile; also works as a plain username lookup."
 provenance = "awesome-osint"
 
 [[source]]
@@ -176,4 +176,12 @@ accepts = ["person"]
 url = "https://www.peekyou.com/{value}"
 notes = "Username-based people aggregation."
 provenance = "known people/username-search service"
+
+[[source]]
+id = "wikidata-search"
+name = "Wikidata Search"
+accepts = ["person", "company"]
+url = "https://www.wikidata.org/w/index.php?search={value}"
+notes = "MediaWiki search results page; a link fallback for the wikidata fetcher."
+provenance = "verified 2026-08-28"
 

@@ -233,3 +233,43 @@ url = "https://asrank.caida.org/asns/{value}"
 notes = "AS rank, customer cone, relationships; bare AS number."
 provenance = "CAIDA routing research data"
 
+[[source]]
+id = "alienvault-otx-ip"
+name = "AlienVault OTX (IP)"
+accepts = ["ip"]
+url = "https://otx.alienvault.com/indicator/ip/{value}"
+notes = "Community threat intel pulses and passive DNS for the IP. Verified live."
+provenance = "verified 2026-08-28 (AT&T/LevelBlue OTX)"
+
+[[source]]
+id = "ipapi-co"
+name = "ipapi.co"
+accepts = ["ip"]
+url = "https://ipapi.co/{value}/json/"
+notes = "Keyless JSON geolocation and ASN lookup, renders straight in the browser. Verified live."
+provenance = "verified 2026-08-28"
+
+[[source]]
+id = "feodotracker-ip"
+name = "abuse.ch Feodo Tracker"
+accepts = ["ip"]
+url = "https://feodotracker.abuse.ch/browse/host/{value}/"
+notes = "Botnet C2 tracker; shows known malware families hosted at the IP. Verified live."
+provenance = "verified 2026-08-28 (abuse.ch)"
+
+[[source]]
+id = "ripestat-asn"
+name = "RIPEstat (ASN)"
+accepts = ["asn"]
+url = "https://stat.ripe.net/AS{value}"
+notes = "RIPE NCC's data aggregation widget; routing, geolocation and abuse-contact widgets for the AS. Verified live."
+provenance = "verified 2026-08-28 (RIPE NCC)"
+
+[[source]]
+id = "ripestat-ip"
+name = "RIPEstat (IP)"
+accepts = ["ip"]
+url = "https://stat.ripe.net/{value}"
+notes = "Same RIPEstat widget set, keyed on the address directly. Verified live."
+provenance = "verified 2026-08-28 (RIPE NCC)"
+

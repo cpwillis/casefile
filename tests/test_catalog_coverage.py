@@ -1,7 +1,7 @@
 from casefile.catalog import load_catalog, sources_for
 from casefile.types import EntityType
 
-MINIMUM_SLOTS = 100
+MINIMUM_SLOTS = 250  # the 1.0.0 bar from the master plan
 FLOOR_PER_TYPE = 3
 EXEMPT = {EntityType.USERNAME, EntityType.PLATE}  # WMN covers username; nothing detects plate in v1
 

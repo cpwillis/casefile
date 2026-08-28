@@ -77,3 +77,16 @@ def test_text_output_strips_control_characters_from_third_party_findings(monkeyp
     assert "\r" not in out
     assert "benign" in out
     assert "ERASED" in out
+
+
+def test_clear_cache_flag_reports_and_exits_zero(capsys, tmp_path, monkeypatch):
+    """--clear-cache is documented as a privacy control, so it must actually be wired up."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    assert main(["--clear-cache"]) == 0
+    assert "cleared" in capsys.readouterr().out
+
+
+def test_no_fetch_and_no_cache_flags_are_accepted(capsys, tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    assert main(["example.com", "--json", "--no-fetch", "--no-cache"]) == 0
+    assert "candidates" in capsys.readouterr().out
