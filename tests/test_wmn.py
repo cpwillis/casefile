@@ -8,7 +8,10 @@ from casefile.types import EntityType
 
 def test_dataset_loads_with_many_sites():
     sites = load_sites()
-    assert len(sites) > 600
+    # Tight window rather than a loose floor: a loose ">600" check would not notice the loader
+    # silently dropping 90 sites. 687 is the real post-https-filter count; an upstream dataset
+    # format change should fail this test rather than pass silently.
+    assert 667 <= len(sites) <= 707
 
 
 def test_every_site_has_a_usable_check_url():
@@ -111,7 +114,7 @@ async def test_whatsmyname_survives_a_dead_site(monkeypatch):
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         result = await run_fetcher("whatsmyname", "someone", EntityType.USERNAME, client)
-    assert [f.label for f in result.findings] == ["Alive"]
+    assert [f.label for f in result.findings] == ["note", "Alive"]
 
 
 async def test_whatsmyname_survives_a_site_with_an_unparseable_url(monkeypatch):
@@ -128,4 +131,17 @@ async def test_whatsmyname_survives_a_site_with_an_unparseable_url(monkeypatch):
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         result = await run_fetcher("whatsmyname", "junk", EntityType.USERNAME, client)
     assert result.state == "ok"
-    assert [f.label for f in result.findings] == ["Good"]
+    assert [f.label for f in result.findings] == ["note", "Good"]
+
+
+async def test_whatsmyname_total_failure_is_an_error_not_an_empty_result(monkeypatch):
+    """A dead network must never be cached as "no accounts found" about a person."""
+    monkeypatch.setattr("casefile.fetchers.wmn.load_sites", lambda: (_site(name="A"), _site(name="B")))
+
+    def handler(request):
+        raise httpx.ConnectError("no network")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await run_fetcher("whatsmyname", "someone", EntityType.USERNAME, client)
+    assert result.state == "error"
+    assert "nothing was actually checked" in result.detail

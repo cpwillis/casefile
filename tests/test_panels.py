@@ -102,3 +102,15 @@ def test_whatsmyname_panel_renders_the_required_attribution(monkeypatch):
     text = client.get("/panel/whatsmyname", params={"v": "someone", "t": "username"}).text
     assert "WhatsMyName" in text
     assert "CC BY-SA 4.0" in text
+
+
+def test_panel_refuses_a_cross_site_request():
+    """A page the user visits must not be able to drive hundreds of lookups from their IP."""
+    resp = client.get(
+        "/panel/dns",
+        params={"v": "example.com", "t": "domain"},
+        headers={"sec-fetch-site": "cross-site"},
+    )
+    assert resp.status_code == 200
+    assert 'data-state="error"' in resp.text
+    assert "cross-site" in resp.text

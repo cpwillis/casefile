@@ -47,6 +47,9 @@ async def result(request: Request) -> HTMLResponse:
 
 async def panel(request: Request) -> HTMLResponse:
     source_id = request.path_params["source_id"]
+    if request.headers.get("sec-fetch-site") == "cross-site":
+        result = SourceResult(source_id, State.ERROR, detail="cross-site request refused")
+        return templates.TemplateResponse(request, "panel.html", {"result": result})
     value = request.query_params.get("v", "")
     try:
         entity_type = EntityType(request.query_params.get("t", ""))

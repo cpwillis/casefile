@@ -42,6 +42,7 @@ packages = ["src/casefile"]
 
 [tool.ruff]
 line-length = 120
+exclude = ["docs/**"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

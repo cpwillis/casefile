@@ -86,7 +86,27 @@ def test_clear_cache_flag_reports_and_exits_zero(capsys, tmp_path, monkeypatch):
     assert "cleared" in capsys.readouterr().out
 
 
-def test_no_fetch_and_no_cache_flags_are_accepted(capsys, tmp_path, monkeypatch):
+def test_no_fetch_flag_is_accepted(capsys, tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
-    assert main(["example.com", "--json", "--no-fetch", "--no-cache"]) == 0
+    assert main(["example.com", "--json", "--no-fetch"]) == 0
     assert "candidates" in capsys.readouterr().out
+
+
+def test_no_cache_flag_disables_the_cache(monkeypatch, capsys, tmp_path):
+    """--no-fetch would skip _fetch_all entirely, giving --no-cache zero coverage, so this
+    case must actually reach the fetch path with --no-fetch absent."""
+    import casefile.cli as climod
+    from casefile.fetchers import SourceResult, State
+
+    seen_use_cache = []
+
+    async def fake_run(source_id, value, entity_type, client, *, use_cache=True):
+        seen_use_cache.append(use_cache)
+        return SourceResult(source_id, State.OK)
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    monkeypatch.setattr(climod, "run_cached", fake_run)
+    assert main(["example.com", "--json", "--no-cache"]) == 0
+    assert "candidates" in capsys.readouterr().out
+    assert seen_use_cache
+    assert all(use_cache is False for use_cache in seen_use_cache)

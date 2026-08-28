@@ -1,4 +1,7 @@
-"""WhatsMyName: 716 vendored site definitions and the username checker over them.
+"""WhatsMyName: 687 usable vendored site definitions and the username checker over them.
+
+687 is a subset of the 716 entries in the upstream file: entries without a URL-embedded
+username placeholder, and entries that are not https://, are both skipped on load.
 
 Data is CC BY-SA 4.0 and vendored unmodified. See src/casefile/vendor/WMN-LICENCE.txt.
 """
@@ -51,7 +54,9 @@ def load_sites() -> tuple[Site, ...]:
             protection=tuple(raw.get("protection", ()) or ()),
         )
         for raw in document.get("sites", [])
-        if PLACEHOLDER in raw.get("uri_check", "")
+        # catalog.py hard-fails any first-party link that isn't https://; the vendored
+        # dataset must not be a loophole around that, so plaintext-HTTP sites are skipped too.
+        if PLACEHOLDER in raw.get("uri_check", "") and raw.get("uri_check", "").startswith("https://")
     )
 
 
@@ -59,7 +64,7 @@ def check_url(site: Site, username: str) -> str:
     return site.uri_check.replace(PLACEHOLDER, quote(username, safe=""))
 
 
-# ponytail: one panel for all 716 sites, so it returns in 30-60s rather than streaming.
+# ponytail: one panel for all 687 sites, so it returns in 30-60s rather than streaming.
 # Chunk into ~10 panels of 70 sites if that latency actually annoys anyone.
 
 
@@ -74,14 +79,17 @@ def account_exists(site: Site, status: int, body: str) -> bool:
     return True
 
 
-async def _check_one(site: Site, username: str, client: httpx.AsyncClient) -> Finding | None:
+_UNREACHABLE = object()  # this site could not be reached at all, as distinct from "no account"
+
+
+async def _check_one(site: Site, username: str, client: httpx.AsyncClient) -> Finding | None | object:
     try:
         url = check_url(site, username)
         host = httpx.URL(url).host
         async with domain_slot(host):
-            resp = await client.get(url)
-    except Exception:  # noqa: BLE001 -- one dead or malformed site must not sink the other 715
-        return None
+            resp = await client.get(url, follow_redirects=False)
+    except Exception:  # noqa: BLE001 -- one dead or malformed site must not sink the rest
+        return _UNREACHABLE
     if not account_exists(site, resp.status_code, resp.text):
         return None
     note = f"({', '.join(site.protection)})" if site.protection else None
@@ -92,4 +100,12 @@ async def _check_one(site: Site, username: str, client: httpx.AsyncClient) -> Fi
 async def whatsmyname(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     sites = load_sites()
     results = await asyncio.gather(*(_check_one(s, value, client) for s in sites))
-    return sorted((f for f in results if f is not None), key=lambda f: f.label.lower())
+    unreachable = sum(1 for r in results if r is _UNREACHABLE)
+    if sites and unreachable == len(sites):
+        # Raising maps to state error, which is deliberately not cacheable. Returning an empty
+        # list here would cache a confident false negative about a person for a whole day.
+        raise RuntimeError(f"all {unreachable} site checks failed, so nothing was actually checked")
+    findings = sorted((r for r in results if isinstance(r, Finding)), key=lambda f: f.label.lower())
+    if unreachable:
+        findings.insert(0, Finding(label="note", value=f"{unreachable} of {len(sites)} sites could not be reached"))
+    return findings
