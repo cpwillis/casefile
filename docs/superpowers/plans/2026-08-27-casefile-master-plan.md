@@ -276,10 +276,10 @@ Each would be its own spec. None is a v1 concern.
 
 | Phase | Plan | Status |
 |---|---|---|
-| 1 | [2026-08-27-casefile-phase-1.md](2026-08-27-casefile-phase-1.md) | written, ready to execute |
+| 1 | [2026-08-27-casefile-phase-1.md](2026-08-27-casefile-phase-1.md) | complete, merged, released as 0.1.0 |
 | 2 | not yet written | write after phase 1 lands |
-| 3 | [2026-08-27-casefile-phase-3.md](2026-08-27-casefile-phase-3.md) | written, ready to execute (independent of phase 2) |
-| 4 | not yet written | write after phase 3 lands |
+| 3 | [2026-08-27-casefile-phase-3.md](2026-08-27-casefile-phase-3.md) | complete, merged, released as 0.3.0 |
+| 4 | [2026-08-28-casefile-phase-4.md](2026-08-28-casefile-phase-4.md) | written, ready to execute (independent of phase 2) |
 
 Each phase plan is written immediately before that phase starts. Drafting phase 4's tasks
 against code that does not exist yet would be fiction.
