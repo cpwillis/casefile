@@ -24,6 +24,20 @@
         {% if loop.first %}<span class="tag">most likely</span>{% endif %}
       </h2>
 
+      {% if section.panels %}
+      <h3>Sources</h3>
+      <div class="panels">
+        {% for sid in section.panels %}
+        <div class="panel" data-state="loading"
+             hx-get="{{ '/panel/' ~ sid ~ '?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type }}"
+             hx-trigger="load" hx-swap="outerHTML">
+          <div class="panel-head"><span class="panel-id">{{ sid }}</span>
+            <span class="panel-state">loading…</span></div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       <h3 id="links-{{ section.type }}">Links ({{ section.links | length }})</h3>
       <label class="visually-hidden" for="filter-{{ section.type }}">Filter {{ section.type }} links</label>
       <input class="filter" id="filter-{{ section.type }}" type="search" placeholder="filter links…"

@@ -61,3 +61,15 @@ def test_query_is_escaped_not_injected():
     text = client.get("/q", params={"v": payload}).text
     assert payload not in text
     assert "&lt;script&gt;" in text
+
+
+def test_result_page_emits_self_loading_panels():
+    text = client.get("/q", params={"v": "example.com"}).text
+    assert 'hx-get="/panel/crtsh?v=example.com&amp;t=domain"' in text
+    assert 'hx-trigger="load"' in text
+
+
+def test_sources_without_a_fetcher_have_no_panel():
+    text = client.get("/q", params={"v": "example.com"}).text
+    # censys-certs is a link-only catalogue entry, so it must not get a panel div
+    assert 'hx-get="/panel/censys-certs' not in text

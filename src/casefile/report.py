@@ -21,15 +21,12 @@ class Section:
     links: tuple[Link, ...]
 
 
-def build_report(raw: str) -> tuple[Section, ...]:
+def links_for(candidate) -> tuple[Link, ...]:
     catalog = load_catalog()
     return tuple(
-        Section(
-            type=candidate.type.value,
-            value=candidate.value,
-            links=tuple(
-                Link(s.id, s.name, build_url(s, candidate.value), s.notes) for s in sources_for(catalog, candidate.type)
-            ),
-        )
-        for candidate in detect(raw)
+        Link(s.id, s.name, build_url(s, candidate.value), s.notes) for s in sources_for(catalog, candidate.type)
     )
+
+
+def build_report(raw: str) -> tuple[Section, ...]:
+    return tuple(Section(c.type.value, c.value, links_for(c)) for c in detect(raw))

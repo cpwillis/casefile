@@ -13,9 +13,10 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers at import
-from casefile.fetchers import SourceResult, State, registered_fetcher, run_fetcher
+from casefile.detect import detect
+from casefile.fetchers import SourceResult, State, fetchers_for, has_fetcher, registered_fetcher, run_fetcher
 from casefile.fetchers.http import build_client
-from casefile.report import build_report
+from casefile.report import links_for
 from casefile.types import EntityType
 
 HERE = Path(__file__).resolve().parent
@@ -30,7 +31,16 @@ async def result(request: Request) -> HTMLResponse:
     raw = request.query_params.get("v", "").strip()
     if not raw:
         return templates.TemplateResponse(request, "index.html")
-    sections = build_report(raw)
+    sections = []
+    for candidate in detect(raw):
+        sections.append(
+            {
+                "type": candidate.type.value,
+                "value": candidate.value,
+                "panels": fetchers_for(candidate.type),
+                "links": [link for link in links_for(candidate) if not has_fetcher(link.id)],
+            }
+        )
     return templates.TemplateResponse(request, "result.html", {"raw": raw, "sections": sections})
 
 
