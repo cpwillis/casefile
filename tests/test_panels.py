@@ -89,3 +89,16 @@ def test_panel_still_links_an_http_url(monkeypatch):
     monkeypatch.setattr("casefile.web.app.run_fetcher", fake)
     text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
     assert 'href="https://sub.example.com"' in text
+
+
+def test_whatsmyname_panel_renders_the_required_attribution(monkeypatch):
+    """CC BY-SA requires attribution where the material is used, so the UI must carry it."""
+    from casefile.fetchers import Finding, SourceResult, State
+
+    async def fake(source_id, value, entity_type, client):
+        return SourceResult(source_id, State.OK, (Finding(label="Hit", value="tech", url="https://h.test/x"),))
+
+    monkeypatch.setattr("casefile.web.app.run_fetcher", fake)
+    text = client.get("/panel/whatsmyname", params={"v": "someone", "t": "username"}).text
+    assert "WhatsMyName" in text
+    assert "CC BY-SA 4.0" in text

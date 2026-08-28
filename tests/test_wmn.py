@@ -112,3 +112,20 @@ async def test_whatsmyname_survives_a_dead_site(monkeypatch):
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         result = await run_fetcher("whatsmyname", "someone", EntityType.USERNAME, client)
     assert [f.label for f in result.findings] == ["Alive"]
+
+
+async def test_whatsmyname_survives_a_site_with_an_unparseable_url(monkeypatch):
+    """A malformed uri_check must not discard the other sites' findings."""
+    sites = (
+        _site(name="Bad", uri_check="http://[::1{account}/x"),  # yields an invalid port
+        _site(name="Good", uri_check="https://good.test/{account}"),
+    )
+    monkeypatch.setattr("casefile.fetchers.wmn.load_sites", lambda: sites)
+
+    def handler(request):
+        return httpx.Response(200, text="found-me")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await run_fetcher("whatsmyname", "junk", EntityType.USERNAME, client)
+    assert result.state == "ok"
+    assert [f.label for f in result.findings] == ["Good"]

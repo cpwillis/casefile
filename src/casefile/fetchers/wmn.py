@@ -75,12 +75,12 @@ def account_exists(site: Site, status: int, body: str) -> bool:
 
 
 async def _check_one(site: Site, username: str, client: httpx.AsyncClient) -> Finding | None:
-    url = check_url(site, username)
-    host = httpx.URL(url).host
     try:
+        url = check_url(site, username)
+        host = httpx.URL(url).host
         async with domain_slot(host):
             resp = await client.get(url)
-    except Exception:  # noqa: BLE001 -- one dead site must not sink the other 715
+    except Exception:  # noqa: BLE001 -- one dead or malformed site must not sink the other 715
         return None
     if not account_exists(site, resp.status_code, resp.text):
         return None
