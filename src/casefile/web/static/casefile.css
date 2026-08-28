@@ -16,3 +16,22 @@ a { color: var(--accent); }
 .skip { position: absolute; left: -9999px; }
 .skip:focus { left: 8px; top: 8px; z-index: 1; background: var(--bg); padding: 8px; border: 1px solid var(--line); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.layout { display: grid; grid-template-columns: 220px 1fr; gap: 24px; max-width: 1200px; margin: 0 auto; padding: 16px; }
+.rail { position: sticky; top: 16px; align-self: start; font-size: 13px; }
+.rail-block { margin-bottom: 14px; }
+.rail-type { display: block; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+.rail-links { display: block; color: var(--muted); }
+.rail-tally { border-top: 1px solid var(--line); padding-top: 10px; }
+.type-section { margin-bottom: 40px; scroll-margin-top: 16px; }
+.type-section h2 { text-transform: uppercase; letter-spacing: .04em; font-size: 15px; }
+.tag { font-size: 11px; border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px; color: var(--muted); text-transform: none; letter-spacing: 0; }
+.filter { width: 100%; max-width: 320px; padding: 6px 8px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); }
+.links { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 16px; }
+.links li[hidden] { display: none; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .rail { position: static; display: flex; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+  .rail-block { margin: 0; }
+  .rail-tally { border: 0; padding: 0; }
+}
