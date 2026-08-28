@@ -30,7 +30,7 @@ Source = "https://github.com/cpwillis/casefile"
 casefile = "casefile.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8.3", "ruff>=0.8"]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.8"]
 
 [build-system]
 requires = ["hatchling"]
@@ -48,6 +48,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-m", "not live"]
+asyncio_mode = "auto"
 markers = [
   "live: hits real third-party services. Excluded by default; run with `make live`.",
 ]
