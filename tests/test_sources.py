@@ -1,7 +1,7 @@
 import httpx
 
 from casefile.fetchers import Finding, run_fetcher
-from casefile.fetchers.sources import crtsh, dns, rdap  # noqa: F401 -- import registers them
+from casefile.fetchers.sources import crtsh, dns, github, internetdb, rdap  # noqa: F401 -- import registers them
 from casefile.types import EntityType
 
 
@@ -139,3 +139,93 @@ async def test_rdap_value_cannot_traverse_the_path_or_add_a_query():
     from urllib.parse import unquote
 
     assert unquote(segment.decode()) == "../../secret?x=1"  # the raw value round-trips out
+
+
+async def test_internetdb_lists_ports_and_hostnames():
+    def handler(request):
+        assert request.url.path == "/192.0.2.10"
+        return httpx.Response(
+            200,
+            json={"ip": "192.0.2.10", "ports": [80, 443], "hostnames": ["a.example.com"], "tags": ["cdn"], "vulns": []},
+        )
+
+    async with _client(handler) as client:
+        findings = await internetdb("192.0.2.10", EntityType.IP, client)
+    labels = {f.label for f in findings}
+    assert "port" in labels
+    assert Finding(label="hostname", value="a.example.com") in findings
+
+
+async def test_internetdb_404_is_empty_not_error():
+    def handler(request):
+        return httpx.Response(404, json={"detail": "No information available"})
+
+    async with _client(handler) as client:
+        result = await run_fetcher("internetdb", "192.0.2.10", EntityType.IP, client)
+    assert result.state == "empty"
+
+
+async def test_internetdb_skips_private_addresses_without_a_request():
+    """Verified live: 10.0.0.1 returns 200 with junk (ports:[161]), so never ask about internal IPs."""
+
+    def handler(request):
+        raise AssertionError("no request should be made for a private address")
+
+    async with _client(handler) as client:
+        result = await run_fetcher("internetdb", "10.0.0.1", EntityType.IP, client)
+    assert result.state == "empty"
+
+
+async def test_internetdb_surfaces_cpes_and_vulns():
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "ip": "192.0.2.10",
+                "ports": [],
+                "hostnames": [],
+                "cpes": ["cpe:/a:cloudflare:cloudflare"],
+                "tags": [],
+                "vulns": ["CVE-2021-40438"],
+            },
+        )
+
+    async with _client(handler) as client:
+        findings = await internetdb("192.0.2.10", EntityType.IP, client)
+    labels = {f.label for f in findings}
+    assert {"cpe", "vuln"} <= labels
+    vuln = next(f for f in findings if f.label == "vuln")
+    assert vuln.url == "https://nvd.nist.gov/vuln/detail/CVE-2021-40438"
+
+
+async def test_github_surfaces_profile_fields():
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "login": "octocat",
+                "name": "The Octocat",
+                "company": "GitHub",
+                "location": "SF",
+                "public_repos": 8,
+                "created_at": "2011-01-25T18:44:36Z",
+                "html_url": "https://github.com/octocat",
+                "blog": "",
+            },
+        )
+
+    async with _client(handler) as client:
+        findings = await github("octocat", EntityType.USERNAME, client)
+    values = {f.label: f.value for f in findings}
+    assert values["name"] == "The Octocat"
+    assert values["company"] == "GitHub"
+    assert "blog" not in values  # empty fields are omitted, not shown blank
+
+
+async def test_github_404_is_empty_not_error():
+    def handler(request):
+        return httpx.Response(404, json={"message": "Not Found"})
+
+    async with _client(handler) as client:
+        result = await run_fetcher("github", "nope", EntityType.USERNAME, client)
+    assert result.state == "empty"
