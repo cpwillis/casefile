@@ -16,6 +16,7 @@ classifiers = [
   "Topic :: Security",
 ]
 dependencies = [
+  "httpx>=0.28",
   "starlette>=0.41",
   "uvicorn>=0.32",
   "jinja2>=3.1",
@@ -29,7 +30,7 @@ Source = "https://github.com/cpwillis/casefile"
 casefile = "casefile.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8.3", "ruff>=0.8", "httpx>=0.28"]
+dev = ["pytest>=8.3", "ruff>=0.8"]
 
 [build-system]
 requires = ["hatchling"]

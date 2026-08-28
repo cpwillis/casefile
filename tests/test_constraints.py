@@ -24,8 +24,12 @@ def test_cli_and_web_render_the_same_readings():
         assert f'id="type-{candidate.type.value}"' in text
 
 
-def test_no_network_dependency_in_this_phase():
-    """Phase 1 must not import httpx anywhere in the package."""
+def test_async_client_is_constructed_in_one_place():
+    """Every fetcher must use the shared client so the User-Agent and timeouts are uniform."""
     package = Path(__file__).resolve().parents[1] / "src" / "casefile"
-    offenders = [p.name for p in package.rglob("*.py") if "import httpx" in p.read_text()]
-    assert not offenders, f"httpx imported in phase 1: {offenders}"
+    offenders = [
+        p.relative_to(package).as_posix()
+        for p in package.rglob("*.py")
+        if "httpx.AsyncClient(" in p.read_text() and p.name != "http.py"
+    ]
+    assert offenders == [], f"AsyncClient built outside fetchers/http.py: {offenders}"
