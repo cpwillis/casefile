@@ -116,7 +116,7 @@ provenance = "public people/phone directory"
 [[source]]
 id = "nuwber-phone"
 name = "Nuwber"
-accepts = ["phone", "person"]
+accepts = ["phone"]
 url = "https://nuwber.com/search?phone={value}"
 notes = "US people-search reverse phone lookup."
 provenance = "public people/phone directory"

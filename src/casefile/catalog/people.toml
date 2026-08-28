@@ -2,14 +2,6 @@
 # People and email search.
 
 [[source]]
-id = "haveibeenpwned-email"
-name = "Have I Been Pwned"
-accepts = ["email"]
-url = "https://haveibeenpwned.com/account/{value}"
-notes = "Breach exposure for an email; results page may require owner verification but the link is stable."
-provenance = "awesome-osint"
-
-[[source]]
 id = "emailrep-email"
 name = "EmailRep"
 accepts = ["email"]
