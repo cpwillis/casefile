@@ -1,6 +1,6 @@
 import pytest
 
-from casefile.detect import TIER1, TIER2
+from casefile.detect import TIER1, TIER2, detect
 from casefile.types import EntityType
 
 TIER1_DETECTORS = dict(TIER1)
@@ -68,3 +68,58 @@ TIER2_DETECTORS = dict(TIER2)
 )
 def test_tier2_detector(entity_type, raw, expected):
     assert TIER2_DETECTORS[entity_type](raw) == expected
+
+
+def types_of(raw):
+    return [c.type for c in detect(raw)]
+
+
+def test_unambiguous_input_suppresses_free_form():
+    assert types_of("192.0.2.10") == [EntityType.IP]
+
+
+def test_domain_readings_are_pinned_in_order():
+    assert types_of("example.com") == [
+        EntityType.DOMAIN,
+        EntityType.USERNAME,
+        EntityType.PERSON,
+        EntityType.COMPANY,
+    ]
+
+
+def test_url_also_yields_its_host_as_a_domain():
+    result = detect("https://example.com/a?b=c")
+    assert result[0].type is EntityType.URL
+    domain = next(c for c in result if c.type is EntityType.DOMAIN)
+    assert domain.value == "example.com"
+
+
+def test_url_without_a_resolvable_host_yields_no_domain():
+    assert EntityType.DOMAIN not in types_of("https://localhost/x")
+
+
+def test_bare_word_is_free_form_only():
+    assert types_of("cpwillis") == [EntityType.USERNAME, EntityType.PERSON, EntityType.COMPANY]
+
+
+def test_two_words_are_person_and_company_not_username():
+    result = types_of("Ada Lovelace")
+    assert EntityType.USERNAME not in result
+    assert result == [EntityType.PERSON, EntityType.COMPANY]
+
+
+def test_values_are_normalised_per_candidate():
+    (candidate,) = detect("CVE-2021-44228")
+    assert candidate.value == "CVE-2021-44228"
+    domain = next(c for c in detect("Example.COM") if c.type is EntityType.DOMAIN)
+    assert domain.value == "example.com"
+
+
+def test_empty_and_whitespace_yield_nothing():
+    assert detect("") == ()
+    assert detect("   ") == ()
+
+
+def test_no_duplicate_types():
+    result = types_of("example.com")
+    assert len(result) == len(set(result))

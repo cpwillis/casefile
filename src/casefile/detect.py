@@ -5,7 +5,7 @@ import re
 from collections.abc import Callable
 from urllib.parse import urlsplit
 
-from casefile.types import EntityType
+from casefile.types import Candidate, EntityType
 
 Detector = Callable[[str], str | None]
 
@@ -152,3 +152,55 @@ TIER2: tuple[tuple[EntityType, Detector], ...] = (
     (EntityType.MMSI, _mmsi),
     (EntityType.TAIL_NUMBER, _tail_number),
 )
+
+
+_NAMEISH = r"[A-Za-z][A-Za-z0-9 .,&'’\-]{1,59}"
+
+
+def _username(s: str) -> str | None:
+    s = s.strip()
+    if " " in s:
+        return None
+    return s if re.fullmatch(r"[A-Za-z0-9._-]{2,39}", s) and any(c.isalpha() for c in s) else None
+
+
+def _person(s: str) -> str | None:
+    s = s.strip()
+    return s if re.fullmatch(_NAMEISH, s) else None
+
+
+def _company(s: str) -> str | None:
+    s = s.strip()
+    return s if re.fullmatch(_NAMEISH, s) else None
+
+
+TIER3: tuple[tuple[EntityType, Detector], ...] = (
+    (EntityType.USERNAME, _username),
+    (EntityType.PERSON, _person),
+    (EntityType.COMPANY, _company),
+)
+
+
+def detect(raw: str) -> tuple[Candidate, ...]:
+    """Ranked candidate readings of `raw`, most constrained first.
+
+    Tier 3 is suppressed entirely when a tier-1 detector matches: an IP address is not a
+    plausible person, and offering it as one is noise. Tier 2 does not suppress tier 3,
+    because `example.com` genuinely is both a domain and a plausible company name.
+    """
+    value = raw.strip()
+    if not value:
+        return ()
+
+    tier1 = tuple(Candidate(t, v) for t, d in TIER1 if (v := d(value)) is not None)
+    tier2 = tuple(Candidate(t, v) for t, d in TIER2 if (v := d(value)) is not None)
+
+    have = {c.type for c in tier2}
+    if EntityType.URL in have and EntityType.DOMAIN not in have and (host := _domain_from_url(value)):
+        tier2 = (*tier2, Candidate(EntityType.DOMAIN, host))
+
+    if tier1:
+        return tier1 + tier2
+
+    tier3 = tuple(Candidate(t, v) for t, d in TIER3 if (v := d(value)) is not None)
+    return tier2 + tier3
