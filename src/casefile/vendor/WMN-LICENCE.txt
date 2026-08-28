@@ -1,0 +1,10 @@
+WhatsMyName (wmn-data.json)
+Source: https://github.com/WebBreacher/WhatsMyName
+Copyright (C) 2015-2026 Micah Hoffman and contributors.
+
+Licensed under the Creative Commons Attribution-ShareAlike 4.0 International
+License: http://creativecommons.org/licenses/by-sa/4.0/
+
+This file is vendored BYTE-FOR-BYTE UNMODIFIED. Share-alike attaches to
+modifications of the dataset, so casefile never edits it; any casefile-specific
+overrides live in first-party files that reference site names instead.
