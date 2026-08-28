@@ -34,6 +34,7 @@ async def test_dns_of_an_email_uses_the_domain_part():
 
 async def test_rdap_pulls_registration_fields():
     def handler(request):
+        assert str(request.url) == "https://rdap.org/domain/example.com"
         return httpx.Response(
             200,
             json={"handle": "EXAMPLE", "events": [{"eventAction": "registration", "eventDate": "1995-08-14"}]},
@@ -42,6 +43,24 @@ async def test_rdap_pulls_registration_fields():
     async with _client(handler) as client:
         findings = await rdap("example.com", EntityType.DOMAIN, client)
     assert any(f.label == "registration" for f in findings)
+
+
+async def test_rdap_asn_strips_the_as_prefix():
+    def handler(request):
+        assert str(request.url) == "https://rdap.org/autnum/64496"
+        return httpx.Response(200, json={})
+
+    async with _client(handler) as client:
+        await rdap("AS64496", EntityType.ASN, client)
+
+
+async def test_rdap_ip_uses_the_ip_path():
+    def handler(request):
+        assert str(request.url) == "https://rdap.org/ip/192.0.2.10"
+        return httpx.Response(200, json={})
+
+    async with _client(handler) as client:
+        await rdap("192.0.2.10", EntityType.IP, client)
 
 
 async def test_crtsh_dedupes_names():
