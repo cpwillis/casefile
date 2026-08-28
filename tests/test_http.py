@@ -35,6 +35,26 @@ async def test_domain_slot_caps_concurrency_per_host():
     assert peak <= 4  # per-host cap
 
 
+async def test_domain_slot_caps_global_concurrency_across_many_hosts():
+    active = 0
+    peak = 0
+
+    async def worker(host):
+        nonlocal active, peak
+        async with domain_slot(host):
+            active += 1
+            peak = max(peak, active)
+            await asyncio.sleep(0.02)
+            active -= 1
+
+    # 30 distinct hosts, 2 workers each: the per-host cap of 4 can never be the binding
+    # constraint here, so any observed cap is proof of the global semaphore.
+    hosts = [f"h{i}.test" for i in range(30) for _ in range(2)]
+    await asyncio.gather(*(worker(h) for h in hosts))
+    assert peak <= 20  # global cap
+    assert peak > 4  # confirms real contention, ie the per-host cap isn't what limited it
+
+
 def test_domain_slot_survives_a_second_event_loop():
     """Regression: asyncio.Semaphore binds to the loop that first contends it. A second,
     separate asyncio.run() (eg a later CLI invocation, or a later test module) must not hit

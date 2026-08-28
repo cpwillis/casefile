@@ -30,6 +30,6 @@ def test_async_client_is_constructed_in_one_place():
     offenders = [
         p.relative_to(package).as_posix()
         for p in package.rglob("*.py")
-        if "httpx.AsyncClient(" in p.read_text() and p.name != "http.py"
+        if "httpx.AsyncClient(" in p.read_text() and p.relative_to(package).as_posix() != "fetchers/http.py"
     ]
     assert offenders == [], f"AsyncClient built outside fetchers/http.py: {offenders}"
