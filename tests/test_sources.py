@@ -8,6 +8,7 @@ from casefile.fetchers.sources import (  # noqa: F401 -- import registers them
     hashlookup,
     internetdb,
     malwarebazaar,
+    phone_meta,
     rdap,
     wikidata,
 )
@@ -390,3 +391,38 @@ async def test_malwarebazaar_rejected_key_is_needs_key(monkeypatch):
     async with _client(handler) as client:
         result = await run_fetcher("malwarebazaar", "a" * 64, EntityType.HASH, client)
     assert result.state == "needs_key"
+
+
+async def test_phone_meta_reports_region_and_formats():
+    findings = await phone_meta("+61293744000", EntityType.PHONE, client=None)
+    labels = {f.label: f.value for f in findings}
+    assert labels["region"] == "AU"
+    assert labels["location"] == "Australia"
+    assert labels["E.164"] == "+61293744000"
+    assert labels["international"] == "+61 2 9374 4000"
+    assert labels["valid"] == "yes"
+
+
+async def test_phone_meta_makes_no_network_call():
+    def handler(request):
+        raise AssertionError("phone_meta must be offline")
+
+    async with _client(handler) as client:
+        findings = await phone_meta("+14155552671", EntityType.PHONE, client)
+    assert any(f.label == "location" for f in findings)
+
+
+async def test_phone_meta_without_country_code_explains_itself():
+    """Verified: phonenumbers.parse raises 'Missing or invalid default region' with no + prefix.
+
+    That is not "found nothing", it is "cannot tell without a country code", so say so.
+    """
+    findings = await phone_meta("0293744000", EntityType.PHONE, client=None)
+    assert len(findings) == 1
+    assert findings[0].label == "note"
+    assert "country code" in findings[0].value
+
+
+async def test_phone_meta_unparseable_is_empty():
+    findings = await phone_meta("+999", EntityType.PHONE, client=None)
+    assert findings == []

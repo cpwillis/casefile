@@ -4,6 +4,8 @@ import ipaddress
 from urllib.parse import quote
 
 import httpx
+import phonenumbers
+from phonenumbers import PhoneNumberFormat, carrier, geocoder, timezone
 
 from casefile.config import get_key
 from casefile.fetchers import Finding, NeedsKey, fetcher
@@ -199,4 +201,48 @@ async def malwarebazaar(value: str, entity_type: EntityType, client: httpx.Async
             findings.append(Finding(label="first seen", value=str(seen)))
         for tag in row.get("tags") or []:
             findings.append(Finding(label="tag", value=str(tag)))
+    return findings
+
+
+_PHONE_TYPES = {
+    phonenumbers.PhoneNumberType.FIXED_LINE: "fixed line",
+    phonenumbers.PhoneNumberType.MOBILE: "mobile",
+    phonenumbers.PhoneNumberType.FIXED_LINE_OR_MOBILE: "fixed line or mobile",
+    phonenumbers.PhoneNumberType.TOLL_FREE: "toll free",
+    phonenumbers.PhoneNumberType.VOIP: "voip",
+}
+
+
+@fetcher(id="phone_meta", accepts=[EntityType.PHONE])
+async def phone_meta(value: str, entity_type: EntityType, client) -> list[Finding]:
+    """Offline. libphonenumber metadata only; makes no network request at all."""
+    try:
+        parsed = phonenumbers.parse(value, None)
+    except phonenumbers.NumberParseException as exc:
+        if (
+            exc.error_type == phonenumbers.NumberParseException.INVALID_COUNTRY_CODE
+            and "Missing or invalid default region" in str(exc)
+        ):
+            return [
+                Finding(
+                    label="note",
+                    value="no country code: prefix with + and the country code for region, carrier and timezone",
+                )
+            ]
+        return []
+    findings = [Finding(label="valid", value="yes" if phonenumbers.is_valid_number(parsed) else "no")]
+    if region := phonenumbers.region_code_for_number(parsed):
+        findings.append(Finding(label="region", value=region))
+    if location := geocoder.description_for_number(parsed, "en"):
+        findings.append(Finding(label="location", value=location))
+    if name := carrier.name_for_number(parsed, "en"):  # empty for most landlines
+        findings.append(Finding(label="carrier", value=name))
+    for zone in timezone.time_zones_for_number(parsed):
+        findings.append(Finding(label="timezone", value=zone))
+    if label := _PHONE_TYPES.get(phonenumbers.number_type(parsed)):
+        findings.append(Finding(label="line type", value=label))
+    findings.append(Finding(label="E.164", value=phonenumbers.format_number(parsed, PhoneNumberFormat.E164)))
+    findings.append(
+        Finding(label="international", value=phonenumbers.format_number(parsed, PhoneNumberFormat.INTERNATIONAL))
+    )
     return findings
