@@ -1,5 +1,7 @@
 """Concrete keyless fetchers. Importing this module registers them."""
 
+from urllib.parse import quote
+
 import httpx
 
 from casefile.fetchers import Finding, fetcher
@@ -14,8 +16,13 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
     name = value.split("@")[-1] if entity_type is EntityType.EMAIL else value
     findings: list[Finding] = []
     for qtype in ("A", "AAAA", "MX", "TXT", "NS"):
-        url = f"https://cloudflare-dns.com/dns-query?name={name}&type={qtype}"
-        resp = await get_json(client, url, "cloudflare-dns.com", headers={"accept": "application/dns-json"})
+        resp = await get_json(
+            client,
+            "https://cloudflare-dns.com/dns-query",
+            "cloudflare-dns.com",
+            params={"name": name, "type": qtype},
+            headers={"accept": "application/dns-json"},
+        )
         for row in resp.json().get("Answer", []):
             label = _DNS_TYPES.get(row.get("type"), str(row.get("type")))
             findings.append(Finding(label=label, value=row.get("data", "")))
@@ -26,7 +33,7 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
 async def rdap(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     kind = {EntityType.DOMAIN: "domain", EntityType.IP: "ip", EntityType.ASN: "autnum"}[entity_type]
     key = value[2:] if entity_type is EntityType.ASN else value  # rdap wants a bare AS number
-    resp = await get_json(client, f"https://rdap.org/{kind}/{key}", "rdap.org")
+    resp = await get_json(client, f"https://rdap.org/{kind}/{quote(key, safe='')}", "rdap.org")
     data = resp.json()
     findings: list[Finding] = []
     if handle := data.get("handle"):
@@ -38,7 +45,7 @@ async def rdap(value: str, entity_type: EntityType, client: httpx.AsyncClient) -
 
 @fetcher(id="crtsh", accepts=[EntityType.DOMAIN])
 async def crtsh(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
-    resp = await get_json(client, f"https://crt.sh/?q={value}&output=json", "crt.sh")
+    resp = await get_json(client, "https://crt.sh/", "crt.sh", params={"q": value, "output": "json"})
     names: set[str] = set()
     for row in resp.json():
         for name in row.get("name_value", "").splitlines():

@@ -60,3 +60,20 @@ def test_json_links_carry_the_full_contract_keys(capsys):
     assert domain["links"]
     for link in domain["links"]:
         assert set(link) == {"id", "name", "url", "notes"}
+
+
+def test_text_output_strips_control_characters_from_third_party_findings(monkeypatch, capsys):
+    """A finding value with ESC/CR must not reach the terminal raw, or it can blank prior output."""
+    import casefile.cli as climod
+    from casefile.fetchers import Finding, SourceResult, State
+
+    async def fake_run(source_id, value, entity_type, client):
+        return SourceResult(source_id, State.OK, (Finding(label="handle", value="benign\x1b[2K\rERASED"),))
+
+    monkeypatch.setattr(climod, "run_fetcher", fake_run)
+    assert main(["example.com"]) == 0
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "\r" not in out
+    assert "benign" in out
+    assert "ERASED" in out
