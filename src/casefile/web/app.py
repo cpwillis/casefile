@@ -13,8 +13,9 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers at import
+from casefile.cache import run_cached
 from casefile.detect import detect
-from casefile.fetchers import SourceResult, State, fetchers_for, has_fetcher, registered_fetcher, run_fetcher
+from casefile.fetchers import SourceResult, State, fetchers_for, has_fetcher, registered_fetcher
 from casefile.fetchers.http import build_client
 from casefile.report import links_for
 from casefile.types import EntityType
@@ -57,7 +58,7 @@ async def panel(request: Request) -> HTMLResponse:
         result = SourceResult(source_id, State.ERROR, detail=f"{source_id} does not accept {entity_type}")
         return templates.TemplateResponse(request, "panel.html", {"result": result})
     async with build_client() as client:
-        result = await run_fetcher(source_id, value, entity_type, client)
+        result = await run_cached(source_id, value, entity_type, client)
     return templates.TemplateResponse(request, "panel.html", {"result": result})
 
 

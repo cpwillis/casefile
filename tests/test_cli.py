@@ -36,10 +36,10 @@ def test_fetch_fans_out_over_registered_sources(monkeypatch, capsys):
     import casefile.cli as climod
     from casefile.fetchers import Finding, SourceResult, State
 
-    async def fake_run(source_id, value, entity_type, client):
+    async def fake_run(source_id, value, entity_type, client, *, use_cache=True):
         return SourceResult(source_id, State.OK, (Finding(label="A", value="192.0.2.10"),))
 
-    monkeypatch.setattr(climod, "run_fetcher", fake_run)
+    monkeypatch.setattr(climod, "run_cached", fake_run)
     assert main(["example.com", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     domain = next(c for c in payload["candidates"] if c["type"] == "domain")
@@ -67,10 +67,10 @@ def test_text_output_strips_control_characters_from_third_party_findings(monkeyp
     import casefile.cli as climod
     from casefile.fetchers import Finding, SourceResult, State
 
-    async def fake_run(source_id, value, entity_type, client):
+    async def fake_run(source_id, value, entity_type, client, *, use_cache=True):
         return SourceResult(source_id, State.OK, (Finding(label="handle", value="benign\x1b[2K\rERASED"),))
 
-    monkeypatch.setattr(climod, "run_fetcher", fake_run)
+    monkeypatch.setattr(climod, "run_cached", fake_run)
     assert main(["example.com"]) == 0
     out = capsys.readouterr().out
     assert "\x1b" not in out

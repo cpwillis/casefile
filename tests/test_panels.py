@@ -19,7 +19,7 @@ def test_panel_route_renders_a_state(monkeypatch):
     async def fake_run(source_id, value, entity_type, client):
         return SourceResult(source_id, State.OK, (Finding(label="A", value="192.0.2.10"),))
 
-    monkeypatch.setattr("casefile.web.app.run_fetcher", fake_run)
+    monkeypatch.setattr("casefile.web.app.run_cached", fake_run)
     resp = client.get("/panel/dns", params={"v": "example.com", "t": "domain"})
     assert resp.status_code == 200
     assert "192.0.2.10" in resp.text
@@ -33,7 +33,7 @@ def test_panel_empty_and_error_render_differently(monkeypatch):
         state = State.EMPTY if source_id == "e" else State.ERROR
         return SourceResult(source_id, state, detail=None if state == State.EMPTY else "boom")
 
-    monkeypatch.setattr("casefile.web.app.run_fetcher", fake)
+    monkeypatch.setattr("casefile.web.app.run_cached", fake)
     empty = client.get("/panel/e", params={"v": "example.com", "t": "domain"}).text
     error = client.get("/panel/x", params={"v": "example.com", "t": "domain"}).text
     assert 'data-state="empty"' in empty
@@ -47,7 +47,7 @@ def test_panel_escapes_untrusted_findings(monkeypatch):
     async def fake(source_id, value, entity_type, client):
         return SourceResult(source_id, State.OK, (Finding(label="x", value="<script>alert(1)</script>"),))
 
-    monkeypatch.setattr("casefile.web.app.run_fetcher", fake)
+    monkeypatch.setattr("casefile.web.app.run_cached", fake)
     text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
     assert "<script>alert(1)</script>" not in text
     assert "&lt;script&gt;" in text
@@ -72,7 +72,7 @@ def test_panel_does_not_link_a_javascript_scheme_url(monkeypatch):
     async def fake(source_id, value, entity_type, client):
         return SourceResult(source_id, State.OK, (Finding(label="x", value="click me", url="javascript:alert(1)"),))
 
-    monkeypatch.setattr("casefile.web.app.run_fetcher", fake)
+    monkeypatch.setattr("casefile.web.app.run_cached", fake)
     text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
     assert 'href="javascript:' not in text
     assert "click me" in text
@@ -86,7 +86,7 @@ def test_panel_still_links_an_http_url(monkeypatch):
             source_id, State.OK, (Finding(label="x", value="sub.example.com", url="https://sub.example.com"),)
         )
 
-    monkeypatch.setattr("casefile.web.app.run_fetcher", fake)
+    monkeypatch.setattr("casefile.web.app.run_cached", fake)
     text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
     assert 'href="https://sub.example.com"' in text
 
@@ -98,7 +98,7 @@ def test_whatsmyname_panel_renders_the_required_attribution(monkeypatch):
     async def fake(source_id, value, entity_type, client):
         return SourceResult(source_id, State.OK, (Finding(label="Hit", value="tech", url="https://h.test/x"),))
 
-    monkeypatch.setattr("casefile.web.app.run_fetcher", fake)
+    monkeypatch.setattr("casefile.web.app.run_cached", fake)
     text = client.get("/panel/whatsmyname", params={"v": "someone", "t": "username"}).text
     assert "WhatsMyName" in text
     assert "CC BY-SA 4.0" in text
