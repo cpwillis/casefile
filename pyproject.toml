@@ -43,3 +43,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["-m", "not live"]
+markers = [
+  "live: hits real third-party services. Excluded by default; run with `make live`.",
+]
