@@ -2,6 +2,7 @@
 
 import asyncio
 import random
+import weakref
 from collections import defaultdict
 from contextlib import asynccontextmanager
 
@@ -12,8 +13,20 @@ from casefile.fetchers import RateLimited
 
 USER_AGENT = f"casefile/{__version__} (+https://github.com/cpwillis/casefile)"
 
-_GLOBAL = asyncio.Semaphore(20)
-_PER_HOST: dict[str, asyncio.Semaphore] = defaultdict(lambda: asyncio.Semaphore(4))
+# asyncio.Semaphore binds to whichever loop first contends it, so module-level singletons
+# blow up with "bound to a different event loop" the second time a fresh loop uses them
+# (eg a second asyncio.run() call). Keyed per running loop instead, cleaned up via weakref
+# when the loop is garbage collected.
+_HostSlots = defaultdict[str, asyncio.Semaphore]
+_LoopSlots = tuple[asyncio.Semaphore, _HostSlots]
+_SLOTS: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, _LoopSlots] = weakref.WeakKeyDictionary()
+
+
+def _slots_for_running_loop() -> _LoopSlots:
+    loop = asyncio.get_running_loop()
+    if loop not in _SLOTS:
+        _SLOTS[loop] = (asyncio.Semaphore(20), defaultdict(lambda: asyncio.Semaphore(4)))
+    return _SLOTS[loop]
 
 
 def build_client() -> httpx.AsyncClient:
@@ -26,7 +39,8 @@ def build_client() -> httpx.AsyncClient:
 
 @asynccontextmanager
 async def domain_slot(host: str):
-    async with _GLOBAL, _PER_HOST[host]:
+    global_slot, per_host = _slots_for_running_loop()
+    async with global_slot, per_host[host]:
         await asyncio.sleep(random.uniform(0, 0.25))  # jitter, politeness not security
         yield
 

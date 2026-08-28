@@ -35,6 +35,22 @@ async def test_domain_slot_caps_concurrency_per_host():
     assert peak <= 4  # per-host cap
 
 
+def test_domain_slot_survives_a_second_event_loop():
+    """Regression: asyncio.Semaphore binds to the loop that first contends it. A second,
+    separate asyncio.run() (eg a later CLI invocation, or a later test module) must not hit
+    'bound to a different event loop' when it drives the same host through domain_slot."""
+
+    async def contend():
+        async def worker():
+            async with domain_slot("second-loop.test"):
+                await asyncio.sleep(0.01)
+
+        await asyncio.gather(*(worker() for _ in range(8)))  # over the per-host cap of 4
+
+    asyncio.run(contend())  # first loop: forces the semaphores to bind here
+    asyncio.run(contend())  # second, independent loop: must not raise RuntimeError
+
+
 async def test_get_json_retries_once_then_raises_rate_limited():
     calls = 0
 
