@@ -1,0 +1,28 @@
+name: live sources
+
+on:
+  workflow_dispatch:
+    inputs:
+      pattern:
+        description: "Optional pytest -k pattern to limit which sources are checked"
+        required: false
+        default: ""
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --dev
+      - name: check live sources
+        env:
+          PATTERN: ${{ inputs.pattern }}
+        run: |
+          if [ -n "$PATTERN" ]; then
+            uv run pytest -m live -k "$PATTERN" -v
+          else
+            uv run pytest -m live -v
+          fi

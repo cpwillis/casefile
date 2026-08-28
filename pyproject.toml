@@ -1,6 +1,6 @@
 [project]
 name = "casefile"
-version = "0.1.0"
+version = "0.3.0"
 description = "One input box, every relevant OSINT pivot. Runs locally."
 readme = "README.md"
 requires-python = ">=3.12"

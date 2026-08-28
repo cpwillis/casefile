@@ -27,6 +27,11 @@ Nothing is configured, nothing is uploaded, and no account is involved. Ctrl-C s
 
 Add `--no-browser` over SSH or on a headless box, and `--port` if 8765 is taken.
 
+### What leaves your machine
+
+casefile fetches live results over **your own connection**, so the sources you query see
+your IP. There is no proxy in this version. Fetched data is not stored anywhere yet.
+
 ## Local development
 
 Clone it and run from source. Requires [uv](https://docs.astral.sh/uv/) (which fetches its
