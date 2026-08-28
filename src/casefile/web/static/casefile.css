@@ -48,3 +48,5 @@ a { color: var(--accent); }
 .findings li { display: flex; gap: 8px; }
 .f-label { color: var(--muted); min-width: 90px; }
 .panel-detail { color: #c1121f; margin: 6px 0 0; font-size: 13px; }
+
+.attribution { font-size: 11px; margin: 8px 0 0; }

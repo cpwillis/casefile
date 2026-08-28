@@ -245,3 +245,6 @@ async def phone_meta(value: str, entity_type: EntityType, client) -> list[Findin
         Finding(label="international", value=phonenumbers.format_number(parsed, PhoneNumberFormat.INTERNATIONAL))
     )
     return findings
+
+
+from casefile.fetchers import wmn  # noqa: E402,F401 -- registers the whatsmyname fetcher
