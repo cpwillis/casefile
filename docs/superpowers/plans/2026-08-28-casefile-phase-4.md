@@ -383,6 +383,7 @@ async def test_internetdb_404_is_empty_not_error():
 
 async def test_internetdb_skips_private_addresses_without_a_request():
     """Verified live: 10.0.0.1 returns 200 with junk (ports:[161]), so never ask about internal IPs."""
+
     def handler(request):
         raise AssertionError("no request should be made for a private address")
 
@@ -503,9 +504,7 @@ async def github(value: str, entity_type: EntityType, client: httpx.AsyncClient)
         return []
     data = resp.json()
     findings = [
-        Finding(label=field, value=str(data[field]))
-        for field in _GITHUB_FIELDS
-        if data.get(field) not in (None, "", 0)
+        Finding(label=field, value=str(data[field])) for field in _GITHUB_FIELDS if data.get(field) not in (None, "", 0)
     ]
     if url := data.get("html_url"):
         findings.append(Finding(label="profile", value=data.get("login", value), url=url))
@@ -579,7 +578,12 @@ async def test_hashlookup_reports_a_known_file():
         assert request.url.path.startswith("/lookup/md5/")
         return httpx.Response(
             200,
-            json={"FileName": "requires.txt", "FileSize": "0", "MD5": "D41D8CD9", "ProductCode": {"ProductName": "Photoshop"}},
+            json={
+                "FileName": "requires.txt",
+                "FileSize": "0",
+                "MD5": "D41D8CD9",
+                "ProductCode": {"ProductName": "Photoshop"},
+            },
         )
 
     async with _client(handler) as client:
@@ -1179,10 +1183,10 @@ def _site(**kw):
 @pytest.mark.parametrize(
     ("status", "body", "expected"),
     [
-        (200, "prefix found-me suffix", True),   # code and string both match
-        (200, "nothing here", False),            # right code, wrong body: the classic false positive
-        (404, "found-me", False),                # wrong code
-        (500, "found-me", False),                # server error is not existence
+        (200, "prefix found-me suffix", True),  # code and string both match
+        (200, "nothing here", False),  # right code, wrong body: the classic false positive
+        (404, "found-me", False),  # wrong code
+        (500, "found-me", False),  # server error is not existence
     ],
 )
 def test_account_exists_requires_code_and_string(status, body, expected):
@@ -1609,9 +1613,7 @@ async def _fetch_all(candidates, use_cache: bool = True):
         results = {}
         for c in candidates:
             ids = fetchers_for(c.type)
-            got = await asyncio.gather(
-                *(run_cached(sid, c.value, c.type, client, use_cache=use_cache) for sid in ids)
-            )
+            got = await asyncio.gather(*(run_cached(sid, c.value, c.type, client, use_cache=use_cache) for sid in ids))
             results[(c.type, c.value)] = got
         return results
 ```
