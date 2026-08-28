@@ -16,6 +16,7 @@ TIER1_DETECTORS = dict(TIER1)
         (EntityType.ASN, "AS64496", "AS64496"),
         (EntityType.ASN, "as64496", "AS64496"),
         (EntityType.ASN, "64496", None),
+        (EntityType.ASN, "as007", "AS7"),
         (EntityType.HASH, "d41d8cd98f00b204e9800998ecf8427e", "d41d8cd98f00b204e9800998ecf8427e"),
         (EntityType.HASH, "D41D8CD98F00B204E9800998ECF8427E", "d41d8cd98f00b204e9800998ecf8427e"),
         (EntityType.HASH, "abc123", None),
@@ -23,9 +24,9 @@ TIER1_DETECTORS = dict(TIER1)
         (EntityType.CVE, "CVE-2021-44228", "CVE-2021-44228"),
         (EntityType.MAC, "00:1b:44:11:3a:b7", "00:1b:44:11:3a:b7"),
         (EntityType.MAC, "00-1B-44-11-3A-B7", "00:1b:44:11:3a:b7"),
+        (EntityType.MAC, "aabb.ccdd.eeff", "aa:bb:cc:dd:ee:ff"),
         (EntityType.COORDINATES, "-33.8688, 151.2093", "-33.8688,151.2093"),
         (EntityType.COORDINATES, "91.0, 0.0", None),
-        (EntityType.ICAO24, "7c6b2d", "7c6b2d"),
         (EntityType.BTC_ADDRESS, "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2", "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2"),
         (
             EntityType.ETH_ADDRESS,
@@ -44,14 +45,17 @@ TIER2_DETECTORS = dict(TIER2)
 @pytest.mark.parametrize(
     ("entity_type", "raw", "expected"),
     [
-        (EntityType.EMAIL, "Someone@Example.COM", "someone@example.com"),
+        (EntityType.EMAIL, "Someone@Example.COM", "Someone@example.com"),
         (EntityType.EMAIL, "not-an-email", None),
         (EntityType.URL, "https://example.com/a?b=c", "https://example.com/a?b=c"),
         (EntityType.URL, "example.com", None),
         (EntityType.DOMAIN, "Example.COM", "example.com"),
         (EntityType.DOMAIN, "sub.example.co.uk", "sub.example.co.uk"),
         (EntityType.DOMAIN, "münchen.de", "xn--mnchen-3ya.de"),
-        (EntityType.DOMAIN, "no_underscores.com", None),
+        (EntityType.DOMAIN, "under_score.com", "under_score.com"),
+        (EntityType.DOMAIN, "_dmarc.example.com", "_dmarc.example.com"),
+        (EntityType.DOMAIN, "example.com.", "example.com"),
+        (EntityType.DOMAIN, "straße.de", None),
         (EntityType.DOMAIN, "trailing.", None),
         (EntityType.PHONE, "+61 2 9374 4000", "+61293744000"),
         (EntityType.PHONE, "(02) 9374 4000", "0293744000"),
@@ -64,6 +68,8 @@ TIER2_DETECTORS = dict(TIER2)
         (EntityType.MMSI, "503000000", "503000000"),
         (EntityType.TAIL_NUMBER, "vh-oqa", "VH-OQA"),
         (EntityType.TAIL_NUMBER, "AS64496", None),
+        (EntityType.ICAO24, "7c6b2d", "7c6b2d"),
+        (EntityType.ICAO24, "400931", "400931"),
     ],
 )
 def test_tier2_detector(entity_type, raw, expected):
@@ -123,3 +129,42 @@ def test_empty_and_whitespace_yield_nothing():
 def test_no_duplicate_types():
     result = types_of("example.com")
     assert len(result) == len(set(result))
+
+
+def test_malformed_url_never_crashes_detect():
+    for bad in ["http://[", "https://[::1", "http://a]b", "http://]"]:
+        assert detect(bad) == ()  # no candidate, and crucially no exception
+
+
+def test_dictionary_word_keeps_free_form_readings():
+    # 'facade' is 6 hex chars; ICAO24 must not suppress the username/person/company reading
+    result = types_of("facade")
+    assert EntityType.USERNAME in result
+    assert EntityType.PERSON in result
+    assert EntityType.ICAO24 in result
+    assert EntityType.TAIL_NUMBER not in result  # 6-hex is icao24, not a tail number
+
+
+def test_all_digit_icao24_is_recognised():
+    assert any(c.type is EntityType.ICAO24 and c.value == "400931" for c in detect("400931"))
+
+
+def test_md5_hash_is_not_also_a_btc_address():
+    result = types_of("1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d")
+    assert EntityType.HASH in result
+    assert EntityType.BTC_ADDRESS not in result
+
+
+def test_unicode_digits_are_not_treated_as_numbers():
+    assert detect("٩٨٧٨٩٢٨٩١") == ()  # Arabic-Indic digits are not phone/mmsi/etc
+
+
+def test_url_candidate_lowercases_scheme_and_host():
+    (url,) = [c for c in detect("HTTP://EXAMPLE.COM/Path") if c.type is EntityType.URL]
+    assert url.value == "http://example.com/Path"
+    domain = next(c for c in detect("HTTP://EXAMPLE.COM/Path") if c.type is EntityType.DOMAIN)
+    assert domain.value == "example.com"
+
+
+def test_control_characters_are_rejected():
+    assert detect("a\x00b@x.com") == ()
