@@ -64,3 +64,28 @@ def test_panel_rejects_type_the_source_does_not_accept():
     assert resp.status_code == 200
     assert 'data-state="error"' in resp.text
     assert "rdap does not accept email" in resp.text
+
+
+def test_panel_does_not_link_a_javascript_scheme_url(monkeypatch):
+    from casefile.fetchers import Finding, SourceResult, State
+
+    async def fake(source_id, value, entity_type, client):
+        return SourceResult(source_id, State.OK, (Finding(label="x", value="click me", url="javascript:alert(1)"),))
+
+    monkeypatch.setattr("casefile.web.app.run_fetcher", fake)
+    text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
+    assert 'href="javascript:' not in text
+    assert "click me" in text
+
+
+def test_panel_still_links_an_http_url(monkeypatch):
+    from casefile.fetchers import Finding, SourceResult, State
+
+    async def fake(source_id, value, entity_type, client):
+        return SourceResult(
+            source_id, State.OK, (Finding(label="x", value="sub.example.com", url="https://sub.example.com"),)
+        )
+
+    monkeypatch.setattr("casefile.web.app.run_fetcher", fake)
+    text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
+    assert 'href="https://sub.example.com"' in text

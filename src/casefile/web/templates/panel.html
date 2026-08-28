@@ -7,7 +7,7 @@
   <ul class="findings">
     {% for f in result.findings %}
     <li><span class="f-label">{{ f.label }}</span>
-      {% if f.url %}<a href="{{ f.url }}" rel="noreferrer noopener" target="_blank">{{ f.value }}</a>
+      {% if f.url and f.url.startswith(('http://', 'https://')) %}<a href="{{ f.url }}" rel="noreferrer noopener" target="_blank">{{ f.value }}</a>
       {% else %}<span class="f-value">{{ f.value }}</span>{% endif %}
     </li>
     {% endfor %}
