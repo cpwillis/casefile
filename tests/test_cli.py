@@ -110,3 +110,37 @@ def test_no_cache_flag_disables_the_cache(monkeypatch, capsys, tmp_path):
     assert "candidates" in capsys.readouterr().out
     assert seen_use_cache
     assert all(use_cache is False for use_cache in seen_use_cache)
+
+
+def test_cli_skips_on_demand_sources_by_default(monkeypatch, capsys, tmp_path):
+    """casefile <username> must not fire hundreds of requests without --deep."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    import casefile.cli as climod
+    from casefile.fetchers import Finding, SourceResult, State
+
+    seen = []
+
+    async def fake(source_id, value, entity_type, client, *, use_cache=True):
+        seen.append(source_id)
+        return SourceResult(source_id, State.OK, (Finding(label="A", value="1"),))
+
+    monkeypatch.setattr(climod, "run_cached", fake)
+    assert main(["octocat", "--json"]) == 0
+    assert "whatsmyname" not in seen
+    assert "github" in seen
+
+
+def test_deep_flag_includes_on_demand_sources(monkeypatch, capsys, tmp_path):
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    import casefile.cli as climod
+    from casefile.fetchers import Finding, SourceResult, State
+
+    seen = []
+
+    async def fake(source_id, value, entity_type, client, *, use_cache=True):
+        seen.append(source_id)
+        return SourceResult(source_id, State.OK, (Finding(label="A", value="1"),))
+
+    monkeypatch.setattr(climod, "run_cached", fake)
+    assert main(["octocat", "--json", "--deep"]) == 0
+    assert "whatsmyname" in seen

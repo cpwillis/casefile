@@ -27,13 +27,24 @@
       {% if section.panels %}
       <h3>Sources</h3>
       <div class="panels">
-        {% for sid in section.panels %}
+        {% for p in section.panels %}
+        {% set panel_url = '/panel/' ~ p.id ~ '?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type %}
+        {% if p.on_demand %}
+        <div class="panel" data-state="on-demand">
+          <div class="panel-head"><span class="panel-id">{{ p.id }}</span>
+            <span class="panel-state">on demand</span></div>
+          <button class="panel-run" hx-get="{{ panel_url }}" hx-target="closest .panel" hx-swap="outerHTML">
+            Run this check
+          </button>
+          {% if p.cost_note %}<p class="muted panel-cost">{{ p.cost_note }}</p>{% endif %}
+        </div>
+        {% else %}
         <div class="panel" data-state="loading"
-             hx-get="{{ '/panel/' ~ sid ~ '?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type }}"
-             hx-trigger="load" hx-swap="outerHTML">
-          <div class="panel-head"><span class="panel-id">{{ sid }}</span>
+             hx-get="{{ panel_url }}" hx-trigger="load" hx-swap="outerHTML">
+          <div class="panel-head"><span class="panel-id">{{ p.id }}</span>
             <span class="panel-state">loading…</span></div>
         </div>
+        {% endif %}
         {% endfor %}
       </div>
       {% endif %}

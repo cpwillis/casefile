@@ -34,8 +34,9 @@ your IP. There is no proxy in this version. Fetched results are cached locally f
 (see Status below); nothing leaves your machine beyond the direct requests to each source.
 Pass `--no-cache` to bypass the cache for a single run.
 
-A username search queries 687 sites, so it takes 30-60 seconds and is the single most
-visible thing casefile does from your IP address.
+A username search can query several hundred sites and take 30-60 seconds, so it is opt-in:
+in the browser it is a "Run this check" button on the results page rather than a panel that
+loads itself, and on the CLI it only runs when you pass `--deep`.
 
 ## Local development
 
@@ -58,6 +59,7 @@ uv run casefile example.com --json   # machine-readable, for piping
 uv run casefile --no-browser         # start the server without opening a browser
 uv run casefile example.com --no-cache   # bypass the response cache for this run
 uv run casefile --clear-cache        # purge every cached response and exit
+uv run casefile octocat --deep       # also run on-demand sources (the username checker)
 ```
 
 Run the checks (exactly what CI runs):
@@ -83,7 +85,8 @@ what the tool does. It cannot look anything up. Run it locally for that.
 v1.0.0. `EntityType` has 21 members; 20 of them have a detector (`plate` does not yet), plus a
 250+ slot link catalogue. Live fetching comes from eight keyless sources (dns, rdap, crtsh,
 internetdb, github, wikidata and hashlookup over the network, plus phone_meta offline) and the
-687-site WhatsMyName username checker.
+WhatsMyName username checker, which queries several hundred sites from your IP and is opt-in
+(the browser button, or `--deep` on the CLI) rather than run automatically.
 
 Responses are cached for up to 24 hours under `${XDG_CACHE_HOME:-~/.cache}/casefile/`, and
 rows older than 24 hours are pruned on the next cache access regardless of whether they are

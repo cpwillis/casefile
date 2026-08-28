@@ -50,3 +50,6 @@ a { color: var(--accent); }
 .panel-detail { color: #c1121f; margin: 6px 0 0; font-size: 13px; }
 
 .attribution { font-size: 11px; margin: 8px 0 0; }
+
+.panel-run { padding: 6px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); cursor: pointer; }
+.panel-cost { font-size: 12px; margin: 6px 0 0; }

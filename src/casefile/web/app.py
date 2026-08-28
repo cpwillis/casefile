@@ -24,6 +24,21 @@ HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=HERE / "templates")
 
 
+def _panels_for(entity_type) -> list[dict]:
+    """Panel descriptors for a type. on_demand panels render a button instead of self-loading."""
+    panels = []
+    for source_id in fetchers_for(entity_type):
+        rec = registered_fetcher(source_id)
+        panels.append(
+            {
+                "id": source_id,
+                "on_demand": bool(rec and rec.on_demand),
+                "cost_note": rec.cost_note if rec else None,
+            }
+        )
+    return panels
+
+
 async def index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "index.html")
 
@@ -38,7 +53,7 @@ async def result(request: Request) -> HTMLResponse:
             {
                 "type": candidate.type.value,
                 "value": candidate.value,
-                "panels": fetchers_for(candidate.type),
+                "panels": _panels_for(candidate.type),
                 "links": [link for link in links_for(candidate) if not has_fetcher(link.id)],
             }
         )

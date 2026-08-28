@@ -96,7 +96,12 @@ async def _check_one(site: Site, username: str, client: httpx.AsyncClient) -> Fi
     return Finding(label=site.name, value=note or site.cat, url=url)
 
 
-@fetcher(id="whatsmyname", accepts=[EntityType.USERNAME])
+@fetcher(
+    id="whatsmyname",
+    accepts=[EntityType.USERNAME],
+    on_demand=True,
+    cost_note="queries several hundred sites from your IP and takes 30 to 60 seconds",
+)
 async def whatsmyname(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     sites = load_sites()
     results = await asyncio.gather(*(_check_one(s, value, client) for s in sites))

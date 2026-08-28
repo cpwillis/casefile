@@ -10,18 +10,18 @@ import casefile.fetchers.sources  # noqa: F401 -- registers fetchers
 from casefile import __version__
 from casefile.cache import run_cached
 from casefile.detect import detect
-from casefile.fetchers import fetchers_for
+from casefile.fetchers import fetchers_for, is_on_demand
 from casefile.fetchers.http import build_client
 from casefile.report import links_for
 
 REPO = "https://github.com/cpwillis/casefile"
 
 
-async def _fetch_all(candidates, use_cache: bool = True):
+async def _fetch_all(candidates, use_cache: bool = True, deep: bool = False):
     async with build_client() as client:
         results = {}
         for c in candidates:
-            ids = fetchers_for(c.type)
+            ids = [sid for sid in fetchers_for(c.type) if deep or not is_on_demand(sid)]
             got = await asyncio.gather(*(run_cached(sid, c.value, c.type, client, use_cache=use_cache) for sid in ids))
             results[(c.type, c.value)] = got
         return results
@@ -83,6 +83,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="emit JSON instead of text")
     parser.add_argument("--no-fetch", action="store_true", help="skip live fetching, show links only")
     parser.add_argument("--no-cache", action="store_true", help="bypass the response cache")
+    parser.add_argument("--deep", action="store_true", help="also run on-demand sources (many more requests)")
     parser.add_argument("--clear-cache", action="store_true", help="purge the response cache and exit")
     parser.add_argument("--port", type=int, default=8765, help="port for the web app (default: 8765)")
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser on launch")
@@ -105,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"nothing recognised in {args.value!r}", file=sys.stderr)
         return 1
 
-    results = {} if args.no_fetch else asyncio.run(_fetch_all(candidates, use_cache=not args.no_cache))
+    results = {} if args.no_fetch else asyncio.run(_fetch_all(candidates, use_cache=not args.no_cache, deep=args.deep))
     render = _render_json if args.json else _render_text
     print(render(args.value, candidates, results))
     return 0

@@ -73,3 +73,20 @@ def test_sources_without_a_fetcher_have_no_panel():
     text = client.get("/q", params={"v": "example.com"}).text
     # censys-certs is a link-only catalogue entry, so it must not get a panel div
     assert 'hx-get="/panel/censys-certs' not in text
+
+
+def test_domain_search_does_not_auto_load_the_expensive_checker():
+    """example.com reads as a username too, but must not fire hundreds of requests unasked."""
+    text = client.get("/q", params={"v": "example.com"}).text
+    assert 'hx-get="/panel/whatsmyname' in text  # the panel is offered
+    assert 'hx-trigger="load"' in text  # other panels still self-load
+    # but the whatsmyname panel specifically must be a button, not a load trigger
+    block = text[text.index("/panel/whatsmyname") - 400 : text.index("/panel/whatsmyname") + 200]
+    assert "panel-run" in block
+    assert 'data-state="on-demand"' in block
+
+
+def test_cheap_panels_still_self_load():
+    text = client.get("/q", params={"v": "example.com"}).text
+    block = text[text.index("/panel/dns") - 300 : text.index("/panel/dns") + 200]
+    assert 'hx-trigger="load"' in block

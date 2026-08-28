@@ -141,3 +141,20 @@ async def test_unknown_source_is_an_error_not_a_crash():
     r = await run_fetcher("ghost", "example.com", EntityType.DOMAIN, client=None)
     assert r.state == State.ERROR
     assert "ghost" in r.detail
+
+
+def test_on_demand_defaults_to_false_and_is_recorded():
+    @fetcher(id="cheap-probe", accepts=[EntityType.DOMAIN])
+    async def cheap(value, entity_type, client):
+        return []
+
+    @fetcher(id="pricey-probe", accepts=[EntityType.DOMAIN], on_demand=True, cost_note="lots of requests")
+    async def pricey(value, entity_type, client):
+        return []
+
+    from casefile.fetchers import is_on_demand, registered_fetcher
+
+    assert is_on_demand("cheap-probe") is False
+    assert is_on_demand("pricey-probe") is True
+    assert registered_fetcher("pricey-probe").cost_note == "lots of requests"
+    assert is_on_demand("no-such-fetcher") is False

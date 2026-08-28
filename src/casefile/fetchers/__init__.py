@@ -47,16 +47,20 @@ class Registered:
     id: str
     accepts: tuple[EntityType, ...]
     func: Callable
+    on_demand: bool = False
+    cost_note: str | None = None
 
 
 _REGISTRY: dict[str, Registered] = {}
 
 
-def fetcher(id: str, accepts: list[EntityType]):
+def fetcher(id: str, accepts: list[EntityType], *, on_demand: bool = False, cost_note: str | None = None):
+    """Register a fetcher. on_demand marks one whose egress is large enough to need consent."""
+
     def register(func: Callable) -> Callable:
         if id in _REGISTRY:
             raise ValueError(f"duplicate fetcher id {id}")
-        _REGISTRY[id] = Registered(id=id, accepts=tuple(accepts), func=func)
+        _REGISTRY[id] = Registered(id=id, accepts=tuple(accepts), func=func, on_demand=on_demand, cost_note=cost_note)
         return func
 
     return register
@@ -72,6 +76,11 @@ def has_fetcher(source_id: str) -> bool:
 
 def fetchers_for(entity_type: EntityType) -> tuple[str, ...]:
     return tuple(r.id for r in _REGISTRY.values() if entity_type in r.accepts)
+
+
+def is_on_demand(source_id: str) -> bool:
+    rec = _REGISTRY.get(source_id)
+    return bool(rec and rec.on_demand)
 
 
 async def run_fetcher(source_id, value, entity_type, client) -> "SourceResult":
