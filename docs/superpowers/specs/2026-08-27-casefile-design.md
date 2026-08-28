@@ -456,6 +456,25 @@ resolves without splitting the canonical URL.
 
 Exactly one positional value. No `--input-file` and no target lists, by design.
 
+### Scripting contract
+
+The query modes are secondary to the browser, kept because they are genuinely useful for
+scripting and cost almost nothing now that `build_report()` exists. That makes the
+following a stable interface, not incidental behaviour:
+
+- **stdout is data, stderr is diagnostics.** `casefile <value> --json | jq` works with no
+  filtering, and "nothing recognised" goes to stderr so it never lands in a pipe.
+- **Exit codes mean something.** `0` when at least one reading was found, `1` when nothing
+  was recognised, `2` from argparse for bad arguments.
+- **No colour, no spinners, no decoration** in either output mode. Both are parseable as
+  they stand.
+- **The JSON shape is the contract**: `{"input": str, "candidates": [{"type", "value",
+  "links": [{"id", "name", "url", "notes"}]}]}`. Adding keys is fine; renaming or removing
+  them is a breaking change and gets a major version.
+
+Because both renderers consume the same `Section` tuple the browser renders, the CLI can
+never quietly report something different from the page.
+
 No typer. Two commands and a flag do not need a subcommand framework. Because the CLI is
 close to free, it ships as part of phase 1 rather than waiting for a phase of its own.
 
