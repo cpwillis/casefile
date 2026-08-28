@@ -73,8 +73,10 @@ what the tool does. It cannot look anything up. Run it locally for that.
 
 ## Status
 
-v0.1.0: detection, catalogue and browser UI, links only, no network calls yet.
-Live source fetching lands in a later phase. See [docs/superpowers](docs/superpowers).
+v0.3.0: detection, catalogue and browser UI, plus three live keyless sources (DNS over
+HTTPS, RDAP, certificate transparency via crt.sh). Results load as self-contained panels,
+each showing its own state, so one dead source never breaks the page. No response caching
+yet, that lands in a later phase. See [docs/superpowers](docs/superpowers).
 
 ## Licence
 
