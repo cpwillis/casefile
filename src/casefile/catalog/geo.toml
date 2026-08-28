@@ -1,0 +1,67 @@
+# src/casefile/catalog/geo.toml
+# Coordinates, maps and imagery.
+
+[[source]]
+id = "google-maps-coordinates"
+name = "Google Maps"
+accepts = ["coordinates"]
+url = "https://www.google.com/maps/search/?api=1&query={value}"
+notes = "Drops a pin at the lat,lon and shows the map view; official ?api=1 URL scheme."
+provenance = "documented Google Maps URL API (query=lat,lon)"
+
+[[source]]
+id = "openstreetmap-coordinates"
+name = "OpenStreetMap Search"
+accepts = ["coordinates"]
+url = "https://www.openstreetmap.org/search?query={value}"
+notes = "Search accepts a 'lat,lon' string and centres the map with a marker."
+provenance = "OpenStreetMap main site search"
+
+[[source]]
+id = "nominatim-reverse-coordinates"
+name = "Nominatim Reverse Geocode"
+accepts = ["coordinates"]
+url = "https://nominatim.openstreetmap.org/ui/search.html?q={value}"
+notes = "Passing 'lat,lon' resolves to the nearest address/place (reverse geocode)."
+provenance = "OpenStreetMap Nominatim geocoder"
+
+[[source]]
+id = "bing-maps-coordinates"
+name = "Bing Maps"
+accepts = ["coordinates"]
+url = "https://www.bing.com/maps?q={value}"
+notes = "q accepts a 'lat,lon' string and centres the map on it."
+provenance = "well-known Microsoft mapping service"
+
+[[source]]
+id = "apple-maps-coordinates"
+name = "Apple Maps"
+accepts = ["coordinates"]
+url = "https://maps.apple.com/?ll={value}"
+notes = "ll param centres the map on the given lat,lon; opens in Apple Maps on Apple devices, web fallback elsewhere."
+provenance = "documented Apple Maps URL scheme (ll=lat,lon)"
+
+[[source]]
+id = "waze-coordinates"
+name = "Waze Live Map"
+accepts = ["coordinates"]
+url = "https://www.waze.com/ul?ll={value}"
+notes = "Opens the Waze live map centred on the coordinates."
+provenance = "documented Waze deep-link (ll=lat,lon)"
+
+[[source]]
+id = "windy-coordinates"
+name = "Windy"
+accepts = ["coordinates"]
+url = "https://www.windy.com/?{value},8"
+notes = "Query form is lat,lon,zoom; shows weather layers and imagery over the point."
+provenance = "Windy weather/imagery map"
+
+[[source]]
+id = "zoom-earth-coordinates"
+name = "Zoom Earth"
+accepts = ["coordinates"]
+url = "https://zoom.earth/#view={value},12z"
+notes = "Hash view=lat,lon,zoom; near-live satellite and weather imagery over the point."
+provenance = "Zoom Earth satellite imagery viewer"
+

@@ -1,0 +1,115 @@
+# src/casefile/catalog/companies.toml
+# Company registries, filings and sanctions.
+
+[[source]]
+id = "opencorporates-company"
+name = "OpenCorporates"
+accepts = ["company"]
+url = "https://opencorporates.com/companies?q={value}"
+notes = "Largest open database of companies across global jurisdictions; free-text company name search. Officer/person search lives at /officers."
+provenance = "awesome-osint"
+
+[[source]]
+id = "gleif-lei"
+name = "GLEIF LEI Search"
+accepts = ["company"]
+url = "https://search.gleif.org/#/search/simpleSearch={value}"
+notes = "Legal Entity Identifier registry; matches on legal name or LEI code. Hash-routed deep link."
+provenance = "GLEIF Global LEI Index"
+
+[[source]]
+id = "companies-house-uk"
+name = "UK Companies House"
+accepts = ["company", "person"]
+url = "https://find-and-update.company-information.service.gov.uk/search?q={value}"
+notes = "Official UK register; unified search returns both companies and officers, so name works for company or person."
+provenance = "UK Companies House registry"
+
+[[source]]
+id = "sec-edgar-company"
+name = "SEC EDGAR"
+accepts = ["company"]
+url = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company={value}&type=&dateb=&owner=include&count=40"
+notes = "US public-company filings by company name."
+provenance = "SEC EDGAR filings"
+
+[[source]]
+id = "opensanctions"
+name = "OpenSanctions"
+accepts = ["company", "person"]
+url = "https://www.opensanctions.org/search/?q={value}"
+notes = "Consolidated sanctions, PEP and watchlist database; matches companies and people."
+provenance = "OpenSanctions consolidated sanctions/PEP data"
+
+[[source]]
+id = "occrp-aleph"
+name = "OCCRP Aleph"
+accepts = ["company", "person", "email"]
+url = "https://aleph.occrp.org/search?q={value}"
+notes = "Investigative document/entity graph; searches leaks, registries and filings across entity types."
+provenance = "awesome-osint"
+
+[[source]]
+id = "crunchbase-search"
+name = "Crunchbase"
+accepts = ["company", "person"]
+url = "https://www.crunchbase.com/textsearch?q={value}"
+notes = "Company and founder/investor profiles; results view is login-gated but the search link is public."
+provenance = "business/funding database"
+
+[[source]]
+id = "northdata-search"
+name = "North Data"
+accepts = ["company", "person"]
+url = "https://www.northdata.com/_search?query={value}"
+notes = "European (esp. German) company register and management data; company or person name."
+provenance = "EU business register aggregator"
+
+[[source]]
+id = "open-ownership-register"
+name = "Open Ownership Register"
+accepts = ["company", "person"]
+url = "https://register.openownership.org/search?q={value}"
+notes = "Beneficial ownership data linking companies to their owning persons."
+provenance = "Open Ownership beneficial-ownership register"
+
+[[source]]
+id = "abn-lookup-au"
+name = "ABN Lookup (Australia)"
+accepts = ["company"]
+url = "https://abr.business.gov.au/Search/ResultsActive?SearchText={value}"
+notes = "Official Australian business register; searches active entities by name or ABN."
+provenance = "Australian Business Register"
+
+[[source]]
+id = "trustpilot-review"
+name = "Trustpilot"
+accepts = ["domain"]
+url = "https://www.trustpilot.com/review/{value}"
+notes = "Review pages are addressed by the business domain, so this pivots straight from a domain."
+provenance = "consumer review platform"
+
+[[source]]
+id = "bbb-search"
+name = "Better Business Bureau"
+accepts = ["company"]
+url = "https://www.bbb.org/search?find_text={value}"
+notes = "Business accreditation, complaints and reviews by company name."
+provenance = "Better Business Bureau (US/CA)"
+
+[[source]]
+id = "glassdoor-search"
+name = "Glassdoor"
+accepts = ["company"]
+url = "https://www.glassdoor.com/Search/results.htm?keyword={value}"
+notes = "Employer reviews and salary data by company name."
+provenance = "employer review platform"
+
+[[source]]
+id = "linkedin-company"
+name = "LinkedIn Company Search"
+accepts = ["company"]
+url = "https://www.linkedin.com/search/results/companies/?keywords={value}"
+notes = "Company pages by name; login-gated view but public deep link."
+provenance = "LinkedIn company directory"
+

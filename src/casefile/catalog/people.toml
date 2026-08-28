@@ -1,0 +1,187 @@
+# src/casefile/catalog/people.toml
+# People and email search.
+
+[[source]]
+id = "haveibeenpwned-email"
+name = "Have I Been Pwned"
+accepts = ["email"]
+url = "https://haveibeenpwned.com/account/{value}"
+notes = "Breach exposure for an email; results page may require owner verification but the link is stable."
+provenance = "awesome-osint"
+
+[[source]]
+id = "emailrep-email"
+name = "EmailRep"
+accepts = ["email"]
+url = "https://emailrep.io/{value}"
+notes = "Reputation, deliverability and profile signals for an email; returns JSON in-browser."
+provenance = "known email reputation service"
+
+[[source]]
+id = "hunter-email-verifier"
+name = "Hunter Email Verifier"
+accepts = ["email"]
+url = "https://hunter.io/email-verifier/{value}"
+notes = "Validity and source-of-discovery for a single email."
+provenance = "awesome-osint"
+
+[[source]]
+id = "hunter-domain-search"
+name = "Hunter Domain Search"
+accepts = ["domain"]
+url = "https://hunter.io/search/{value}"
+notes = "Known email addresses and patterns for a domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "epieos-email"
+name = "Epieos"
+accepts = ["email"]
+url = "https://epieos.com/?q={value}"
+notes = "Account/service enumeration and Google profile pivots for an email."
+provenance = "awesome-osint"
+
+[[source]]
+id = "dehashed-search"
+name = "DeHashed"
+accepts = ["email", "person", "phone", "domain", "ip"]
+url = "https://dehashed.com/search?query={value}"
+notes = "Breach-credential search; account required to view results."
+provenance = "awesome-osint"
+
+[[source]]
+id = "thatsthem-email"
+name = "ThatsThem Reverse Email"
+accepts = ["email"]
+url = "https://thatsthem.com/email/{value}"
+notes = "Reverse email to name/address/phone."
+provenance = "known US people-search service"
+
+[[source]]
+id = "openpgp-keyserver"
+name = "keys.openpgp.org"
+accepts = ["email"]
+url = "https://keys.openpgp.org/search?q={value}"
+notes = "Verified PGP keys bound to an email."
+provenance = "public PGP key directory"
+
+[[source]]
+id = "ubuntu-keyserver"
+name = "Ubuntu PGP Keyserver"
+accepts = ["email"]
+url = "https://keyserver.ubuntu.com/pks/lookup?search={value}&op=index"
+notes = "PGP key index by email/user id."
+provenance = "public SKS-style keyserver"
+
+[[source]]
+id = "psbdmp-search"
+name = "psbdmp Paste Dump"
+accepts = ["email", "domain"]
+url = "https://psbdmp.ws/search/{value}"
+notes = "Archived pastebin dumps mentioning the value."
+provenance = "awesome-osint"
+
+[[source]]
+id = "truepeoplesearch-name"
+name = "TruePeopleSearch"
+accepts = ["person"]
+url = "https://www.truepeoplesearch.com/results?name={value}"
+notes = "Name to address/phone/relatives."
+provenance = "known US people-search service"
+
+[[source]]
+id = "fastpeoplesearch-name"
+name = "FastPeopleSearch"
+accepts = ["person"]
+url = "https://www.fastpeoplesearch.com/name/{value}"
+notes = "Slug form, eg john-smith; name to address/phone."
+provenance = "known US people-search service"
+
+[[source]]
+id = "whitepages-name"
+name = "Whitepages"
+accepts = ["person"]
+url = "https://www.whitepages.com/name/{value}"
+notes = "Name to contact and location records."
+provenance = "known US people-search service"
+
+[[source]]
+id = "webmii-person"
+name = "WebMii"
+accepts = ["person"]
+url = "https://webmii.com/people?n={value}"
+notes = "Web-wide name search with visibility score."
+provenance = "awesome-osint"
+
+[[source]]
+id = "linkedin-people-search"
+name = "LinkedIn Search"
+accepts = ["person", "company"]
+url = "https://www.linkedin.com/search/results/all/?keywords={value}"
+notes = "Login required to view results; link is stable."
+provenance = "major social network"
+
+[[source]]
+id = "facebook-search"
+name = "Facebook Search"
+accepts = ["person", "company"]
+url = "https://www.facebook.com/search/top?q={value}"
+notes = "Login required to view most results."
+provenance = "major social network"
+
+[[source]]
+id = "twitter-search"
+name = "X / Twitter Search"
+accepts = ["person", "company", "email"]
+url = "https://twitter.com/search?q={value}"
+notes = "Full-text search; matches handles, names, and free-text email mentions."
+provenance = "major social network"
+
+[[source]]
+id = "github-user"
+name = "GitHub Profile"
+accepts = ["person", "company"]
+url = "https://github.com/{value}"
+notes = "Direct username/org profile."
+provenance = "awesome-osint"
+
+[[source]]
+id = "instagram-user"
+name = "Instagram Profile"
+accepts = ["person"]
+url = "https://www.instagram.com/{value}/"
+notes = "Direct username profile; login may be prompted."
+provenance = "major social network"
+
+[[source]]
+id = "reddit-user"
+name = "Reddit User"
+accepts = ["person"]
+url = "https://www.reddit.com/user/{value}"
+notes = "Direct username profile and post history."
+provenance = "major social network"
+
+[[source]]
+id = "keybase-user"
+name = "Keybase"
+accepts = ["person"]
+url = "https://keybase.io/{value}"
+notes = "Username to linked identities and PGP keys."
+provenance = "awesome-osint"
+
+[[source]]
+id = "gravatar-profile"
+name = "Gravatar Profile"
+accepts = ["person"]
+url = "https://gravatar.com/{value}"
+notes = "Public profile by Gravatar username."
+provenance = "awesome-osint"
+
+[[source]]
+id = "peekyou-username"
+name = "PeekYou"
+accepts = ["person"]
+url = "https://www.peekyou.com/{value}"
+notes = "Username-based people aggregation."
+provenance = "known people/username-search service"
+

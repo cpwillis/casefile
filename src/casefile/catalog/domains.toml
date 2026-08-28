@@ -1,0 +1,187 @@
+# src/casefile/catalog/domains.toml
+# Domain, DNS, whois and reputation.
+
+[[source]]
+id = "virustotal-domain"
+name = "VirusTotal (domain)"
+accepts = ["domain"]
+url = "https://www.virustotal.com/gui/domain/{value}"
+notes = "Reputation, passive DNS, subdomains, detections, historical whois."
+provenance = "awesome-osint"
+
+[[source]]
+id = "urlscan-domain"
+name = "urlscan.io (domain)"
+accepts = ["domain"]
+url = "https://urlscan.io/domain/{value}"
+notes = "Historical scans, hosting, subdomains, page tech for a domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "securitytrails-domain"
+name = "SecurityTrails DNS history"
+accepts = ["domain"]
+url = "https://securitytrails.com/domain/{value}/dns"
+notes = "Current/historical DNS records; login gates full history but page is public."
+provenance = "awesome-osint"
+
+[[source]]
+id = "dnslytics-domain"
+name = "DNSlytics"
+accepts = ["domain"]
+url = "https://dnslytics.com/domain/{value}"
+notes = "DNS, reverse IP/NS, ASN, related domains, hosting history."
+provenance = "awesome-osint"
+
+[[source]]
+id = "viewdns-whois"
+name = "ViewDNS.info Whois"
+accepts = ["domain"]
+url = "https://viewdns.info/whois/?domain={value}"
+notes = "Whois plus a broad set of DNS/reverse tools on the same host."
+provenance = "awesome-osint"
+
+[[source]]
+id = "whois-who-is"
+name = "who.is Whois"
+accepts = ["domain"]
+url = "https://who.is/whois/{value}"
+notes = "Registration, nameservers, contact history."
+provenance = "awesome-osint"
+
+[[source]]
+id = "domaintools-whois"
+name = "DomainTools Whois"
+accepts = ["domain"]
+url = "https://whois.domaintools.com/{value}"
+notes = "Whois with hosting/registrar context; deeper history behind paywall."
+provenance = "awesome-osint"
+
+[[source]]
+id = "whoxy-domain"
+name = "Whoxy"
+accepts = ["domain"]
+url = "https://www.whoxy.com/{value}"
+notes = "Whois plus historical/reverse whois records."
+provenance = "awesome-osint"
+
+[[source]]
+id = "otx-domain"
+name = "AlienVault OTX (domain)"
+accepts = ["domain"]
+url = "https://otx.alienvault.com/indicator/domain/{value}"
+notes = "Threat pulses, passive DNS, related URLs/malware."
+provenance = "awesome-osint"
+
+[[source]]
+id = "threatminer-domain"
+name = "ThreatMiner (domain)"
+accepts = ["domain"]
+url = "https://www.threatminer.org/domain.php?q={value}"
+notes = "Passive DNS, subdomains, related samples and reports."
+provenance = "awesome-osint"
+
+[[source]]
+id = "pulsedive-indicator"
+name = "Pulsedive indicator"
+accepts = ["domain", "ip", "url"]
+url = "https://pulsedive.com/indicator/?ioc={value}"
+notes = "Risk scoring and enrichment for domain/IP/URL indicators."
+provenance = "awesome-osint"
+
+[[source]]
+id = "talos-reputation"
+name = "Cisco Talos Reputation Center"
+accepts = ["domain", "ip"]
+url = "https://talosintelligence.com/reputation_center/lookup?search={value}"
+notes = "Web/email reputation, category, owner for domain or IP."
+provenance = "awesome-osint"
+
+[[source]]
+id = "netcraft-sitereport"
+name = "Netcraft Site Report"
+accepts = ["domain", "url"]
+url = "https://sitereport.netcraft.com/?url={value}"
+notes = "Hosting history, tech stack, first-seen, risk rating."
+provenance = "awesome-osint"
+
+[[source]]
+id = "robtex-dns"
+name = "Robtex DNS lookup"
+accepts = ["domain", "ip"]
+url = "https://www.robtex.com/dns-lookup/{value}"
+notes = "DNS graph, shared hosting, reverse relationships."
+provenance = "awesome-osint"
+
+[[source]]
+id = "he-bgp-dns"
+name = "Hurricane Electric BGP DNS"
+accepts = ["domain"]
+url = "https://bgp.he.net/dns/{value}"
+notes = "DNS records with routing/ASN context."
+provenance = "awesome-osint"
+
+[[source]]
+id = "builtwith-domain"
+name = "BuiltWith"
+accepts = ["domain"]
+url = "https://builtwith.com/{value}"
+notes = "Technology profile, analytics IDs, hosting; pivot on shared trackers."
+provenance = "awesome-osint"
+
+[[source]]
+id = "urlvoid-domain"
+name = "URLVoid"
+accepts = ["domain"]
+url = "https://www.urlvoid.com/scan/{value}/"
+notes = "Multi-engine domain reputation/blocklist check."
+provenance = "awesome-osint"
+
+[[source]]
+id = "mxtoolbox-mx"
+name = "MXToolbox mail/DNS"
+accepts = ["domain"]
+url = "https://mxtoolbox.com/SuperTool.aspx?action=mx:{value}&run=toolpage"
+notes = "MX/SPF/DMARC/blacklist lookups; swap action for other record types."
+provenance = "MXToolbox DNS/mail diagnostics"
+
+[[source]]
+id = "shodan-search"
+name = "Shodan search"
+accepts = ["domain", "ip"]
+url = "https://www.shodan.io/search?query={value}"
+notes = "Exposed services/banners; matches domain in hostnames or an IP."
+provenance = "awesome-osint"
+
+[[source]]
+id = "wayback-machine"
+name = "Wayback Machine"
+accepts = ["domain", "url"]
+url = "https://web.archive.org/web/*/{value}"
+notes = "Historical snapshots; wildcard listing for a domain or exact URL."
+provenance = "Internet Archive Wayback Machine"
+
+[[source]]
+id = "google-safebrowsing-transparency"
+name = "Google Safe Browsing status"
+accepts = ["domain", "url"]
+url = "https://transparencyreport.google.com/safe-browsing/search?url={value}"
+notes = "Current Safe Browsing verdict for a site or URL."
+provenance = "Google Transparency Report"
+
+[[source]]
+id = "intelx-search"
+name = "Intelligence X search"
+accepts = ["domain", "email", "ip", "url"]
+url = "https://intelx.io/?s={value}"
+notes = "Selector search across leaks/pastes/darkweb; results gated but link is public."
+provenance = "awesome-osint"
+
+[[source]]
+id = "hunter-domain"
+name = "Hunter.io domain search"
+accepts = ["domain"]
+url = "https://hunter.io/search/{value}"
+notes = "Email addresses and patterns associated with a domain."
+provenance = "awesome-osint"
+

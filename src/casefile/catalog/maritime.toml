@@ -1,0 +1,67 @@
+# src/casefile/catalog/maritime.toml
+# Vessel tracking and ship registries.
+
+[[source]]
+id = "marinetraffic-mmsi"
+name = "MarineTraffic (MMSI)"
+accepts = ["mmsi"]
+url = "https://www.marinetraffic.com/en/ais/details/ships/mmsi:{value}"
+notes = "Redirects to the live AIS vessel details page for the given MMSI. Publicly viewable."
+provenance = "awesome-osint"
+
+[[source]]
+id = "marinetraffic-imo"
+name = "MarineTraffic (IMO)"
+accepts = ["imo"]
+url = "https://www.marinetraffic.com/en/ais/details/ships/imo:{value}"
+notes = "Redirects to the live AIS vessel details page for the given IMO number. Publicly viewable."
+provenance = "awesome-osint"
+
+[[source]]
+id = "vesselfinder-mmsi"
+name = "VesselFinder (MMSI)"
+accepts = ["mmsi"]
+url = "https://www.vesselfinder.com/?mmsi={value}"
+notes = "Homepage map resolves directly to the vessel matching the MMSI. Bellingcat toolkit source."
+provenance = "awesome-osint"
+
+[[source]]
+id = "vesselfinder-imo"
+name = "VesselFinder (IMO)"
+accepts = ["imo"]
+url = "https://www.vesselfinder.com/?imo={value}"
+notes = "Confirmed: ?imo= resolves to the specific vessel details page (IMO overrides MMSI). Bellingcat toolkit source."
+provenance = "awesome-osint"
+
+[[source]]
+id = "myshiptracking-search"
+name = "MyShipTracking (search)"
+accepts = ["mmsi", "imo"]
+url = "https://www.myshiptracking.com/vessels?search={value}"
+notes = "Single search endpoint accepts MMSI, IMO or name; ?search= confirmed. Returns matching vessels list."
+provenance = "awesome-osint"
+
+[[source]]
+id = "balticshipping-imo"
+name = "Baltic Shipping (IMO)"
+accepts = ["imo"]
+url = "https://www.balticshipping.com/vessel/imo/{value}"
+notes = "IMO number embedded in path resolves to vessel particulars page. Confirmed live URL shape."
+provenance = "ship database, commonly cited in maritime OSINT"
+
+[[source]]
+id = "shipspotting-imo"
+name = "ShipSpotting (IMO)"
+accepts = ["imo"]
+url = "https://www.shipspotting.com/gallery/search.php?search_imo={value}"
+notes = "Photo/particulars gallery search by IMO; returns all photos for that hull. Publicly viewable."
+provenance = "ship photo database, maritime OSINT"
+
+[[source]]
+id = "shipspotting-mmsi"
+name = "ShipSpotting (MMSI)"
+accepts = ["mmsi"]
+url = "https://www.shipspotting.com/gallery/search.php?search_mmsi={value}"
+notes = "Same gallery search keyed on the MMSI field. Publicly viewable."
+provenance = "ship photo database, maritime OSINT"
+

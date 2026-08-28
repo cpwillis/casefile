@@ -1,0 +1,109 @@
+# src/casefile/catalog/aviation.toml
+# Aircraft tracking and registries.
+
+[[source]]
+id = "adsbexchange-globe-icao"
+name = "ADS-B Exchange (Globe, by ICAO24)"
+accepts = ["icao24"]
+url = "https://globe.adsbexchange.com/?icao={value}"
+notes = "tar1090 globe; ?icao= selects the aircraft by Mode-S hex, case-insensitive."
+provenance = "awesome-osint"
+
+[[source]]
+id = "adsbexchange-globe-reg"
+name = "ADS-B Exchange (Globe, by registration)"
+accepts = ["tail_number"]
+url = "https://globe.adsbexchange.com/?reg={value}"
+notes = "tar1090 ?reg= direct link by registration; loads slower than ?icao=."
+provenance = "awesome-osint"
+
+[[source]]
+id = "airplaneslive-globe-icao"
+name = "airplanes.live (Globe, by ICAO24)"
+accepts = ["icao24"]
+url = "https://globe.airplanes.live/?icao={value}"
+notes = "Same tar1090 query params as ADS-B Exchange."
+provenance = "airplanes.live community ADS-B network (tar1090)"
+
+[[source]]
+id = "airplaneslive-globe-reg"
+name = "airplanes.live (Globe, by registration)"
+accepts = ["tail_number"]
+url = "https://globe.airplanes.live/?reg={value}"
+provenance = "airplanes.live community ADS-B network (tar1090)"
+
+[[source]]
+id = "adsbfi-globe-icao"
+name = "adsb.fi (Globe, by ICAO24)"
+accepts = ["icao24"]
+url = "https://globe.adsb.fi/?icao={value}"
+provenance = "adsb.fi community ADS-B network (tar1090)"
+
+[[source]]
+id = "adsbfi-globe-reg"
+name = "adsb.fi (Globe, by registration)"
+accepts = ["tail_number"]
+url = "https://globe.adsb.fi/?reg={value}"
+provenance = "adsb.fi community ADS-B network (tar1090)"
+
+[[source]]
+id = "opensky-aircraft-profile"
+name = "OpenSky Network aircraft profile"
+accepts = ["icao24"]
+url = "https://opensky-network.org/aircraft-profile?icao24={value}"
+notes = "Research ADS-B network; profile keyed by ICAO24 hex."
+provenance = "awesome-osint"
+
+[[source]]
+id = "planespotters-hex"
+name = "Planespotters (Mode-S hex)"
+accepts = ["icao24"]
+url = "https://www.planespotters.net/hex/{value}"
+notes = "Aircraft/photo database keyed by ICAO24 Mode-S code."
+provenance = "awesome-osint"
+
+[[source]]
+id = "flightradar24-aircraft"
+name = "Flightradar24 aircraft (registration)"
+accepts = ["tail_number"]
+url = "https://www.flightradar24.com/data/aircraft/{value}"
+notes = "Registration lookup; typically lowercase, case-insensitive."
+provenance = "awesome-osint"
+
+[[source]]
+id = "flightaware-registration"
+name = "FlightAware registration"
+accepts = ["tail_number"]
+url = "https://www.flightaware.com/resources/registration/{value}"
+provenance = "awesome-osint"
+
+[[source]]
+id = "jetphotos-registration"
+name = "JetPhotos registration"
+accepts = ["tail_number"]
+url = "https://www.jetphotos.com/registration/{value}"
+provenance = "aviation photo database (jetphotos.com)"
+
+[[source]]
+id = "airnavradar-registration"
+name = "AirNav RadarBox registration"
+accepts = ["tail_number"]
+url = "https://www.airnavradar.com/data/registration/{value}"
+provenance = "AirNav RadarBox (formerly radarbox.com) ADS-B tracker"
+
+[[source]]
+id = "airport-data-aircraft"
+name = "airport-data.com aircraft"
+accepts = ["tail_number"]
+url = "https://airport-data.com/aircraft/{value}.html"
+notes = "No-www host required (TLS cert covers airport-data.com only)."
+provenance = "airport-data.com aircraft photo/registration database"
+
+[[source]]
+id = "faa-nnumber-registry"
+name = "FAA N-Number registry inquiry"
+accepts = ["tail_number"]
+url = "https://registry.faa.gov/aircraftinquiry/Search/NNumberResult?nNumberTxt={value}"
+notes = "US N-numbers only; leading N accepted."
+provenance = "FAA public aircraft registry"
+

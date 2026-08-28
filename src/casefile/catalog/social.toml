@@ -1,0 +1,123 @@
+# src/casefile/catalog/social.toml
+# URL scanners and phone lookups.
+
+[[source]]
+id = "urlscan-io"
+name = "urlscan.io"
+accepts = ["url", "domain", "ip", "hash"]
+url = "https://urlscan.io/search/#{value}"
+notes = "Freetext scan search; matches page URL, domain, resolved IP or resource hash."
+provenance = "awesome-osint"
+
+[[source]]
+id = "virustotal-search"
+name = "VirusTotal Search"
+accepts = ["url", "domain", "ip", "hash"]
+url = "https://www.virustotal.com/gui/search/{value}"
+notes = "GUI search resolves domains, IPs, file hashes and URL-encoded URLs."
+provenance = "awesome-osint"
+
+[[source]]
+id = "google-safe-browsing"
+name = "Google Safe Browsing Transparency Report"
+accepts = ["url", "domain"]
+url = "https://transparencyreport.google.com/safe-browsing/search?url={value}"
+notes = "Current unsafe-site status for a URL or host."
+provenance = "Google Transparency Report"
+
+[[source]]
+id = "sucuri-sitecheck"
+name = "Sucuri SiteCheck"
+accepts = ["url", "domain"]
+url = "https://sitecheck.sucuri.net/results/{value}"
+notes = "Remote malware and blocklist scan for a host or URL."
+provenance = "awesome-osint"
+
+[[source]]
+id = "norton-safeweb"
+name = "Norton Safe Web"
+accepts = ["url", "domain"]
+url = "https://safeweb.norton.com/report/show?url={value}"
+notes = "Reputation report for a site or URL."
+provenance = "well-known URL reputation service"
+
+[[source]]
+id = "urlvoid"
+name = "URLVoid"
+accepts = ["domain"]
+url = "https://www.urlvoid.com/scan/{value}/"
+notes = "Multi-engine host reputation aggregator; host-based, not full-URL."
+provenance = "awesome-osint"
+
+[[source]]
+id = "archive-today"
+name = "archive.today"
+accepts = ["url", "domain"]
+url = "https://archive.ph/newest/{value}"
+notes = "Redirects to the most recent archived snapshot of the URL or host."
+provenance = "awesome-osint"
+
+[[source]]
+id = "syncme-phone"
+name = "Sync.me"
+accepts = ["phone"]
+url = "https://sync.me/search/?number={value}"
+notes = "Crowd-sourced caller ID and spam reputation; E.164 form works best."
+provenance = "awesome-osint"
+
+[[source]]
+id = "tellows-phone"
+name = "Tellows"
+accepts = ["phone"]
+url = "https://www.tellows.com/num/{value}"
+notes = "International nuisance/spam call ratings."
+provenance = "public caller-ID reputation directory"
+
+[[source]]
+id = "shouldianswer-phone"
+name = "Should I Answer"
+accepts = ["phone"]
+url = "https://www.shouldianswer.com/phone-number/{value}"
+notes = "Community caller reputation and comments."
+provenance = "public caller-ID reputation directory"
+
+[[source]]
+id = "800notes-phone"
+name = "800notes"
+accepts = ["phone"]
+url = "https://800notes.com/Phone.aspx/{value}"
+notes = "US-centric; expects dashed form eg 1-800-123-4567."
+provenance = "public caller-ID reputation directory"
+
+[[source]]
+id = "whocallsme-phone"
+name = "WhoCallsMe"
+accepts = ["phone"]
+url = "https://whocallsme.com/Phone-Number.aspx/{value}"
+notes = "US-centric caller comments/reports."
+provenance = "public caller-ID reputation directory"
+
+[[source]]
+id = "whitepages-phone"
+name = "Whitepages Reverse Phone"
+accepts = ["phone"]
+url = "https://www.whitepages.com/phone/{value}"
+notes = "US reverse lookup; carrier/line type and owner hints, some behind paywall."
+provenance = "public people/phone directory"
+
+[[source]]
+id = "usphonebook-phone"
+name = "USPhonebook"
+accepts = ["phone"]
+url = "https://www.usphonebook.com/{value}"
+notes = "US reverse lookup; owner name and location hints."
+provenance = "public people/phone directory"
+
+[[source]]
+id = "nuwber-phone"
+name = "Nuwber"
+accepts = ["phone", "person"]
+url = "https://nuwber.com/search?phone={value}"
+notes = "US people-search reverse phone lookup."
+provenance = "public people/phone directory"
+

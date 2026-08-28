@@ -1,0 +1,107 @@
+# src/casefile/catalog/crypto.toml
+# Cryptocurrency address explorers.
+
+[[source]]
+id = "blockstream-info-btc"
+name = "Blockstream.info"
+accepts = ["btc_address"]
+url = "https://blockstream.info/address/{value}"
+notes = "Blockstream Bitcoin block explorer; public address page with tx history and balance."
+provenance = "awesome-osint"
+
+[[source]]
+id = "mempool-space-btc"
+name = "mempool.space"
+accepts = ["btc_address"]
+url = "https://mempool.space/address/{value}"
+notes = "Bitcoin mempool/explorer; public address page."
+provenance = "awesome-osint"
+
+[[source]]
+id = "blockchain-com-btc"
+name = "Blockchain.com Explorer (BTC)"
+accepts = ["btc_address"]
+url = "https://www.blockchain.com/explorer/addresses/btc/{value}"
+notes = "Bitcoin address page; balance, tx count, activity."
+provenance = "awesome-osint"
+
+[[source]]
+id = "blockchair-bitcoin"
+name = "Blockchair (Bitcoin)"
+accepts = ["btc_address"]
+url = "https://blockchair.com/bitcoin/address/{value}"
+notes = "Bitcoin address analytics; balance, flows, privacy metrics."
+provenance = "awesome-osint"
+
+[[source]]
+id = "bitinfocharts-bitcoin"
+name = "BitInfoCharts (Bitcoin)"
+accepts = ["btc_address"]
+url = "https://bitinfocharts.com/bitcoin/address/{value}"
+notes = "Address analytics; balance history, rank, wallet notes/tags."
+provenance = "awesome-osint"
+
+[[source]]
+id = "walletexplorer-btc"
+name = "WalletExplorer"
+accepts = ["btc_address"]
+url = "https://www.walletexplorer.com/address/{value}"
+notes = "Bitcoin wallet clustering; groups addresses into inferred wallets."
+provenance = "awesome-osint"
+
+[[source]]
+id = "etherscan-address"
+name = "Etherscan"
+accepts = ["eth_address"]
+url = "https://etherscan.io/address/{value}"
+notes = "Canonical Ethereum explorer; address balance, txs, tokens, contract data."
+provenance = "awesome-osint"
+
+[[source]]
+id = "blockchair-ethereum"
+name = "Blockchair (Ethereum)"
+accepts = ["eth_address"]
+url = "https://blockchair.com/ethereum/address/{value}"
+notes = "Ethereum address analytics; balance, transfers, token holdings."
+provenance = "awesome-osint"
+
+[[source]]
+id = "ethplorer-address"
+name = "Ethplorer"
+accepts = ["eth_address"]
+url = "https://ethplorer.io/address/{value}"
+notes = "Ethereum address/token explorer; ERC-20 holdings and transfers."
+provenance = "awesome-osint"
+
+[[source]]
+id = "bitinfocharts-ethereum"
+name = "BitInfoCharts (Ethereum)"
+accepts = ["eth_address"]
+url = "https://bitinfocharts.com/ethereum/address/{value}"
+notes = "Ethereum address analytics; balance history and rank."
+provenance = "awesome-osint"
+
+[[source]]
+id = "blockscout-eth"
+name = "Blockscout (Ethereum)"
+accepts = ["eth_address"]
+url = "https://eth.blockscout.com/address/{value}"
+notes = "Public Ethereum address page; txs, tokens, internal txns."
+provenance = "open-source Ethereum explorer (Blockscout mainnet instance)"
+
+[[source]]
+id = "blockchair-search"
+name = "Blockchair Universal Search"
+accepts = ["btc_address", "eth_address"]
+url = "https://blockchair.com/search?q={value}"
+notes = "Cross-chain search; resolves an address to its chain-specific page."
+provenance = "awesome-osint"
+
+[[source]]
+id = "chainabuse-address"
+name = "Chainabuse"
+accepts = ["btc_address", "eth_address"]
+url = "https://www.chainabuse.com/address/{value}"
+notes = "Community scam/abuse reports tied to a crypto address; multi-chain."
+provenance = "chainabuse scam/abuse address reporting (TRM Labs)"
+

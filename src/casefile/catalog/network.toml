@@ -1,0 +1,235 @@
+# src/casefile/catalog/network.toml
+# IP, ASN, BGP and network reputation.
+
+[[source]]
+id = "virustotal-ip"
+name = "VirusTotal"
+accepts = ["ip"]
+url = "https://www.virustotal.com/gui/ip-address/{value}"
+notes = "IP reputation, passive DNS, detected comms files. Login to see full relations."
+provenance = "awesome-osint"
+
+[[source]]
+id = "shodan-host"
+name = "Shodan"
+accepts = ["ip"]
+url = "https://www.shodan.io/host/{value}"
+notes = "Open ports, banners, services for the host."
+provenance = "awesome-osint"
+
+[[source]]
+id = "censys-hosts"
+name = "Censys"
+accepts = ["ip"]
+url = "https://search.censys.io/hosts/{value}"
+notes = "Host services, certs, protocols."
+provenance = "awesome-osint"
+
+[[source]]
+id = "abuseipdb"
+name = "AbuseIPDB"
+accepts = ["ip"]
+url = "https://www.abuseipdb.com/check/{value}"
+notes = "Abuse reports and confidence score."
+provenance = "awesome-osint"
+
+[[source]]
+id = "greynoise"
+name = "GreyNoise"
+accepts = ["ip"]
+url = "https://viz.greynoise.io/ip/{value}"
+notes = "Internet background-noise / scanner classification."
+provenance = "awesome-osint"
+
+[[source]]
+id = "ipinfo-ip"
+name = "IPinfo"
+accepts = ["ip"]
+url = "https://ipinfo.io/{value}"
+notes = "Geolocation, ASN, hosting/company for the IP."
+provenance = "awesome-osint"
+
+[[source]]
+id = "ipinfo-asn"
+name = "IPinfo ASN"
+accepts = ["asn"]
+url = "https://ipinfo.io/AS{value}"
+notes = "ASN detail; value is the bare AS number."
+provenance = "awesome-osint"
+
+[[source]]
+id = "pulsedive"
+name = "Pulsedive"
+accepts = ["ip", "domain", "url"]
+url = "https://pulsedive.com/indicator/?ioc={value}"
+notes = "Threat indicator summary; ioc works for ip, domain, url."
+provenance = "awesome-osint"
+
+[[source]]
+id = "xforce-ip"
+name = "IBM X-Force Exchange"
+accepts = ["ip"]
+url = "https://exchange.xforce.ibmcloud.com/ip/{value}"
+notes = "IP risk score, categorization, passive DNS."
+provenance = "awesome-osint"
+
+[[source]]
+id = "spamhaus-check"
+name = "Spamhaus Reputation Check"
+accepts = ["ip", "domain"]
+url = "https://check.spamhaus.org/results/?query={value}"
+notes = "Listing status across Spamhaus blocklists; ip or domain."
+provenance = "blocklist reputation service"
+
+[[source]]
+id = "scamalytics-ip"
+name = "Scamalytics"
+accepts = ["ip"]
+url = "https://scamalytics.com/ip/{value}"
+notes = "Fraud/proxy risk score."
+provenance = "IP fraud-scoring service"
+
+[[source]]
+id = "projecthoneypot-ip"
+name = "Project Honey Pot"
+accepts = ["ip"]
+url = "https://www.projecthoneypot.org/ip_{value}"
+notes = "Spam/harvester history for the IP."
+provenance = "awesome-osint"
+
+[[source]]
+id = "db-ip"
+name = "DB-IP"
+accepts = ["ip"]
+url = "https://db-ip.com/{value}"
+notes = "Geolocation, ISP, usage type."
+provenance = "IP geolocation database"
+
+[[source]]
+id = "whatismyipaddress-ip"
+name = "WhatIsMyIPAddress Lookup"
+accepts = ["ip"]
+url = "https://whatismyipaddress.com/ip/{value}"
+notes = "Geolocation, ISP, blacklist quick-check."
+provenance = "IP geolocation service"
+
+[[source]]
+id = "zoomeye-search"
+name = "ZoomEye"
+accepts = ["ip", "domain"]
+url = "https://www.zoomeye.org/searchResult?q={value}"
+notes = "Internet asset / port scan search; ip or domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "netlas-host"
+name = "Netlas"
+accepts = ["ip"]
+url = "https://app.netlas.io/host/{value}"
+notes = "Host ports, services, certs, whois."
+provenance = "awesome-osint"
+
+[[source]]
+id = "criminalip-asset"
+name = "Criminal IP"
+accepts = ["ip"]
+url = "https://www.criminalip.io/asset/report/{value}"
+notes = "Ports, vulnerabilities, risk scoring."
+provenance = "awesome-osint"
+
+[[source]]
+id = "viewdns-reverseip"
+name = "ViewDNS Reverse IP"
+accepts = ["ip", "domain"]
+url = "https://viewdns.info/reverseip/?host={value}&t=1"
+notes = "Domains sharing an IP; ip or domain host."
+provenance = "awesome-osint"
+
+[[source]]
+id = "securitytrails-ip"
+name = "SecurityTrails IP"
+accepts = ["ip"]
+url = "https://securitytrails.com/list/ip/{value}"
+notes = "Reverse-IP / historical hosting. Login for full data."
+provenance = "awesome-osint"
+
+[[source]]
+id = "dnslytics-ip"
+name = "DNSlytics IP"
+accepts = ["ip"]
+url = "https://dnslytics.com/ip/{value}"
+notes = "Reverse IP, ASN, geo, neighbouring domains."
+provenance = "awesome-osint"
+
+[[source]]
+id = "dnslytics-asn"
+name = "DNSlytics ASN"
+accepts = ["asn"]
+url = "https://dnslytics.com/asn/AS{value}"
+notes = "ASN prefixes and hosted domains; value is bare AS number."
+provenance = "awesome-osint"
+
+[[source]]
+id = "robtex-ip"
+name = "Robtex IP Lookup"
+accepts = ["ip"]
+url = "https://www.robtex.com/ip-lookup/{value}"
+notes = "Passive DNS, routing, graph of the IP."
+provenance = "awesome-osint"
+
+[[source]]
+id = "bgp-he-ip"
+name = "Hurricane Electric BGP (IP)"
+accepts = ["ip"]
+url = "https://bgp.he.net/ip/{value}"
+notes = "Announcing ASN, prefix, rDNS for the IP."
+provenance = "BGP toolkit / looking glass"
+
+[[source]]
+id = "bgp-he-asn"
+name = "Hurricane Electric BGP (ASN)"
+accepts = ["asn"]
+url = "https://bgp.he.net/AS{value}"
+notes = "Prefixes, peers, graph; value is bare AS number."
+provenance = "BGP toolkit / looking glass"
+
+[[source]]
+id = "bgpview-ip"
+name = "BGPView IP"
+accepts = ["ip"]
+url = "https://bgpview.io/ip/{value}"
+notes = "Prefix and origin ASN for the IP."
+provenance = "BGP / routing data"
+
+[[source]]
+id = "bgpview-asn"
+name = "BGPView ASN"
+accepts = ["asn"]
+url = "https://bgpview.io/asn/{value}"
+notes = "Prefixes, peers, upstreams; bare AS number."
+provenance = "BGP / routing data"
+
+[[source]]
+id = "bgptools-asn"
+name = "bgp.tools ASN"
+accepts = ["asn"]
+url = "https://bgp.tools/as/{value}"
+notes = "Prefixes, peers, upstreams; bare AS number."
+provenance = "BGP / routing data"
+
+[[source]]
+id = "peeringdb-asn"
+name = "PeeringDB"
+accepts = ["asn"]
+url = "https://www.peeringdb.com/asn/{value}"
+notes = "Peering facilities, IX presence, contacts; bare AS number."
+provenance = "peering / interconnection registry"
+
+[[source]]
+id = "caida-asrank-asn"
+name = "CAIDA AS Rank"
+accepts = ["asn"]
+url = "https://asrank.caida.org/asns/{value}"
+notes = "AS rank, customer cone, relationships; bare AS number."
+provenance = "CAIDA routing research data"
+
