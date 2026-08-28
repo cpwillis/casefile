@@ -51,3 +51,12 @@ def test_no_fetch_omits_sources(monkeypatch, capsys):
     payload = json.loads(capsys.readouterr().out)
     domain = next(c for c in payload["candidates"] if c["type"] == "domain")
     assert domain["sources"] == []
+
+
+def test_json_links_carry_the_full_contract_keys(capsys):
+    assert main(["example.com", "--json", "--no-fetch"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    domain = next(c for c in payload["candidates"] if c["type"] == "domain")
+    assert domain["links"]
+    for link in domain["links"]:
+        assert set(link) == {"id", "name", "url", "notes"}

@@ -27,7 +27,7 @@ async def _fetch_all(candidates):
 
 
 def _links(candidate):
-    return [{"id": link.id, "name": link.name, "url": link.url} for link in links_for(candidate)]
+    return [{"id": link.id, "name": link.name, "url": link.url, "notes": link.notes} for link in links_for(candidate)]
 
 
 def _render_text(raw, candidates, results):
