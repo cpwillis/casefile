@@ -278,7 +278,7 @@ Each would be its own spec. None is a v1 concern.
 |---|---|---|
 | 1 | [2026-08-27-casefile-phase-1.md](2026-08-27-casefile-phase-1.md) | written, ready to execute |
 | 2 | not yet written | write after phase 1 lands |
-| 3 | not yet written | write after phase 2 lands |
+| 3 | [2026-08-27-casefile-phase-3.md](2026-08-27-casefile-phase-3.md) | written, ready to execute (independent of phase 2) |
 | 4 | not yet written | write after phase 3 lands |
 
 Each phase plan is written immediately before that phase starts. Drafting phase 4's tasks
