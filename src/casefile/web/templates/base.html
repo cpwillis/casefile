@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}casefile{% endblock %}</title>
+<link rel="stylesheet" href="/static/casefile.css">
+</head>
+<body>
+<a class="skip" href="#pane">Skip to results</a>
+<header class="topbar">
+  <form action="/q" method="get" class="search" role="search">
+    <label class="visually-hidden" for="target">Identifier to look up</label>
+    <input id="target" type="search" name="v" value="{{ raw | default('') }}"
+           placeholder="domain, ip, email, username, company, hash…" autofocus>
+    <button type="submit">Search</button>
+  </form>
+</header>
+{% block content %}{% endblock %}
+</body>
+</html>
