@@ -7,6 +7,7 @@ from casefile.fetchers.sources import (  # noqa: F401 -- import registers them
     github,
     hashlookup,
     internetdb,
+    malwarebazaar,
     rdap,
     wikidata,
 )
@@ -323,3 +324,69 @@ async def test_hashlookup_picks_the_endpoint_by_hash_length():
     async with _client(handler) as client:
         await hashlookup("a" * 40, EntityType.HASH, client)
     assert "sha1" in seen["path"]
+
+
+async def test_malwarebazaar_without_a_key_is_needs_key(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: None)
+
+    def handler(request):  # must never be called
+        raise AssertionError("no request should be made without a key")
+
+    async with _client(handler) as client:
+        result = await run_fetcher("malwarebazaar", "a" * 64, EntityType.HASH, client)
+    assert result.state == "needs_key"
+    assert "ABUSECH_AUTH_KEY" in result.detail
+
+
+async def test_malwarebazaar_with_a_key_posts_and_parses(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: "secret")
+    seen = {}
+
+    def handler(request):
+        seen["auth"] = request.headers.get("auth-key")
+        seen["body"] = request.content.decode()
+        return httpx.Response(
+            200,
+            json={
+                "query_status": "ok",
+                "data": [
+                    {
+                        "file_name": "evil.exe",
+                        "file_type": "exe",
+                        "signature": "AgentTesla",
+                        "first_seen": "2026-01-01",
+                        "tags": ["exe", "trojan"],
+                    }
+                ],
+            },
+        )
+
+    async with _client(handler) as client:
+        findings = await malwarebazaar("a" * 64, EntityType.HASH, client)
+    assert seen["auth"] == "secret"
+    assert "query=get_info" in seen["body"]
+    labels = {f.label: f.value for f in findings}
+    assert labels["signature"] == "AgentTesla"
+    assert labels["file"] == "evil.exe"
+
+
+async def test_malwarebazaar_hash_not_found_is_empty(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: "secret")
+
+    def handler(request):
+        return httpx.Response(200, json={"query_status": "hash_not_found"})
+
+    async with _client(handler) as client:
+        result = await run_fetcher("malwarebazaar", "a" * 64, EntityType.HASH, client)
+    assert result.state == "empty"
+
+
+async def test_malwarebazaar_rejected_key_is_needs_key(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: "bad")
+
+    def handler(request):
+        return httpx.Response(200, json={"error": "Unauthorized"})
+
+    async with _client(handler) as client:
+        result = await run_fetcher("malwarebazaar", "a" * 64, EntityType.HASH, client)
+    assert result.state == "needs_key"

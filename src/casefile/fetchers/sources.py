@@ -5,8 +5,9 @@ from urllib.parse import quote
 
 import httpx
 
-from casefile.fetchers import Finding, fetcher
-from casefile.fetchers.http import get_json
+from casefile.config import get_key
+from casefile.fetchers import Finding, NeedsKey, fetcher
+from casefile.fetchers.http import get_json, post_json
 from casefile.types import EntityType
 
 _DNS_TYPES = {1: "A", 28: "AAAA", 15: "MX", 16: "TXT", 2: "NS"}
@@ -165,4 +166,37 @@ async def hashlookup(value: str, entity_type: EntityType, client: httpx.AsyncCli
     product = (data.get("ProductCode") or {}).get("ProductName")
     if product:
         findings.append(Finding(label="product", value=str(product)))
+    return findings
+
+
+@fetcher(id="malwarebazaar", accepts=[EntityType.HASH])
+async def malwarebazaar(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    """abuse.ch requires an Auth-Key as of 2024, so this is a needs_key source by necessity."""
+    key = get_key("ABUSECH_AUTH_KEY")
+    if not key:
+        raise NeedsKey("set ABUSECH_AUTH_KEY in .env to enable MalwareBazaar")
+    resp = await post_json(
+        client,
+        "https://mb-api.abuse.ch/api/v1/",
+        "mb-api.abuse.ch",
+        data={"query": "get_info", "hash": value},
+        headers={"Auth-Key": key},
+    )
+    payload = resp.json()
+    if payload.get("error") == "Unauthorized" or payload.get("query_status") == "unauthorized":
+        raise NeedsKey("ABUSECH_AUTH_KEY was rejected by abuse.ch")
+    if payload.get("query_status") != "ok":
+        return []  # hash_not_found and friends mean looked-and-found-nothing
+    findings: list[Finding] = []
+    for row in payload.get("data", []):
+        if name := row.get("file_name"):
+            findings.append(Finding(label="file", value=str(name)))
+        if sig := row.get("signature"):
+            findings.append(Finding(label="signature", value=str(sig)))
+        if ftype := row.get("file_type"):
+            findings.append(Finding(label="type", value=str(ftype)))
+        if seen := row.get("first_seen"):
+            findings.append(Finding(label="first seen", value=str(seen)))
+        for tag in row.get("tags") or []:
+            findings.append(Finding(label="tag", value=str(tag)))
     return findings
