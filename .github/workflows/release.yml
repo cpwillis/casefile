@@ -1,0 +1,84 @@
+name: release
+
+# Publishes to PyPI via Trusted Publishing (OIDC). No API token is stored anywhere:
+# PyPI mints a short-lived credential for this exact workflow in this exact repository.
+#
+# The PyPI side must be configured once, at
+# https://pypi.org/manage/project/casefile/settings/publishing/ with:
+#   owner: cpwillis   repository: casefile   workflow: release.yml   environment: pypi
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+
+      - name: build the sdist and wheel
+        run: uv build
+
+      # A PyPI version can never be re-uploaded, so a wheel missing its package data would be
+      # permanently broken. casefile is useless without the catalogue and the vendored dataset,
+      # and both arrive as non-Python files, which is exactly the kind of thing a build silently
+      # drops. Fail here rather than shipping it.
+      - name: verify the wheel carries its package data
+        run: |
+          python3 - <<'PY'
+          import glob
+          import sys
+          import zipfile
+
+          wheels = glob.glob("dist/*.whl")
+          if len(wheels) != 1:
+              sys.exit(f"expected exactly one wheel, found {wheels}")
+          names = zipfile.ZipFile(wheels[0]).namelist()
+
+          required = {
+              "catalogue toml files": lambda n: n.endswith(".toml") and "/catalog/" in n,
+              "whatsmyname dataset": lambda n: n.endswith("wmn-data.json"),
+              "whatsmyname licence": lambda n: n.endswith("WMN-LICENCE.txt"),
+              "jinja templates": lambda n: n.endswith(".html"),
+              "static assets": lambda n: n.endswith((".css", ".js")),
+          }
+          missing = [label for label, matches in required.items() if not any(map(matches, names))]
+          if missing:
+              sys.exit(f"wheel is missing: {missing}")
+
+          tomls = sum(1 for n in names if n.endswith(".toml") and "/catalog/" in n)
+          print(f"verified {wheels[0]}: {tomls} catalogue files, dataset and licence present")
+          PY
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # id-token is scoped to this job alone, so the build step above cannot mint a PyPI credential.
+    permissions:
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/p/casefile
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      # Pinned to the commit behind v1.14.2 rather than the release/v1 branch: this step receives
+      # an OIDC token that can upload to the project, so it should not track a moving ref.
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33
