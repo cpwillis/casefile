@@ -60,14 +60,9 @@ async def crtsh(value: str, entity_type: EntityType, client: httpx.AsyncClient) 
 async def internetdb(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     """Keyless Shodan InternetDB. A 200 always carries the full object; 404 is the only miss."""
     address = ipaddress.ip_address(value)
-    # Skip RFC 1918 private ranges, loopback, and link-local (not is_private which includes TEST-NET)
-    if address.is_loopback or address.is_link_local:
-        return []
-    if (
-        address in ipaddress.ip_network("10.0.0.0/8")
-        or address in ipaddress.ip_network("172.16.0.0/12")
-        or address in ipaddress.ip_network("192.168.0.0/16")
-    ):
+    # is_global is True only for publicly routable addresses. False covers private, loopback,
+    # link-local, CGNAT and the RFC 5737/3849 documentation ranges, for both v4 and v6.
+    if not address.is_global:
         return []  # verified: 10.0.0.1 returns 200 with junk data, so never ask
     resp = await get_json(
         client,

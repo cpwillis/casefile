@@ -151,14 +151,14 @@ async def test_rdap_value_cannot_traverse_the_path_or_add_a_query():
 
 async def test_internetdb_lists_ports_and_hostnames():
     def handler(request):
-        assert request.url.path == "/192.0.2.10"
+        assert request.url.path == "/8.8.8.8"
         return httpx.Response(
             200,
-            json={"ip": "192.0.2.10", "ports": [80, 443], "hostnames": ["a.example.com"], "tags": ["cdn"], "vulns": []},
+            json={"ip": "8.8.8.8", "ports": [80, 443], "hostnames": ["a.example.com"], "tags": ["cdn"], "vulns": []},
         )
 
     async with _client(handler) as client:
-        findings = await internetdb("192.0.2.10", EntityType.IP, client)
+        findings = await internetdb("8.8.8.8", EntityType.IP, client)
     labels = {f.label for f in findings}
     assert "port" in labels
     assert Finding(label="hostname", value="a.example.com") in findings
@@ -169,7 +169,7 @@ async def test_internetdb_404_is_empty_not_error():
         return httpx.Response(404, json={"detail": "No information available"})
 
     async with _client(handler) as client:
-        result = await run_fetcher("internetdb", "192.0.2.10", EntityType.IP, client)
+        result = await run_fetcher("internetdb", "8.8.8.8", EntityType.IP, client)
     assert result.state == "empty"
 
 
@@ -184,12 +184,24 @@ async def test_internetdb_skips_private_addresses_without_a_request():
     assert result.state == "empty"
 
 
+async def test_internetdb_skips_non_global_addresses_of_both_families():
+    """CGNAT and IPv6 private space are not RFC1918 but must still never be queried."""
+
+    def handler(request):
+        raise AssertionError("no request should be made for a non-global address")
+
+    for addr in ("100.64.0.1", "fc00::1", "192.0.2.10", "169.254.1.1"):
+        async with _client(handler) as client:
+            result = await run_fetcher("internetdb", addr, EntityType.IP, client)
+        assert result.state == "empty", addr
+
+
 async def test_internetdb_surfaces_cpes_and_vulns():
     def handler(request):
         return httpx.Response(
             200,
             json={
-                "ip": "192.0.2.10",
+                "ip": "8.8.8.8",
                 "ports": [],
                 "hostnames": [],
                 "cpes": ["cpe:/a:cloudflare:cloudflare"],
@@ -199,7 +211,7 @@ async def test_internetdb_surfaces_cpes_and_vulns():
         )
 
     async with _client(handler) as client:
-        findings = await internetdb("192.0.2.10", EntityType.IP, client)
+        findings = await internetdb("8.8.8.8", EntityType.IP, client)
     labels = {f.label for f in findings}
     assert {"cpe", "vuln"} <= labels
     vuln = next(f for f in findings if f.label == "vuln")
