@@ -45,14 +45,36 @@ async def domain_slot(host: str):
         yield
 
 
-async def get_json(client: httpx.AsyncClient, url: str, host: str, **kwargs) -> httpx.Response:
-    """GET with one retry on 429/5xx. Raises RateLimited if still 429 after the retry."""
+async def _send_with_retry(client, request_factory, host: str, allow: tuple[int, ...]) -> httpx.Response:
+    """One request, one retry on 429/5xx, then give up. Statuses in `allow` are returned as-is."""
     async with domain_slot(host):
-        resp = await client.get(url, **kwargs)
+        resp = await request_factory()
         if resp.status_code == 429 or resp.status_code >= 500:
             await asyncio.sleep(0.5)  # single backoff
-            resp = await client.get(url, **kwargs)
+            resp = await request_factory()
         if resp.status_code == 429:
             raise RateLimited(f"{host} returned 429")
+        if resp.status_code in allow:
+            return resp
         resp.raise_for_status()
         return resp
+
+
+async def get_json(
+    client: httpx.AsyncClient, url: str, host: str, *, allow: tuple[int, ...] = (), **kwargs
+) -> httpx.Response:
+    """GET with one retry. `allow` lists statuses a caller wants to inspect instead of raising."""
+    return await _send_with_retry(client, lambda: client.get(url, **kwargs), host, allow)
+
+
+async def post_json(
+    client: httpx.AsyncClient,
+    url: str,
+    host: str,
+    *,
+    data: dict | None = None,
+    headers: dict | None = None,
+    allow: tuple[int, ...] = (),
+) -> httpx.Response:
+    """POST form data with one retry. Same limiter and retry policy as get_json."""
+    return await _send_with_retry(client, lambda: client.post(url, data=data, headers=headers), host, allow)
