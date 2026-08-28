@@ -1,0 +1,66 @@
+from starlette.testclient import TestClient
+
+import casefile.fetchers.sources  # noqa: F401 -- register the real fetchers
+from casefile.fetchers import fetchers_for
+from casefile.types import EntityType
+from casefile.web.app import app
+
+client = TestClient(app)
+
+
+def test_domain_has_the_three_fetchers_registered():
+    ids = fetchers_for(EntityType.DOMAIN)
+    assert {"dns", "rdap", "crtsh"} <= set(ids)
+
+
+def test_panel_route_renders_a_state(monkeypatch):
+    from casefile.fetchers import Finding, SourceResult, State
+
+    async def fake_run(source_id, value, entity_type, client):
+        return SourceResult(source_id, State.OK, (Finding(label="A", value="192.0.2.10"),))
+
+    monkeypatch.setattr("casefile.web.app.run_fetcher", fake_run)
+    resp = client.get("/panel/dns", params={"v": "example.com", "t": "domain"})
+    assert resp.status_code == 200
+    assert "192.0.2.10" in resp.text
+    assert 'data-state="ok"' in resp.text
+
+
+def test_panel_empty_and_error_render_differently(monkeypatch):
+    from casefile.fetchers import SourceResult, State
+
+    async def fake(source_id, value, entity_type, client):
+        state = State.EMPTY if source_id == "e" else State.ERROR
+        return SourceResult(source_id, state, detail=None if state == State.EMPTY else "boom")
+
+    monkeypatch.setattr("casefile.web.app.run_fetcher", fake)
+    empty = client.get("/panel/e", params={"v": "example.com", "t": "domain"}).text
+    error = client.get("/panel/x", params={"v": "example.com", "t": "domain"}).text
+    assert 'data-state="empty"' in empty
+    assert 'data-state="error"' in error
+    assert "boom" in error
+
+
+def test_panel_escapes_untrusted_findings(monkeypatch):
+    from casefile.fetchers import Finding, SourceResult, State
+
+    async def fake(source_id, value, entity_type, client):
+        return SourceResult(source_id, State.OK, (Finding(label="x", value="<script>alert(1)</script>"),))
+
+    monkeypatch.setattr("casefile.web.app.run_fetcher", fake)
+    text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
+    assert "<script>alert(1)</script>" not in text
+    assert "&lt;script&gt;" in text
+
+
+def test_panel_with_bad_type_does_not_crash():
+    resp = client.get("/panel/dns", params={"v": "example.com", "t": "not-a-type"})
+    assert resp.status_code == 200
+    assert 'data-state="error"' in resp.text
+
+
+def test_panel_rejects_type_the_source_does_not_accept():
+    resp = client.get("/panel/rdap", params={"v": "someone@example.com", "t": "email"})
+    assert resp.status_code == 200
+    assert 'data-state="error"' in resp.text
+    assert "rdap does not accept email" in resp.text

@@ -35,3 +35,16 @@ a { color: var(--accent); }
   .rail-block { margin: 0; }
   .rail-tally { border: 0; padding: 0; }
 }
+
+.panel { border: 1px solid var(--line); border-radius: 4px; padding: 8px 12px; margin-bottom: 8px; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; }
+.panel-id { font-weight: 600; }
+.panel-state { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.state-ok { color: #2e7d32; }
+.state-empty { color: var(--muted); }
+.state-error, .state-timeout, .state-rate_limited { color: #c1121f; }
+.state-needs_key { color: #b26a00; }
+.findings { list-style: none; padding: 0; margin: 6px 0 0; }
+.findings li { display: flex; gap: 8px; }
+.f-label { color: var(--muted); min-width: 90px; }
+.panel-detail { color: #c1121f; margin: 6px 0 0; font-size: 13px; }

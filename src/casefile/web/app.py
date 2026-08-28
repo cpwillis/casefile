@@ -12,7 +12,11 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
+import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers at import
+from casefile.fetchers import SourceResult, State, registered_fetcher, run_fetcher
+from casefile.fetchers.http import build_client
 from casefile.report import build_report
+from casefile.types import EntityType
 
 HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=HERE / "templates")
@@ -30,10 +34,28 @@ async def result(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "result.html", {"raw": raw, "sections": sections})
 
 
+async def panel(request: Request) -> HTMLResponse:
+    source_id = request.path_params["source_id"]
+    value = request.query_params.get("v", "")
+    try:
+        entity_type = EntityType(request.query_params.get("t", ""))
+    except ValueError:
+        result = SourceResult(source_id, State.ERROR, detail="unknown entity type")
+        return templates.TemplateResponse(request, "panel.html", {"result": result})
+    rec = registered_fetcher(source_id)
+    if rec is not None and entity_type not in rec.accepts:
+        result = SourceResult(source_id, State.ERROR, detail=f"{source_id} does not accept {entity_type}")
+        return templates.TemplateResponse(request, "panel.html", {"result": result})
+    async with build_client() as client:
+        result = await run_fetcher(source_id, value, entity_type, client)
+    return templates.TemplateResponse(request, "panel.html", {"result": result})
+
+
 app = Starlette(
     routes=[
         Route("/", index),
         Route("/q", result),
+        Route("/panel/{source_id}", panel),
         Mount("/static", StaticFiles(directory=HERE / "static"), name="static"),
     ]
 )

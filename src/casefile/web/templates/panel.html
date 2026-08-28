@@ -1,0 +1,22 @@
+<div class="panel" data-state="{{ result.state }}">
+  <div class="panel-head">
+    <span class="panel-id">{{ result.source_id }}</span>
+    <span class="panel-state state-{{ result.state }}">{{ result.state | replace('_', ' ') }}</span>
+  </div>
+  {% if result.state == "ok" %}
+  <ul class="findings">
+    {% for f in result.findings %}
+    <li><span class="f-label">{{ f.label }}</span>
+      {% if f.url %}<a href="{{ f.url }}" rel="noreferrer noopener" target="_blank">{{ f.value }}</a>
+      {% else %}<span class="f-value">{{ f.value }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% elif result.state == "empty" %}
+  <p class="muted">responded, nothing found</p>
+  {% elif result.state == "needs_key" %}
+  <p class="muted">needs a key: {{ result.detail }}</p>
+  {% else %}
+  <p class="panel-detail">{{ result.detail or result.state }}</p>
+  {% endif %}
+</div>
