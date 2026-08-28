@@ -1,0 +1,24 @@
+# src/casefile/catalog/certificates.toml
+# Certificate transparency and TLS inspection.
+
+[[source]]
+id = "crtsh"
+name = "crt.sh"
+accepts = ["domain"]
+url = "https://crt.sh/?q={value}"
+provenance = "awesome-osint"
+
+[[source]]
+id = "censys-certs"
+name = "Censys Certificates"
+accepts = ["domain"]
+url = "https://search.censys.io/search?resource=hosts&q={value}"
+provenance = "awesome-osint"
+
+[[source]]
+id = "certspotter"
+name = "Cert Spotter"
+accepts = ["domain"]
+url = "https://sslmate.com/certspotter/api/v1/issuances?domain={value}"
+notes = "public endpoint, rate limited"
+provenance = "awesome-osint"
