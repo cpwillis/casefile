@@ -218,11 +218,10 @@ async def phone_meta(value: str, entity_type: EntityType, client) -> list[Findin
     """Offline. libphonenumber metadata only; makes no network request at all."""
     try:
         parsed = phonenumbers.parse(value, None)
-    except phonenumbers.NumberParseException as exc:
-        if (
-            exc.error_type == phonenumbers.NumberParseException.INVALID_COUNTRY_CODE
-            and "Missing or invalid default region" in str(exc)
-        ):
+    except phonenumbers.NumberParseException:
+        # The _phone detector only yields digit strings, so a parse failure with no leading
+        # "+" is always the missing-country-code case, whatever libphonenumber calls it.
+        if not value.strip().startswith("+"):
             return [
                 Finding(
                     label="note",

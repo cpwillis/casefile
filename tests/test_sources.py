@@ -426,3 +426,11 @@ async def test_phone_meta_without_country_code_explains_itself():
 async def test_phone_meta_unparseable_is_empty():
     findings = await phone_meta("+999", EntityType.PHONE, client=None)
     assert findings == []
+
+
+async def test_phone_meta_note_does_not_depend_on_library_message_text():
+    """The no-country-code branch keys off the missing + prefix, not libphonenumber's prose."""
+    no_prefix = await phone_meta("0293744000", EntityType.PHONE, client=None)
+    assert [f.label for f in no_prefix] == ["note"]
+    with_prefix_but_invalid = await phone_meta("+999", EntityType.PHONE, client=None)
+    assert with_prefix_but_invalid == []
