@@ -1,6 +1,6 @@
 import pytest
 
-from casefile.detect import TIER1
+from casefile.detect import TIER1, TIER2
 from casefile.types import EntityType
 
 TIER1_DETECTORS = dict(TIER1)
@@ -36,3 +36,35 @@ TIER1_DETECTORS = dict(TIER1)
 )
 def test_tier1_detector(entity_type, raw, expected):
     assert TIER1_DETECTORS[entity_type](raw) == expected
+
+
+TIER2_DETECTORS = dict(TIER2)
+
+
+@pytest.mark.parametrize(
+    ("entity_type", "raw", "expected"),
+    [
+        (EntityType.EMAIL, "Someone@Example.COM", "someone@example.com"),
+        (EntityType.EMAIL, "not-an-email", None),
+        (EntityType.URL, "https://example.com/a?b=c", "https://example.com/a?b=c"),
+        (EntityType.URL, "example.com", None),
+        (EntityType.DOMAIN, "Example.COM", "example.com"),
+        (EntityType.DOMAIN, "sub.example.co.uk", "sub.example.co.uk"),
+        (EntityType.DOMAIN, "münchen.de", "xn--mnchen-3ya.de"),
+        (EntityType.DOMAIN, "no_underscores.com", None),
+        (EntityType.DOMAIN, "trailing.", None),
+        (EntityType.PHONE, "+61 2 9374 4000", "+61293744000"),
+        (EntityType.PHONE, "(02) 9374 4000", "0293744000"),
+        (EntityType.PHONE, "123", None),
+        (EntityType.PHONE, "192.0.2.10", None),
+        (EntityType.PHONE, "1.800.555.0199", "18005550199"),
+        (EntityType.VIN, "1HGCM82633A004352", "1HGCM82633A004352"),
+        (EntityType.VIN, "1HGCM82633A00435I", None),
+        (EntityType.IMO, "IMO 9074729", "9074729"),
+        (EntityType.MMSI, "503000000", "503000000"),
+        (EntityType.TAIL_NUMBER, "vh-oqa", "VH-OQA"),
+        (EntityType.TAIL_NUMBER, "AS64496", None),
+    ],
+)
+def test_tier2_detector(entity_type, raw, expected):
+    assert TIER2_DETECTORS[entity_type](raw) == expected
