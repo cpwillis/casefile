@@ -658,8 +658,9 @@ v1 is large for a single pass, so each phase is independently useful and shippab
 each has an acceptance test so "done" is observable rather than argued.
 
 **Phase 1: detection, catalogue, link rendering, CLI.** No network at all.
-Done when: `casefile example.com` prints ranked candidate types with their link sets,
-the web app renders the same at `127.0.0.1`, the catalogue validation test passes over
+Done when: `casefile` prints its URL and opens a browser on a working search page,
+`casefile example.com` prints ranked candidate types with their link sets,
+the web app renders the same readings, the catalogue validation test passes over
 at least 100 type-slots spanning every one of the 21 types, `detect` has table-driven
 coverage including ranking order, and `ci.yml` runs lint and tests on every push.
 

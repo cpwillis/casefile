@@ -49,7 +49,7 @@ does.
 
 | Phase | Deliverable | Release | Depends on |
 |---|---|---|---|
-| 1 | Detection, catalogue, link rendering, CLI. No network. | `0.1.0` | Layout decision |
+| 1 | Detection, catalogue, link rendering in a browser, CLI. No network. | `0.1.0` | none, unblocked |
 | 2 | Demo build and deploy, links-only | `0.2.0` | Phase 1, Cloudflare access |
 | 3 | Fetcher registry, rate limiting, first three fetchers | `0.3.0` | Phase 1 |
 | 4 | Remaining five fetchers, WhatsMyName, SQLite cache | `1.0.0` | Phase 3 |
@@ -252,7 +252,8 @@ is the plan; those sets are an optional accelerator that needs a licence check f
 - All four phases complete with their acceptance criteria met.
 - Catalogue at 250+ type-slots, every one of the 21 types at three or more.
 - Eight fetchers plus the WhatsMyName checker returning typed `SourceResult`s.
-- `uvx casefile` works from a clean machine with no system dependencies.
+- `uvx casefile` works from a clean machine with no system dependencies, prints its URL,
+  and opens a browser on it. Install, run, use it in a browser: three steps, no config.
 - `casefile.cpwillis.dev` live, prerendered from the real app, containing no live endpoint
   references, navigable without JavaScript.
 - `osint.cpwillis.dev` 301s to it.

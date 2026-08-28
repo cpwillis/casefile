@@ -77,6 +77,7 @@ decisions that would otherwise erode quietly as the codebase grows.
 | Demo is inert | built output references no `127.0.0.1`, `localhost` or `/panel/` |
 | Fixtures carry no real PII | demo data uses only `example.*` and RFC 5737/3849 ranges |
 | Web app is loopback | `serve`'s `host` default is `127.0.0.1` |
+| Tests never launch a browser | `app.router.on_startup` is empty, so `TestClient` cannot trigger one |
 | No telemetry | no analytics or reporting package appears in the dependency tree |
 
 A constraint test failing is not a bug report, it is a design decision being reversed. The
