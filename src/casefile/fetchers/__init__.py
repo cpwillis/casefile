@@ -1,7 +1,10 @@
 """Fetcher contract: the result model, panel states, exceptions, registry and runner."""
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
+
+import httpx
 
 from casefile.types import EntityType
 
@@ -69,3 +72,27 @@ def has_fetcher(source_id: str) -> bool:
 
 def fetchers_for(entity_type: EntityType) -> tuple[str, ...]:
     return tuple(r.id for r in _REGISTRY.values() if entity_type in r.accepts)
+
+
+async def run_fetcher(source_id, value, entity_type, client) -> "SourceResult":
+    """Run one fetcher and map its outcome to a SourceResult. Never raises."""
+    rec = registered_fetcher(source_id)
+    if rec is None:
+        return SourceResult(source_id=source_id, state=State.ERROR, detail=f"no fetcher registered for {source_id}")
+    start = time.monotonic()
+    try:
+        findings = tuple(await rec.func(value, entity_type, client))
+        state = State.OK if findings else State.EMPTY
+        return SourceResult(source_id, state, findings, elapsed_ms=_ms(start))
+    except NeedsKey as exc:
+        return SourceResult(source_id, State.NEEDS_KEY, detail=str(exc), elapsed_ms=_ms(start))
+    except RateLimited as exc:
+        return SourceResult(source_id, State.RATE_LIMITED, detail=str(exc), elapsed_ms=_ms(start))
+    except httpx.TimeoutException:
+        return SourceResult(source_id, State.TIMEOUT, detail="no response within the timeout", elapsed_ms=_ms(start))
+    except Exception as exc:  # noqa: BLE001 -- a dead source must never break the page
+        return SourceResult(source_id, State.ERROR, detail=str(exc), elapsed_ms=_ms(start))
+
+
+def _ms(start: float) -> int:
+    return int((time.monotonic() - start) * 1000)
