@@ -970,7 +970,6 @@ def test_total_slot_coverage():
     catalog = load_catalog()
     slots = sum(len(s.accepts) for s in catalog)
     assert slots >= MINIMUM_SLOTS, f"{slots} slots, need {MINIMUM_SLOTS}"
-
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
@@ -1098,8 +1097,7 @@ def build_report(raw: str) -> tuple[Section, ...]:
             type=candidate.type.value,
             value=candidate.value,
             links=tuple(
-                Link(s.id, s.name, build_url(s, candidate.value), s.notes)
-                for s in sources_for(catalog, candidate.type)
+                Link(s.id, s.name, build_url(s, candidate.value), s.notes) for s in sources_for(catalog, candidate.type)
             ),
         )
         for candidate in detect(raw)
@@ -1275,7 +1273,6 @@ def test_index_renders_a_search_form():
     assert response.status_code == 200
     assert "<form" in response.text
     assert 'name="v"' in response.text
-
 
 
 def test_search_input_is_labelled():

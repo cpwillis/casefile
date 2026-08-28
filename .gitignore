@@ -11,3 +11,4 @@ dist/
 .cache/
 .DS_Store
 .superpowers/
+uv.lock

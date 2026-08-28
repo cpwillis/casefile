@@ -311,12 +311,13 @@ class Finding:
     value: str
     url: str | None = None
 
+
 @dataclass(frozen=True)
 class SourceResult:
     source_id: str
     state: str
     findings: tuple[Finding, ...] = ()
-    detail: str | None = None   # error reason, or a note on the state
+    detail: str | None = None  # error reason, or a note on the state
     elapsed_ms: int = 0
 ```
 
