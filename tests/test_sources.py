@@ -1,7 +1,15 @@
 import httpx
 
 from casefile.fetchers import Finding, run_fetcher
-from casefile.fetchers.sources import crtsh, dns, github, internetdb, rdap  # noqa: F401 -- import registers them
+from casefile.fetchers.sources import (  # noqa: F401 -- import registers them
+    crtsh,
+    dns,
+    github,
+    hashlookup,
+    internetdb,
+    rdap,
+    wikidata,
+)
 from casefile.types import EntityType
 
 
@@ -229,3 +237,77 @@ async def test_github_404_is_empty_not_error():
     async with _client(handler) as client:
         result = await run_fetcher("github", "nope", EntityType.USERNAME, client)
     assert result.state == "empty"
+
+
+async def test_wikidata_returns_entity_matches():
+    def handler(request):
+        assert request.url.params["action"] == "wbsearchentities"
+        return httpx.Response(
+            200,
+            json={
+                "search": [
+                    {
+                        "id": "Q4778915",
+                        "label": "Cloudflare",
+                        "description": "American internet infrastructure company",
+                        "concepturi": "http://www.wikidata.org/entity/Q4778915",
+                    }
+                ]
+            },
+        )
+
+    async with _client(handler) as client:
+        findings = await wikidata("Cloudflare", EntityType.COMPANY, client)
+    assert findings[0].label == "Cloudflare"
+    assert "internet infrastructure" in findings[0].value
+    assert findings[0].url == "https://www.wikidata.org/wiki/Q4778915"
+
+
+async def test_wikidata_no_matches_is_empty():
+    def handler(request):
+        return httpx.Response(200, json={"search": []})
+
+    async with _client(handler) as client:
+        result = await run_fetcher("wikidata", "zzzz", EntityType.COMPANY, client)
+    assert result.state == "empty"
+
+
+async def test_hashlookup_reports_a_known_file():
+    def handler(request):
+        assert request.url.path.startswith("/lookup/md5/")
+        return httpx.Response(
+            200,
+            json={
+                "FileName": "requires.txt",
+                "FileSize": "0",
+                "MD5": "D41D8CD9",
+                "ProductCode": {"ProductName": "Photoshop"},
+            },
+        )
+
+    async with _client(handler) as client:
+        findings = await hashlookup("d41d8cd98f00b204e9800998ecf8427e", EntityType.HASH, client)
+    labels = {f.label: f.value for f in findings}
+    assert labels["known file"] == "requires.txt"
+    assert labels["product"] == "Photoshop"
+
+
+async def test_hashlookup_unknown_hash_is_empty():
+    def handler(request):
+        return httpx.Response(404, json={"message": "Non existing MD5"})
+
+    async with _client(handler) as client:
+        result = await run_fetcher("hashlookup", "0" * 32, EntityType.HASH, client)
+    assert result.state == "empty"
+
+
+async def test_hashlookup_picks_the_endpoint_by_hash_length():
+    seen = {}
+
+    def handler(request):
+        seen["path"] = request.url.path
+        return httpx.Response(404, json={"message": "nope"})
+
+    async with _client(handler) as client:
+        await hashlookup("a" * 40, EntityType.HASH, client)
+    assert "sha1" in seen["path"]

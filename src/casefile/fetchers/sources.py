@@ -113,3 +113,61 @@ async def github(value: str, entity_type: EntityType, client: httpx.AsyncClient)
     if url := data.get("html_url"):
         findings.append(Finding(label="profile", value=data.get("login", value), url=url))
     return findings
+
+
+@fetcher(id="wikidata", accepts=[EntityType.PERSON, EntityType.COMPANY])
+async def wikidata(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    resp = await get_json(
+        client,
+        "https://www.wikidata.org/w/api.php",
+        "www.wikidata.org",
+        params={
+            "action": "wbsearchentities",
+            "search": value,
+            "language": "en",
+            "format": "json",
+            "limit": 5,
+        },
+    )
+    findings: list[Finding] = []
+    for item in resp.json().get("search", []):
+        entity_id = item.get("id", "")
+        findings.append(
+            Finding(
+                label=item.get("label", entity_id),
+                value=item.get("description", "no description"),
+                url=f"https://www.wikidata.org/wiki/{entity_id}" if entity_id else None,
+            )
+        )
+    return findings
+
+
+# hashlookup exposes one path per digest length. Our detector accepts 32/40/64 hex chars.
+_HASHLOOKUP_PATHS = {32: "md5", 40: "sha1", 64: "sha256"}
+
+
+@fetcher(id="hashlookup", accepts=[EntityType.HASH])
+async def hashlookup(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    """CIRCL hashlookup: known-GOOD (NSRL) data, so a hit means a recognised legitimate file."""
+    kind = _HASHLOOKUP_PATHS.get(len(value))
+    if kind is None:
+        return []
+    resp = await get_json(
+        client,
+        f"https://hashlookup.circl.lu/lookup/{kind}/{quote(value, safe='')}",
+        "hashlookup.circl.lu",
+        allow=(404,),
+        headers={"accept": "application/json"},
+    )
+    if resp.status_code == 404:
+        return []
+    data = resp.json()
+    findings: list[Finding] = []
+    if name := data.get("FileName"):
+        findings.append(Finding(label="known file", value=str(name)))
+    if size := data.get("FileSize"):
+        findings.append(Finding(label="size", value=f"{size} bytes"))
+    product = (data.get("ProductCode") or {}).get("ProductName")
+    if product:
+        findings.append(Finding(label="product", value=str(product)))
+    return findings
