@@ -1,8 +1,9 @@
 name: ci
 
+# Manual only. casefile is a local tool, so `make check` on your own machine is the real
+# gate; this exists to run the same suite on a clean Linux box when you want a second
+# opinion, not to gate every push.
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 permissions:
