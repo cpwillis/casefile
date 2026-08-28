@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship `0.1.0`: paste any identifier, get every relevant OSINT pivot as a link, with zero network calls.
+**Goal:** Ship `0.1.0`: `uvx casefile` opens a browser where pasting any identifier returns every relevant OSINT pivot as a link, with zero network calls.
 
 **Architecture:** A pure-function detector maps an input string to a ranked tuple of candidate entity types with per-type normalised values. A TOML catalogue maps entity types to sources, each holding a URL template. A Starlette app renders a sticky-rail-plus-pane page of those links; an argparse CLI renders the same data as text or JSON. Nothing in this phase touches the network.
 
@@ -1196,13 +1196,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("value", nargs="?", help="the identifier to look up")
     parser.add_argument("--json", action="store_true", help="emit JSON instead of text")
     parser.add_argument("--port", type=int, default=8765, help="port for the web app (default: 8765)")
+    parser.add_argument("--no-browser", action="store_true", help="do not open a browser on launch")
     parser.add_argument("--version", action="version", version=f"casefile {__version__}")
     args = parser.parse_args(argv)
 
     if args.value is None:
         from casefile.web.app import serve
 
-        return serve(port=args.port)
+        return serve(port=args.port, open_browser=not args.no_browser)
 
     sections = build_report(args.value)
     if not sections:
@@ -1241,7 +1242,7 @@ git commit -m "add result model, cli text and json output"
 
 **Interfaces:**
 - Consumes: `build_report` from `report.py`.
-- Produces: `app` (Starlette instance), `serve(port: int, host: str = "127.0.0.1") -> int`.
+- Produces: `app` (Starlette instance), `serve(port: int, host: str = "127.0.0.1", open_browser: bool = True) -> int`.
 
 - [ ] **Step 1: Add the dependencies**
 
@@ -1327,6 +1328,8 @@ building the wheel.
 ```python
 """Starlette app. Binds loopback only; this is a local tool, not a service."""
 
+import threading
+import webbrowser
 from pathlib import Path
 
 import uvicorn
@@ -1364,8 +1367,14 @@ app = Starlette(
 )
 
 
-def serve(port: int = 8765, host: str = "127.0.0.1") -> int:
-    print(f"casefile on http://{host}:{port}")
+def serve(port: int = 8765, host: str = "127.0.0.1", open_browser: bool = True) -> int:
+    url = f"http://{host}:{port}"
+    print(f"casefile is running at {url}")
+    print("press ctrl-c to stop")
+    if open_browser:
+        # ponytail: fixed 0.5s delay rather than a uvicorn startup hook, so tests that exercise
+        # `app` can never launch a browser. Raise it if a cold browser ever races the bind.
+        threading.Timer(0.5, webbrowser.open, [url]).start()
     uvicorn.run(app, host=host, port=port, log_level="warning")
     return 0
 ```
@@ -1625,6 +1634,11 @@ def test_cli_and_web_render_the_same_readings():
         assert f'id="type-{candidate.type.value}"' in text
 
 
+def test_app_has_no_startup_hooks():
+    """A browser-opening startup hook would fire under TestClient and launch a browser in CI."""
+    assert app.router.on_startup == []
+
+
 def test_no_network_dependency_in_this_phase():
     """Phase 1 must not import httpx anywhere in the package."""
     package = Path(__file__).resolve().parents[1] / "src" / "casefile"
@@ -1672,7 +1686,9 @@ Add before `</body>`:
 - [ ] **Step 5: Verify the app by hand**
 
 Run: `uv run casefile`
-Open `http://127.0.0.1:8765`, search `example.com`, and confirm: the rail lists both readings, clicking a rail entry scrolls to that section, the filter narrows the link list, and narrowing the window below 900px collapses the rail to a strip.
+
+Confirm it prints the URL and your browser opens on it unprompted. Then search
+`example.com` and confirm: the rail lists both readings, clicking a rail entry scrolls to that section, the filter narrows the link list, and narrowing the window below 900px collapses the rail to a strip.
 
 - [ ] **Step 6: Run everything**
 
