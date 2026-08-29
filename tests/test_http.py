@@ -72,7 +72,9 @@ def test_domain_slot_survives_a_second_event_loop():
     asyncio.run(contend())  # second, independent loop: must not raise RuntimeError
 
 
-async def test_get_json_retries_once_then_raises_rate_limited():
+@pytest.mark.parametrize("verb", ["get", "post"])
+async def test_retries_once_then_raises_rate_limited(verb):
+    """Both verbs share _send_with_retry, so both must show the same one-retry policy."""
     calls = 0
 
     def handler(request):
@@ -82,11 +84,11 @@ async def test_get_json_retries_once_then_raises_rate_limited():
 
     async with mock_client(handler) as client:
         with pytest.raises(RateLimited):
-            await http.get(client, "https://h.test/x", "h.test")
+            await getattr(http, verb)(client, "https://h.test/x", "h.test")
     assert calls == 2  # original plus one retry
 
 
-async def test_get_json_returns_on_success():
+async def test_get_returns_on_success():
     def handler(request):
         return httpx.Response(200, json={"ok": True})
 
@@ -95,7 +97,7 @@ async def test_get_json_returns_on_success():
     assert resp.json() == {"ok": True}
 
 
-async def test_get_json_allow_returns_404_without_raising():
+async def test_get_allow_returns_404_without_raising():
     def handler(request):
         return httpx.Response(404, json={"message": "Not Found"})
 
@@ -104,7 +106,7 @@ async def test_get_json_allow_returns_404_without_raising():
     assert resp.status_code == 404
 
 
-async def test_get_json_still_raises_on_unallowed_404():
+async def test_get_still_raises_on_unallowed_404():
     def handler(request):
         return httpx.Response(404, json={"message": "Not Found"})
 
@@ -113,7 +115,7 @@ async def test_get_json_still_raises_on_unallowed_404():
             await http.get(client, "https://h.test/x", "h.test")
 
 
-async def test_post_json_sends_form_data_and_returns_body():
+async def test_post_sends_form_data_and_returns_body():
     seen = {}
 
     def handler(request):
@@ -126,17 +128,3 @@ async def test_post_json_sends_form_data_and_returns_body():
     assert seen["method"] == "POST"
     assert "query=get_info" in seen["body"]
     assert resp.json() == {"query_status": "ok"}
-
-
-async def test_post_json_retries_once_then_raises_rate_limited():
-    calls = 0
-
-    def handler(request):
-        nonlocal calls
-        calls += 1
-        return httpx.Response(429, text="slow down")
-
-    async with mock_client(handler) as client:
-        with pytest.raises(RateLimited):
-            await http.post(client, "https://h.test/api", "h.test", data={"a": "b"})
-    assert calls == 2
