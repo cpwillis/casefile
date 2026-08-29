@@ -41,6 +41,7 @@
       {% for section in sourced %}
       <h3 class="reading">{{ section.type }} <span class="muted">{{ section.value }}</span>
         {% if loop.first %}<span class="tag">most likely</span>{% endif %}</h3>
+      {% if not demo %}{% with section = section %}{% include "save_control.html" %}{% endwith %}{% endif %}
       <div class="panels">
         {% for p in section.panels %}
         {% set panel_url = '/panel/' ~ p.id ~ '?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type %}
@@ -89,6 +90,8 @@
       <h3 class="reading" id="links-{{ section.type }}">{{ section.type }}
         <span class="muted">{{ section.value }}</span>
         <span class="muted">· {{ section.links | length }}</span></h3>
+      {% if not demo and section not in sourced %}
+      {% with section = section %}{% include "save_control.html" %}{% endwith %}{% endif %}
       <label class="visually-hidden" for="filter-{{ section.type }}">Filter {{ section.type }} links</label>
       <input class="filter" id="filter-{{ section.type }}" type="search" placeholder="filter links…"
              data-filters="links-{{ section.type }}-list">

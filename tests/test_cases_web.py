@@ -1,6 +1,15 @@
 import pytest
 from helpers import client
 
+from casefile.cases import list_cases
+
+
+def _saved_case_id():
+    """Case ids are opaque now, so a test finds the case rather than reconstructing its id."""
+    (case,) = list_cases()
+    return case.id
+
+
 SAME = {"sec-fetch-site": "same-origin"}
 STAR = {"t": "domain", "v": "example.com", "source_id": "dns", "label": "A", "value": "192.0.2.10", "url": ""}
 
@@ -20,8 +29,6 @@ def test_star_is_not_reachable_by_get():
 
 
 def test_starring_then_unstarring_round_trips():
-    from casefile.cases import list_cases
-
     first = client.post("/star", data=STAR, headers=SAME)
     assert first.status_code == 200
     assert "★" in first.text  # filled star
@@ -30,7 +37,11 @@ def test_starring_then_unstarring_round_trips():
     # The button declares intent rather than toggling, so a stale tab cannot un-save silently.
     second = client.post("/star", data=dict(STAR, action="unstar"), headers=SAME)
     assert "☆" in second.text  # hollow again
-    assert list_cases() == ()
+    # The case stays: it holds the identifier, and changing your mind about one finding is not
+    # the same as abandoning the investigation. Removing the identifier is what closes it.
+    (case,) = list_cases()
+    assert case.star_count == 0
+    assert [t.value for t in case.targets] == ["example.com"]
 
 
 def test_a_stale_tab_cannot_unsave_by_re_saving():
@@ -43,17 +54,16 @@ def test_a_stale_tab_cannot_unsave_by_re_saving():
 
 
 def test_deleting_a_case_removes_it():
-    from casefile.cases import list_cases
-
     client.post("/star", data=STAR, headers=SAME)
-    resp = client.post("/case/domain:example.com/delete", headers=SAME, follow_redirects=False)
+    resp = client.post(f"/case/{_saved_case_id()}/delete", headers=SAME, follow_redirects=False)
     assert resp.status_code == 303
     assert list_cases() == ()
 
 
 def test_deleting_a_case_refuses_cross_site():
     client.post("/star", data=STAR, headers=SAME)
-    assert client.post("/case/domain:example.com/delete", headers={"sec-fetch-site": "cross-site"}).status_code == 403
+    cid = _saved_case_id()
+    assert client.post(f"/case/{cid}/delete", headers={"sec-fetch-site": "cross-site"}).status_code == 403
 
 
 def test_a_foreign_host_is_refused_on_every_route_even_when_same_origin():
@@ -69,8 +79,8 @@ def test_a_foreign_host_is_refused_on_every_route_even_when_same_origin():
         "/",
         "/q?v=example.com",
         "/cases",
-        "/case/domain:example.com",
-        "/case/domain:example.com/export.md",
+        "/case/anything",
+        "/case/anything/export.md",
         "/panel/dns?v=example.com&t=domain",
     ):
         assert client.get(path, headers=evil).status_code == 400, f"{path} accepted a foreign Host"
@@ -116,22 +126,20 @@ def test_case_detail_shows_only_starred_findings():
     import re
 
     client.post("/star", data=STAR, headers=SAME)
-    text = client.get("/case/domain:example.com").text
+    text = client.get(f"/case/{_saved_case_id()}").text
     assert "192.0.2.10" in text
     shown = {m.split("\u00b7")[0].strip() for m in re.findall(r'<span class="f-label">([^<]+)</span>', text)}
     assert shown == {"dns"}, f"case page shows sources that were never starred: {shown}"
 
 
 def test_missing_case_falls_back_to_the_list():
-    assert "no longer exists" in client.get("/case/domain:nope.example").text
+    assert "no longer exists" in client.get("/case/never-existed").text
 
 
-@pytest.mark.parametrize(
-    ("fmt", "needle"), [("md", "# example.com"), ("json", '"target"'), ("html", "<!doctype html>")]
-)
+@pytest.mark.parametrize(("fmt", "needle"), [("md", "# example.com"), ("json", '"name"'), ("html", "<!doctype html>")])
 def test_export_downloads_each_format(fmt, needle):
     client.post("/star", data=STAR, headers=SAME)
-    resp = client.get(f"/case/domain:example.com/export.{fmt}")
+    resp = client.get(f"/case/{_saved_case_id()}/export.{fmt}")
     assert resp.status_code == 200
     assert needle in resp.text
     assert "attachment" in resp.headers["content-disposition"]
@@ -139,7 +147,7 @@ def test_export_downloads_each_format(fmt, needle):
 
 def test_export_rejects_an_unknown_format():
     client.post("/star", data=STAR, headers=SAME)
-    assert client.get("/case/domain:example.com/export.pdf").status_code == 404
+    assert client.get(f"/case/{_saved_case_id()}/export.pdf").status_code == 404
 
 
 def test_an_unwritable_store_shows_the_failure_on_the_button(tmp_path, monkeypatch):
@@ -161,3 +169,64 @@ def test_an_empty_search_returns_to_the_one_homepage():
     client.post("/star", data=STAR, headers=SAME)
     resp = client.get("/q", params={"v": "   "}, follow_redirects=True)
     assert "Where you left off" in resp.text
+
+
+SAVE = {"t": "username", "v": "acme-example"}
+
+
+def test_save_this_search_creates_a_case_with_nothing_starred():
+    """The gap: a search worth keeping before anything on it is worth starring."""
+    resp = client.post("/save", data=SAVE, headers=SAME, follow_redirects=False)
+    assert resp.status_code == 303
+    (case,) = list_cases()
+    assert case.name == "acme-example"
+    assert case.star_count == 0
+
+
+def test_a_second_search_can_be_joined_onto_the_same_case():
+    client.post("/save", data=SAVE, headers=SAME)
+    cid = list_cases()[0].id
+    client.post("/save", data={"t": "domain", "v": "acme.example", "case_id": cid}, headers=SAME)
+    (case,) = list_cases()
+    assert {t.value for t in case.targets} == {"acme-example", "acme.example"}
+
+
+def test_a_saved_search_says_so_on_the_result_page():
+    client.post("/save", data=SAVE, headers=SAME)
+    text = client.get("/q", params={"v": "acme-example"}).text
+    assert "Saved to" in text
+    assert "Save this search" not in text.split("Saved to")[0][-400:]
+
+
+def test_an_unsaved_search_offers_to_save_and_to_join():
+    client.post("/save", data=SAVE, headers=SAME)
+    text = client.get("/q", params={"v": "example.com"}).text
+    assert "Save this search" in text
+    assert "acme-example" in text, "no way to join this search onto an existing case"
+
+
+def test_save_refuses_cross_site():
+    assert client.post("/save", data=SAVE, headers={"sec-fetch-site": "cross-site"}).status_code == 403
+
+
+def test_a_case_can_be_renamed_from_its_page():
+    client.post("/save", data=SAVE, headers=SAME)
+    cid = list_cases()[0].id
+    resp = client.post(f"/case/{cid}/rename", data={"name": "Acme investigation"}, headers=SAME, follow_redirects=False)
+    assert resp.status_code == 303
+    assert list_cases()[0].name == "Acme investigation"
+
+
+def test_rename_refuses_cross_site():
+    client.post("/save", data=SAVE, headers=SAME)
+    cid = list_cases()[0].id
+    assert (
+        client.post(f"/case/{cid}/rename", data={"name": "x"}, headers={"sec-fetch-site": "cross-site"}).status_code
+        == 403
+    )
+
+
+def test_removing_a_target_from_the_result_page():
+    client.post("/save", data=SAVE, headers=SAME)
+    client.post("/save", data=dict(SAVE, action="remove"), headers=SAME)
+    assert list_cases() == ()

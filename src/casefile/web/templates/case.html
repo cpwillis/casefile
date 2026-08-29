@@ -1,22 +1,44 @@
 {% extends "base.html" %}
-{% block title %}{{ case.value }} · casefile{% endblock %}
+{% block title %}{{ case.name }} · casefile{% endblock %}
 {% block content %}
-<main class="intro" id="pane">
-  <h1>{{ case.value }}</h1>
-  <p class="muted">{{ case.entity_type }} · {{ case.star_count }} saved</p>
+<main class="intro wide" id="pane">
+  <p class="muted"><a href="/cases">← all saved cases</a></p>
+  <form class="rename" method="post" action="/case/{{ case.id | urlencode }}/rename">
+    <label class="visually-hidden" for="case-name">Case name</label>
+    <input id="case-name" name="name" value="{{ case.name }}" maxlength="120">
+    <button type="submit">Rename</button>
+  </form>
+  <p class="muted">{{ case.targets | length }} identifier{{ "s" if case.targets | length != 1 }}
+    · {{ case.star_count }} saved finding{{ "s" if case.star_count != 1 }}</p>
   <p>
-    <a href="/q?v={{ case.value | urlencode }}">Re-run this search</a>
-    <span class="muted">·</span>
     export
     {% for fmt in export_formats %}<a href="/case/{{ case.id | urlencode }}/export.{{ fmt }}">{{ fmt }}</a>
     {% endfor %}
   </p>
-  <form method="post" action="/case/{{ case.id | urlencode }}/delete"
-        onsubmit="return confirm('Delete this case and everything saved in it?');">
-    <button type="submit" class="panel-run">Delete this case</button>
-  </form>
+
+  <h2 class="recent-heading">Identifiers</h2>
+  <ul class="case-list">
+    {% for t in case.targets %}
+    <li>
+      <a href="/q?v={{ t.value | urlencode }}">{{ t.value }}</a>
+      <span class="muted">{{ t.entity_type }} · {{ t.star_count }} saved</span>
+      <form method="post" action="/save" class="inline">
+        <input type="hidden" name="t" value="{{ t.entity_type }}">
+        <input type="hidden" name="v" value="{{ t.value }}">
+        <input type="hidden" name="action" value="remove">
+        <button type="submit" class="linkish"
+                onsubmit="return confirm('Remove this identifier and its findings from the case?');">remove</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+
+  {% if case.stars %}
+  <h2 class="recent-heading">Saved findings</h2>
+  {% for target, rows in case.stars | groupby("target_value") %}
+  <h3 class="reading">{{ rows[0].target_type }} <span class="muted">{{ target }}</span></h3>
   <ul class="findings">
-    {% for s in case.stars %}
+    {% for s in rows %}
     <li><span class="f-label">{{ s.source_id }} · {{ s.label }}</span>
       {% if s.url | safe_url %}
       <a href="{{ s.url | safe_url }}" rel="noreferrer noopener" target="_blank">{{ s.value }}</a>
@@ -24,5 +46,14 @@
     </li>
     {% endfor %}
   </ul>
+  {% endfor %}
+  {% else %}
+  <p class="muted">Nothing starred yet. Star a finding on a result page and it will appear here.</p>
+  {% endif %}
+
+  <form method="post" action="/case/{{ case.id | urlencode }}/delete"
+        onsubmit="return confirm('Delete this case and everything saved in it?');">
+    <button type="submit" class="panel-run">Delete this case</button>
+  </form>
 </main>
 {% endblock %}

@@ -143,7 +143,8 @@ def main(argv: list[str] | None = None) -> int:
             print("no saved cases yet", file=sys.stderr)
             return 1
         for c in saved:
-            print(f"{c.id:44} {c.star_count:>3} saved")
+            targets = ", ".join(t.value for t in c.targets)
+            print(f"{c.id}  {c.name[:28]:28} {c.star_count:>3} saved  {targets}")
         return 0
 
     if args.export:

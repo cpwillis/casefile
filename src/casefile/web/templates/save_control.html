@@ -1,0 +1,26 @@
+{# One reading's save state: already in a case, or a control to put it in one. Shown per reading
+   rather than per page because a page has several readings and they are separately worth keeping. #}
+{% if section.case %}
+<p class="save-state muted">Saved to <a href="/case/{{ section.case.id | urlencode }}">{{ section.case.name }}</a>
+  <form method="post" action="/save" class="inline">
+    <input type="hidden" name="t" value="{{ section.type }}">
+    <input type="hidden" name="v" value="{{ section.value }}">
+    <input type="hidden" name="action" value="remove">
+    <button type="submit" class="linkish">remove</button>
+  </form>
+</p>
+{% else %}
+<form method="post" action="/save" class="save-state inline">
+  <input type="hidden" name="t" value="{{ section.type }}">
+  <input type="hidden" name="v" value="{{ section.value }}">
+  <button type="submit" class="linkish">Save this search</button>
+  {% if all_cases %}
+  <label class="visually-hidden" for="case-for-{{ section.type }}">Add to an existing case instead</label>
+  <span class="muted">or add to</span>
+  <select id="case-for-{{ section.type }}" name="case_id">
+    <option value="">a new case</option>
+    {% for c in all_cases %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+  </select>
+  {% endif %}
+</form>
+{% endif %}

@@ -17,8 +17,9 @@
   <h2 class="recent-heading">Where you left off</h2>
   <ul class="case-list">
     {% for c in cases %}
-    <li><a href="/case/{{ c.id | urlencode }}">{{ c.value }}</a>
-      <span class="muted">{{ c.entity_type }} · {{ c.star_count }} saved</span></li>
+    <li><a href="/case/{{ c.id | urlencode }}">{{ c.name }}</a>
+      <span class="muted">{{ c.targets | map(attribute="value") | join(", ") }}</span>
+      <span class="muted">· {{ c.star_count }} saved</span></li>
     {% endfor %}
   </ul>
   <p class="muted"><a href="/cases">All saved cases</a></p>

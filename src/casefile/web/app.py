@@ -4,7 +4,7 @@ import re
 import threading
 import webbrowser
 from pathlib import Path
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote
 
 import uvicorn
 from starlette.applications import Starlette
@@ -18,7 +18,20 @@ from starlette.templating import Jinja2Templates
 
 import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers at import
 from casefile.cache import cached_result, run_cached
-from casefile.cases import CaseStoreError, Star, delete_case, is_starred, list_cases, load_case, star, unstar
+from casefile.cases import (
+    CaseStoreError,
+    Star,
+    case_for_target,
+    delete_case,
+    is_starred,
+    list_cases,
+    load_case,
+    remove_target,
+    rename_case,
+    save_target,
+    star,
+    unstar,
+)
 from casefile.catalog import links_for
 from casefile.detect import detect
 from casefile.export import FORMATS, export_case, media_type, safe_url
@@ -65,6 +78,7 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
                 "panels": panels,
                 "results": known,
                 "links": links_for(candidate, exclude=fetched_ids()),
+                "case": None if results is not None else case_for_target(candidate.type, candidate.value),
             }
         )
     return sections
@@ -78,7 +92,13 @@ async def result(request: Request) -> HTMLResponse:
     raw = request.query_params.get("v", "").strip()
     if not raw:
         return RedirectResponse("/")  # one homepage, rather than a second render without its context
-    return templates.TemplateResponse(request, "result.html", {"raw": raw, "sections": sections_for(raw)})
+    sections = sections_for(raw)
+    return templates.TemplateResponse(
+        request,
+        "result.html",
+        # every case, so a reading can be joined onto an investigation that already exists
+        {"raw": raw, "sections": sections, "all_cases": list_cases()},
+    )
 
 
 def _dead_panel(request: Request, source_id: str, detail: str) -> HTMLResponse:
@@ -124,11 +144,11 @@ _UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 def _filename_for(case, fmt: str) -> str:
     """A latin-1-safe, quote-free, newline-free download name.
 
-    case.value is third-party-influenced text. A raw unicode value raises UnicodeEncodeError in
-    the header encoder, a CRLF injects a header, and a quote corrupts the filename, so it is
-    reduced to a conservative ASCII slug rather than escaped.
+    case.name defaults to a third-party-influenced value. A raw unicode name raises
+    UnicodeEncodeError in the header encoder, a CRLF injects a header, and a quote corrupts the
+    filename, so it is reduced to a conservative ASCII slug rather than escaped.
     """
-    slug = _UNSAFE_FILENAME.sub("-", f"{case.entity_type}-{case.value}").strip("-")
+    slug = _UNSAFE_FILENAME.sub("-", case.name).strip("-")
     return f"{slug[:80] or 'case'}.{fmt}"
 
 
@@ -180,6 +200,49 @@ async def star_route(request: Request) -> Response:
     )
 
 
+def _form(body: str) -> dict:
+    return {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
+
+
+async def save_route(request: Request) -> Response:
+    """Save one reading into a case: a new one, or an existing one picked by id.
+
+    This is the thing that was missing: until now a case could only come into being as a side
+    effect of starring a finding, so a search worth keeping but with nothing yet worth starring
+    could not be kept at all.
+    """
+    if not _same_origin(request):
+        return PlainTextResponse("cross-site request refused", status_code=403)
+    form = _form((await request.body()).decode("utf-8", "replace"))
+    try:
+        entity_type = EntityType(form.get("t", ""))
+    except ValueError:
+        return PlainTextResponse("unknown entity type", status_code=400)
+    value = form.get("v", "")
+    if not value:
+        return PlainTextResponse("missing target", status_code=400)
+    try:
+        if form.get("action") == "remove":
+            remove_target(entity_type, value)
+        else:
+            save_target(entity_type, value, case_id=form.get("case_id") or None, name=form.get("name", ""))
+    except CaseStoreError as exc:
+        return PlainTextResponse(f"could not save: {exc}", status_code=200)
+    return RedirectResponse(f"/q?v={quote(value)}", status_code=303)
+
+
+async def case_rename(request: Request) -> Response:
+    if not _same_origin(request):
+        return PlainTextResponse("cross-site request refused", status_code=403)
+    case_id = request.path_params["case_id"]
+    form = _form((await request.body()).decode("utf-8", "replace"))
+    try:
+        rename_case(case_id, form.get("name", ""))
+    except CaseStoreError as exc:
+        return PlainTextResponse(f"could not rename: {exc}", status_code=400)
+    return RedirectResponse(f"/case/{quote(case_id)}", status_code=303)
+
+
 async def cases(request: Request) -> Response:
     return templates.TemplateResponse(request, "cases.html", {"cases": list_cases()})
 
@@ -226,6 +289,8 @@ app = Starlette(
         Route("/q", result),
         Route("/panel/{source_id}", panel),
         Route("/star", star_route, methods=["POST"]),
+        Route("/save", save_route, methods=["POST"]),
+        Route("/case/{case_id}/rename", case_rename, methods=["POST"]),
         Route("/cases", cases),
         Route("/case/{case_id}", case_detail),
         Route("/case/{case_id}/export.{fmt}", case_export),

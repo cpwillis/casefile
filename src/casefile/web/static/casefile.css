@@ -81,3 +81,17 @@ a { color: var(--accent); }
 .panel.htmx-request .panel-running { display: block; }
 .panel.htmx-request .panel-run, .panel.htmx-request .findings { opacity: .5; }
 .panel-run[disabled] { cursor: progress; opacity: .6; }
+
+.intro.wide { max-width: 900px; margin: 4vh auto; }
+.rename { display: flex; gap: 8px; margin: 0 0 4px; }
+.rename input { flex: 1; max-width: 26rem; padding: 6px 8px; border: 1px solid var(--line);
+                border-radius: 4px; background: var(--bg); color: var(--fg); font-size: 20px; font-weight: 600; }
+.rename button { padding: 6px 12px; border: 1px solid var(--line); border-radius: 4px;
+                 background: var(--bg); color: var(--fg); cursor: pointer; }
+form.inline { display: inline; }
+.linkish { background: none; border: 0; padding: 0; cursor: pointer; color: var(--accent);
+           font: inherit; text-decoration: underline; }
+.save-state { font-size: 13px; margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.save-state select { border: 1px solid var(--line); border-radius: 4px; background: var(--bg);
+                     color: var(--fg); padding: 2px 4px; font-size: 12px; }
+.case-list li { flex-wrap: wrap; }

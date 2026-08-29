@@ -1,20 +1,22 @@
 {% extends "base.html" %}
 {% block title %}Saved cases · casefile{% endblock %}
 {% block content %}
-<main class="intro" id="pane">
+<main class="intro wide" id="pane">
   <h1>Saved cases</h1>
   {% if missing %}<p class="muted">That case no longer exists.</p>{% endif %}
   {% if cases %}
   <ul class="case-list">
     {% for c in cases %}
     <li>
-      <a href="/case/{{ c.id | urlencode }}">{{ c.value }}</a>
-      <span class="muted">{{ c.entity_type }} · {{ c.star_count }} saved</span>
+      <a href="/case/{{ c.id | urlencode }}">{{ c.name }}</a>
+      <span class="muted">{{ c.targets | map(attribute="value") | join(", ") }}</span>
+      <span class="muted">· {{ c.star_count }} saved</span>
     </li>
     {% endfor %}
   </ul>
   {% else %}
-  <p class="muted">Nothing saved yet. Star a finding on a result page and it will appear here.</p>
+  <p class="muted">Nothing saved yet. Search for something and use <strong>Save this search</strong>,
+    or star a finding, and it will appear here.</p>
   {% endif %}
 </main>
 {% endblock %}

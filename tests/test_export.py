@@ -2,19 +2,36 @@ import json
 
 import pytest
 
-from casefile.cases import Case, Star
+from casefile.cases import Case, Star, Target
 from casefile.export import FORMATS, export_case
 
 CASE = Case(
-    id="domain:example.com",
-    entity_type="domain",
-    value="example.com",
+    id="abc123",
+    name="example.com",
     created_at=1_756_000_000.0,
     updated_at=1_756_000_500.0,
     star_count=2,
+    targets=(Target(entity_type="domain", value="example.com", star_count=2),),
     stars=(
-        Star(source_id="crtsh", label="subdomain", value="a.example.com", url="https://a.example.com"),
-        Star(source_id="dns", label="A", value="192.0.2.10"),
+        Star("crtsh", "subdomain", "a.example.com", "https://a.example.com", "domain", "example.com"),
+        Star("dns", "A", "192.0.2.10", None, "domain", "example.com"),
+    ),
+)
+
+# The model's reason for existing: one investigation, two identifiers that share no format.
+JOINED = Case(
+    id="def456",
+    name="acme-example",
+    created_at=0.0,
+    updated_at=0.0,
+    star_count=2,
+    targets=(
+        Target(entity_type="username", value="acme-example", star_count=1),
+        Target(entity_type="domain", value="acme.example", star_count=1),
+    ),
+    stars=(
+        Star("github", "profile", "Acme-Example", "https://github.example/x", "username", "acme-example"),
+        Star("dns", "A", "192.0.2.10", None, "domain", "acme.example"),
     ),
 )
 
@@ -52,15 +69,15 @@ def test_every_format_names_the_target_and_its_stars(fmt):
 def test_markdown_groups_by_source_and_links_urls():
     out = export_case(CASE, "md")
     assert "# example.com" in out
-    assert "## crtsh" in out
+    assert "### crtsh" in out
     assert "[a.example.com](https://a.example.com)" in out
     assert "192.0.2.10" in out  # no url, so plain text
 
 
 def test_json_is_parseable_and_stable():
     payload = json.loads(export_case(CASE, "json"))
-    assert payload["target"] == "example.com"
-    assert payload["entity_type"] == "domain"
+    assert payload["name"] == "example.com"
+    assert [t["entity_type"] for t in payload["targets"]] == ["domain"]
     assert len(payload["stars"]) == 2
     assert {s["source_id"] for s in payload["stars"]} == {"crtsh", "dns"}
     assert payload["stars"][0]["url"] == "https://a.example.com"
@@ -76,13 +93,12 @@ def test_html_is_self_contained():
 
 def test_html_escapes_untrusted_finding_values():
     hostile = Case(
-        id="domain:x.example",
-        entity_type="domain",
-        value="x.example",
+        id="hostile",
+        name="x.example",
         created_at=0.0,
         updated_at=0.0,
         star_count=1,
-        stars=(Star(source_id="dns", label="A", value="<script>alert(1)</script>"),),
+        stars=(Star("dns", "A", "<script>alert(1)</script>", None, "domain", "x.example"),),
     )
     out = export_case(hostile, "html")
     assert "<script>alert(1)</script>" not in out
@@ -91,13 +107,12 @@ def test_html_escapes_untrusted_finding_values():
 
 def test_html_drops_a_dangerous_url_scheme():
     hostile = Case(
-        id="domain:x.example",
-        entity_type="domain",
-        value="x.example",
+        id="hostile",
+        name="x.example",
         created_at=0.0,
         updated_at=0.0,
         star_count=1,
-        stars=(Star(source_id="dns", label="A", value="ok", url="javascript:alert(1)"),),
+        stars=(Star("dns", "A", "ok", "javascript:alert(1)", "domain", "x.example"),),
     )
     out = export_case(hostile, "html")
     assert "javascript:" not in out
@@ -117,18 +132,18 @@ def test_export_never_includes_anything_unstarred():
     import re
 
     out = export_case(CASE, "md")
-    assert set(re.findall(r"^## (.+)$", out, re.M)) == {s.source_id for s in CASE.stars}
+    assert set(re.findall(r"^### (.+)$", out, re.M)) == {s.source_id for s in CASE.stars}
     assert {f["value"] for f in json.loads(export_case(CASE, "json"))["stars"]} == {s.value for s in CASE.stars}
 
 
 WMN_CASE = Case(
-    id="username:octocat",
-    entity_type="username",
-    value="octocat",
+    id="wmn1",
+    name="octocat",
     created_at=0.0,
     updated_at=0.0,
     star_count=1,
-    stars=(Star(source_id="whatsmyname", label="GitHub", value="coding", url="https://github.example/x"),),
+    targets=(Target(entity_type="username", value="octocat", star_count=1),),
+    stars=(Star("whatsmyname", "GitHub", "coding", "https://github.example/x", "username", "octocat"),),
 )
 
 
@@ -145,3 +160,14 @@ def test_a_whatsmyname_finding_carries_its_licence_credit(fmt):
 def test_an_export_with_no_whatsmyname_finding_carries_no_credit(fmt):
     """Attribution follows the material, so a case that used none must not claim to."""
     assert "WhatsMyName" not in export_case(CASE, fmt)
+
+
+@pytest.mark.parametrize("fmt", ["md", "json", "html"])
+def test_a_joined_case_names_every_identifier_and_attributes_every_finding(fmt):
+    """A case spans identifiers, so an export that flattened them would put a domain's DNS
+    records beside a username's profile hits with nothing saying which was which."""
+    out = export_case(JOINED, fmt)
+    assert "acme.example" in out
+    assert "Acme-Example" in out
+    assert "192.0.2.10" in out
+    assert "username" in out and "domain" in out
