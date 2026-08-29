@@ -37,9 +37,9 @@
 </div>
 {% endif %}
 {% block content %}{% endblock %}
-{# htmx only where there is a server to swap against; casefile.js everywhere, because the copy
-   buttons and the link filter are rendered in both. #}
-{% if not demo %}<script src="/static/htmx.min.js" defer></script>{% endif %}
+{# htmx is the largest asset in the wheel, so it loads only on the page that swaps. The demo
+   never swaps at all. casefile.js is everywhere: the copy buttons and link filter are on both. #}
+{% if htmx and not demo %}<script src="/static/htmx.min.js" defer></script>{% endif %}
 <script src="{{ assets }}/casefile.js" defer></script>
 </body>
 </html>

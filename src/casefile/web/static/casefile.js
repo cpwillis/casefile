@@ -1,4 +1,5 @@
-// The only JavaScript in casefile. Filtering links; nothing else needs it.
+// All of casefile's JavaScript: the link filter, the / shortcut and the copy buttons.
+// Every handler is delegated, so panels htmx swaps in later are covered without rebinding.
 document.addEventListener("input", (event) => {
   const input = event.target.closest(".filter");
   if (!input) return;

@@ -170,9 +170,7 @@ def _mmsi(s: str) -> str | None:
 
 
 def _tail_number(s: str) -> str | None:
-    if re.fullmatch(r"(?i)as[0-9]+", s):  # AS64496 is an ASN, not a tail number
-        return None
-    if re.fullmatch(r"(?i)[0-9a-f]{6}", s):  # 6-hex is an ICAO24, not a tail number
+    if _asn(s) or _icao24(s):  # AS64496 is an ASN and 6-hex is an ICAO24, neither is a tail number
         return None
     return s.upper() if re.fullmatch(r"(?i)[a-z]{1,2}-?[a-z0-9]{1,5}", s) and any(c.isalpha() for c in s) else None
 

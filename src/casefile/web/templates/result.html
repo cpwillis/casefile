@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% set htmx = true %}{# panels self-load and star buttons post #}
 {% block title %}{{ raw }} · casefile{% if demo %} demo{% endif %}{% endblock %}
 {% block content %}
 {% if not sections %}

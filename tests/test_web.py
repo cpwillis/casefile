@@ -102,3 +102,12 @@ def test_domain_search_does_not_auto_load_the_expensive_checker():
 def test_cheap_panels_still_self_load():
     block = _panel_block(client.get("/q", params={"v": "example.com"}).text, "dns")
     assert 'hx-trigger="load"' in block
+
+
+def test_htmx_loads_only_on_the_page_that_swaps():
+    """51KB, the largest asset in the wheel, on three pages with no hx- attribute between them."""
+    assert "htmx.min.js" in client.get("/q", params={"v": "example.com"}).text
+    for path in ("/", "/cases"):
+        text = client.get(path).text
+        assert "htmx.min.js" not in text, f"{path} loads htmx"
+        assert "hx-" not in text, f"{path} grew an hx- attribute and now needs htmx"
