@@ -137,3 +137,12 @@ def test_free_form_readings_stay_at_full_weight_when_they_are_all_there_is():
     with nothing on it."""
     text = client.get("/q", params={"v": "octocat"}).text
     assert '<details class="speculative">' not in text
+
+
+def test_static_assets_are_revalidated_rather_than_heuristically_cached():
+    """Starlette sends etag but no cache-control, so a browser guesses a freshness lifetime and
+    can serve the previous version's casefile.js against a freshly upgraded server. This bit the
+    UI audit itself: two fixed handlers appeared broken because the page ran stale JS."""
+    resp = client.get("/static/casefile.js")
+    assert resp.headers["cache-control"] == "no-cache"
+    assert resp.headers["etag"], "revalidation needs an etag to be cheap"

@@ -42,7 +42,7 @@ a { color: var(--accent); }
 }
 
 .panel { border: 1px solid var(--line); border-radius: 4px; padding: 8px 12px; margin-bottom: 8px; }
-.panel-head { display: flex; justify-content: space-between; align-items: baseline; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .panel-id { font-weight: 600; }
 .panel-state { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
 .state-ok { color: var(--ok); }

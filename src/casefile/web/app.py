@@ -356,6 +356,21 @@ async def case_delete(request: Request) -> Response:
 # ended up as the only sensitive route without the pin.
 _TRUSTED_HOSTS = ["127.0.0.1", "localhost"]
 
+
+class _RevalidatedStatics(StaticFiles):
+    """Assets are versioned by the release, not by their URL.
+
+    Starlette sends etag and last-modified but no cache-control, so a browser applies a heuristic
+    freshness lifetime and can serve the previous version's casefile.js against a freshly upgraded
+    server. The etag is already there, so forcing revalidation costs one 304 over loopback.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["cache-control"] = "no-cache"
+        return response
+
+
 app = Starlette(
     middleware=[Middleware(TrustedHostMiddleware, allowed_hosts=_TRUSTED_HOSTS)],
     routes=[
@@ -370,7 +385,7 @@ app = Starlette(
         Route("/case/{case_id}", case_detail),
         Route("/case/{case_id}/export.{fmt}", case_export),
         Route("/case/{case_id}/delete", case_delete, methods=["POST"]),
-        Mount("/static", StaticFiles(directory=HERE / "static"), name="static"),
+        Mount("/static", _RevalidatedStatics(directory=HERE / "static"), name="static"),
     ],
 )
 

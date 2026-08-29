@@ -67,8 +67,12 @@ document.addEventListener("htmx:timeout", (event) => panelFailed(event, "this re
 // A panel replaces itself, so the button you pressed no longer exists for htmx to re-focus. Move
 // focus to the panel instead, which is the thing you were acting on and now carries the answer.
 document.addEventListener("htmx:afterSwap", (event) => {
-  const panel = event.detail.target?.closest?.(".panel") || event.detail.target;
-  if (panel?.classList?.contains("panel") && panel.id) panel.focus({preventScroll: true});
+  // With outerHTML, detail.target is the element that was replaced and is now detached, so
+  // focusing it does nothing. The replacement carries the same id, so look it back up.
+  const id = event.detail.target?.id;
+  if (!id) return;
+  const panel = document.getElementById(id);
+  if (panel && panel.classList.contains("panel")) panel.focus({ preventScroll: true });
 });
 
 // Filtering silently hid rows with no count and no empty state, which reads as "nothing matched"
