@@ -1,7 +1,7 @@
 import pytest
 from helpers import client
 
-from casefile.cases import list_cases
+from casefile.cases import list_cases, load_case
 
 
 def _saved_case_id():
@@ -241,3 +241,40 @@ def test_the_save_control_does_not_nest_a_form_inside_a_paragraph():
     text = client.get("/q", params={"v": "acme-example"}).text
     for para in re.findall(r"<p\b[^>]*>.*?</p>", text, re.S):
         assert "<form" not in para, f"a form is nested inside a paragraph: {para[:120]}"
+
+
+def test_one_finding_can_be_removed_from_the_case_page():
+    """A source that has since changed cannot be un-starred from a result page, and deleting the
+    whole identifier to drop one row is too blunt."""
+    client.post("/star", data=STAR, headers=SAME)
+    client.post("/star", data=dict(STAR, label="MX", value="0 ."), headers=SAME)
+    cid = _saved_case_id()
+    assert load_case(cid).star_count == 2
+
+    resp = client.post("/star", data=dict(STAR, action="unstar", back=cid), headers=SAME, follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == f"/case/{cid}"
+    remaining = load_case(cid)
+    assert [s.label for s in remaining.stars] == ["MX"]
+    assert [t.value for t in remaining.targets] == ["example.com"], "the identifier went with the finding"
+
+
+def test_the_case_page_offers_a_remove_control_per_finding():
+    client.post("/star", data=STAR, headers=SAME)
+    text = client.get(f"/case/{_saved_case_id()}").text
+    assert text.count('name="action" value="unstar"') == 1
+
+
+def test_the_case_page_shows_the_timestamps_the_store_already_keeps():
+    """created_at, updated_at and starred_at were all written and none were ever displayed."""
+    client.post("/star", data=STAR, headers=SAME)
+    text = client.get(f"/case/{_saved_case_id()}").text
+    assert "opened" in text and "last change" in text
+    assert "UTC" in text
+
+
+def test_a_finding_that_is_itself_an_identifier_offers_a_pivot():
+    """The whole workflow is paste, scan, follow the lead, and findings were dead ends."""
+    client.post("/star", data=STAR, headers=SAME)
+    text = client.get(f"/case/{_saved_case_id()}").text
+    assert 'class="pivot" href="/q?v=192.0.2.10"' in text

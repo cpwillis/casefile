@@ -81,3 +81,15 @@ def test_panel_refuses_a_cross_site_request():
     assert resp.status_code == 200
     assert 'data-state="error"' in resp.text
     assert "cross-site" in resp.text
+
+
+def test_a_pivotable_finding_gets_a_search_link_and_a_free_form_one_does_not(monkeypatch):
+    """An IP is the next query; a WhatsMyName site category is not, and putting an arrow on every
+    row would make the affordance meaningless."""
+    monkeypatch.setattr(
+        "casefile.web.app.run_cached",
+        stub_result(Finding("A", "192.0.2.10"), Finding("category", "coding")),
+    )
+    text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
+    assert 'href="/q?v=192.0.2.10"' in text
+    assert 'href="/q?v=coding"' not in text

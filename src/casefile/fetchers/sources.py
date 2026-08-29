@@ -47,6 +47,21 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
     return findings
 
 
+def _vcard_name(entity: dict) -> str | None:
+    """The display name out of an RDAP entity's jCard, which is a nested array, not an object.
+
+    Shape is ["vcard", [["fn", {}, "text", "Some Org"], ...]], so the name has to be dug out
+    positionally rather than by key.
+    """
+    vcard = entity.get("vcardArray")
+    if not (isinstance(vcard, list) and len(vcard) == 2 and isinstance(vcard[1], list)):
+        return None
+    for row in vcard[1]:
+        if isinstance(row, list) and len(row) >= 4 and row[0] == "fn" and isinstance(row[3], str):
+            return row[3]
+    return None
+
+
 @fetcher(id="rdap", accepts=[EntityType.DOMAIN, EntityType.IP, EntityType.ASN])
 async def rdap(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     kind = {EntityType.DOMAIN: "domain", EntityType.IP: "ip", EntityType.ASN: "autnum"}[entity_type]
@@ -56,6 +71,29 @@ async def rdap(value: str, entity_type: EntityType, client: httpx.AsyncClient) -
     findings: list[Finding] = []
     if handle := data.get("handle"):
         findings.append(Finding(label="handle", value=str(handle)))
+    # The parts that make rdap worth querying at all: who holds it, what range it sits in, and
+    # where it is delegated. Previously all three were parsed out and dropped.
+    if name := data.get("name"):
+        findings.append(Finding(label="name", value=str(name)))
+    if country := data.get("country"):
+        findings.append(Finding(label="country", value=str(country)))
+    start, end = data.get("startAddress"), data.get("endAddress")
+    if start and end:
+        findings.append(Finding(label="range", value=f"{start} - {end}"))
+    if (start_as := data.get("startAutnum")) is not None:
+        end_as = data.get("endAutnum", start_as)
+        findings.append(
+            Finding(label="as range", value=f"AS{start_as}" + (f" - AS{end_as}" if end_as != start_as else ""))
+        )
+    for entity in data.get("entities", []):
+        if not isinstance(entity, dict):
+            continue
+        if who := _vcard_name(entity):
+            for role in entity.get("roles") or ["entity"]:
+                findings.append(Finding(label=str(role), value=who))
+    for ns in data.get("nameservers", []):
+        if isinstance(ns, dict) and (host := ns.get("ldhName")):
+            findings.append(Finding(label="nameserver", value=str(host).lower()))
     for event in data.get("events", []):
         findings.append(Finding(label=event.get("eventAction", "event"), value=event.get("eventDate", "")))
     return findings

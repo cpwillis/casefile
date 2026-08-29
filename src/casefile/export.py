@@ -28,7 +28,7 @@ li { display: flex; gap: .75rem; padding: .2rem 0; border-bottom: 1px solid rgba
 """
 
 
-def _when(ts: float) -> str:
+def when(ts: float) -> str:
     return datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
@@ -75,7 +75,7 @@ def _by_target(case: Case):
 def _summary(case: Case) -> str:
     return (
         f"{len(case.targets)} identifier{'s' if len(case.targets) != 1 else ''}"
-        f" · {case.star_count} saved · last updated {_when(case.updated_at)}"
+        f" · {case.star_count} saved · last updated {when(case.updated_at)}"
     )
 
 

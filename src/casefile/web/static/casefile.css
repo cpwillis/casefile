@@ -104,3 +104,7 @@ form.inline { display: inline; }
 .links li[data-verdict="missing"] a { text-decoration: line-through; opacity: .7; }
 .linkset.htmx-request .links { opacity: .5; }
 .linkset.htmx-request .panel-running { display: block; }
+
+.pivot { font-size: 12px; color: var(--muted); text-decoration: none; }
+.pivot:hover { color: var(--accent); text-decoration: underline; }
+.star-when { font-size: 11px; }

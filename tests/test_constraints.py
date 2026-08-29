@@ -64,6 +64,8 @@ def test_no_fixture_uses_a_dialable_real_phone_number():
             if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
                 continue
             literal = node.value.strip()
+            if re.search(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", literal):
+                continue  # an address or a range: dots and digits, but not a number you can ring
             digits = re.sub(r"\D", "", literal)
             if len(digits) < 10 or not any(c.type is EntityType.PHONE for c in detect(literal)):
                 continue

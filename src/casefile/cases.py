@@ -70,6 +70,7 @@ class Star:
     url: str | None = None
     target_type: str = ""
     target_value: str = ""
+    starred_at: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -335,9 +336,9 @@ def _load(conn, case_id: str) -> Case | None:
         ).fetchall()
     )
     stars = tuple(
-        Star(source_id=s[0], label=s[1], value=s[2], url=s[3], target_type=s[4], target_value=s[5])
+        Star(source_id=s[0], label=s[1], value=s[2], url=s[3], target_type=s[4], target_value=s[5], starred_at=s[6])
         for s in conn.execute(
-            "SELECT source_id, label, value, url, target_type, target_value FROM stars WHERE case_id = ? "
+            "SELECT source_id, label, value, url, target_type, target_value, starred_at FROM stars WHERE case_id = ? "
             "ORDER BY target_type, target_value, source_id, label, value",
             (case_id,),
         ).fetchall()

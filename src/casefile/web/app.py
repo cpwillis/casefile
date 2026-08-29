@@ -33,8 +33,8 @@ from casefile.cases import (
     unstar,
 )
 from casefile.catalog import links_for
-from casefile.detect import detect
-from casefile.export import FORMATS, export_case, media_type, safe_url
+from casefile.detect import detect, is_pivotable
+from casefile.export import FORMATS, export_case, media_type, safe_url, when
 from casefile.fetchers import SourceResult, State, fetched_ids, fetchers_for, registered_fetcher, wmn
 from casefile.fetchers.http import build_client
 from casefile.linkcheck import check_links, tally
@@ -45,6 +45,10 @@ templates = Jinja2Templates(directory=HERE / "templates")
 # Exposed to templates so a finding row can render its own star state without a second query
 # layer. Kept to one read-only helper rather than handing templates the whole store.
 templates.env.globals["export_formats"] = FORMATS
+# A finding that is itself an identifier is the next query, so the page offers it as one.
+templates.env.globals["is_pivotable"] = is_pivotable
+# Every timestamp the store keeps was invisible in the UI while the exports carried them.
+templates.env.filters["when"] = lambda ts: when(ts) if ts else "unknown"
 templates.env.globals["wmn"] = {"id": wmn.SOURCE_ID, "credit": wmn.CREDIT, "url": wmn.CREDIT_URL}
 # One scheme allowlist for findings, shared with export rather than re-expressed per template.
 templates.env.filters["safe_url"] = safe_url
@@ -177,6 +181,7 @@ async def star_route(request: Request) -> Response:
     # The button states its intent rather than toggling server state. A second tab showing a
     # stale page would otherwise un-save rows it never saved, cascading the case away silently.
     action = form.get("action", "star")
+    back = form.get("back", "")
     error = None
     try:
         if action == "unstar":
@@ -187,6 +192,8 @@ async def star_route(request: Request) -> Response:
         # Shown on the button rather than 500ing. htmx does not swap 5xx, so a silent non-save
         # would look identical to a successful one.
         error = str(exc)
+    if back:  # posted from a case page, which has no button to swap
+        return RedirectResponse(f"/case/{quote(back)}", status_code=303)
     return templates.TemplateResponse(
         request,
         "star_button.html",

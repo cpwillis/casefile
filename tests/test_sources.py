@@ -457,3 +457,69 @@ async def test_dns_no_records_of_these_types_stays_empty():
     async with mock_client(handler) as client:
         result = await run_fetcher("dns", "bare.example", EntityType.DOMAIN, client)
     assert result.state == "empty"
+
+
+async def test_rdap_surfaces_ownership_netblock_and_delegation():
+    """rdap used to keep a handle and four dates and discard the rest, which is most of what
+    rdap is for."""
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "handle": "EXAMPLE-NET",
+                "name": "EXAMPLE-BLOCK",
+                "country": "AU",
+                "startAddress": "192.0.2.0",
+                "endAddress": "192.0.2.255",
+                "nameservers": [{"ldhName": "NS1.EXAMPLE.COM"}, {"ldhName": "ns2.example.com"}],
+                "entities": [
+                    {
+                        "roles": ["registrant"],
+                        "vcardArray": ["vcard", [["version", {}, "text", "4.0"], ["fn", {}, "text", "Acme Pty"]]],
+                    }
+                ],
+                "events": [{"eventAction": "registration", "eventDate": "1995-08-14"}],
+            },
+        )
+
+    async with mock_client(handler) as client:
+        findings = await rdap("example.com", EntityType.DOMAIN, client)
+    got = {f.label: f.value for f in findings}
+    assert got["name"] == "EXAMPLE-BLOCK"
+    assert got["country"] == "AU"
+    assert got["range"] == "192.0.2.0 - 192.0.2.255"
+    assert got["registrant"] == "Acme Pty"
+    assert got["registration"] == "1995-08-14"
+    assert {f.value for f in findings if f.label == "nameserver"} == {"ns1.example.com", "ns2.example.com"}
+
+
+async def test_rdap_survives_a_malformed_vcard():
+    """Third-party JSON, and jCard is a nested array rather than an object, so the shape has to
+    be checked rather than trusted."""
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "handle": "X",
+                "entities": [
+                    {"roles": ["registrant"], "vcardArray": "not-an-array"},
+                    {"roles": ["tech"], "vcardArray": ["vcard", [["fn"]]]},
+                    "not-a-dict",
+                ],
+            },
+        )
+
+    async with mock_client(handler) as client:
+        findings = await rdap("example.com", EntityType.DOMAIN, client)
+    assert [f.label for f in findings] == ["handle"]
+
+
+async def test_rdap_asn_reports_its_range():
+    def handler(request):
+        return httpx.Response(200, json={"startAutnum": 64496, "endAutnum": 64511, "name": "EXAMPLE-AS"})
+
+    async with mock_client(handler) as client:
+        findings = await rdap("AS64496", EntityType.ASN, client)
+    assert {f.label: f.value for f in findings}["as range"] == "AS64496 - AS64511"
