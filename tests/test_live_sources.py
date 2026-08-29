@@ -18,6 +18,12 @@ KEYLESS = [
     ("github", "octocat", EntityType.USERNAME),
     ("wikidata", "Cloudflare", EntityType.COMPANY),
     ("hashlookup", "d41d8cd98f00b204e9800998ecf8427e", EntityType.HASH),
+    ("nvd-cve", "CVE-2021-44228", EntityType.CVE),
+    # The 2010 pizza transaction and the genesis address: public, permanent, and not anyone's
+    # current holdings.
+    ("mempool-space-tx", "a1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d", EntityType.TX_HASH),
+    ("mempool-space-btc", "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa", EntityType.BTC_ADDRESS),
+    ("blockscout-tx", "5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060", EntityType.TX_HASH),
 ]
 
 

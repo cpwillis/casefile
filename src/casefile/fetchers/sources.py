@@ -309,3 +309,148 @@ async def phone_meta(value: str, entity_type: EntityType, client) -> list[Findin
 
 
 from casefile.fetchers import wmn  # noqa: E402,F401 -- registers the whatsmyname fetcher
+
+# CVSS has four generations live in NVD at once and which one a record carries depends on when
+# it was filed, so the newest present wins. Reading only cvssMetricV31 shows no severity at all
+# on freshly published CVEs, which is exactly when severity matters most.
+_CVSS_KEYS = ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2")
+
+
+@fetcher(id="nvd-cve", accepts=[EntityType.CVE])
+async def nvd_cve(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    """NVD's keyless CVE API. Rate limited to 5 requests per 30s without a key, so one call only."""
+    resp = await http.get(
+        client,
+        "https://services.nvd.nist.gov/rest/json/cves/2.0",
+        "services.nvd.nist.gov",
+        params={"cveId": value},
+        allow=(404,),
+    )
+    if resp.status_code == 404:  # a malformed id, as distinct from an unassigned one
+        return []
+    data = resp.json()
+    # An unassigned but well-formed id answers 200 with an empty result set, not a 404, so the
+    # miss has to be read off the body. Branching on status alone would report every unknown CVE
+    # as an error instead of as "no such record".
+    entries = data.get("vulnerabilities") or []
+    if not entries:
+        return []
+    cve = entries[0].get("cve", {})
+    findings: list[Finding] = []
+    for description in cve.get("descriptions", []):
+        if description.get("lang") == "en" and description.get("value"):
+            findings.append(Finding(label="description", value=str(description["value"])))
+            break
+    metrics = cve.get("metrics") or {}
+    for key in _CVSS_KEYS:
+        entry = (metrics.get(key) or [None])[0]
+        cvss = (entry or {}).get("cvssData") or {}
+        if cvss.get("baseScore") is not None:
+            severity = cvss.get("baseSeverity", "")
+            findings.append(Finding(label="severity", value=f"{cvss['baseScore']} {severity}".strip()))
+            if vector := cvss.get("vectorString"):
+                findings.append(Finding(label="cvss vector", value=str(vector)))
+            break
+    if kev := cve.get("cisaExploitAdd"):
+        # Known exploited in the wild, which is the single most actionable field NVD carries.
+        findings.append(Finding(label="CISA KEV since", value=str(kev)))
+    for weakness in cve.get("weaknesses", []):
+        for description in weakness.get("description", []):
+            cwe = str(description.get("value", ""))
+            if cwe.startswith("CWE-"):
+                findings.append(Finding(label="weakness", value=cwe))
+    for label, key in (("published", "published"), ("last modified", "lastModified"), ("status", "vulnStatus")):
+        if got := cve.get(key):
+            findings.append(Finding(label=label, value=str(got)))
+    return findings
+
+
+def _sats(value: int) -> str:
+    return f"{value:,} sats ({value / 1e8:.8f} BTC)"
+
+
+@fetcher(id="mempool-space-tx", accepts=[EntityType.TX_HASH])
+async def mempool_tx(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    """Bitcoin transaction via the keyless Esplora API. A hash that is not Bitcoin's reads empty."""
+    resp = await http.get(
+        client, f"https://mempool.space/api/tx/{quote(value, safe='')}", "mempool.space", allow=(404, 400)
+    )
+    # 404 and 400 come back as text/plain, so the status has to be checked before json() is
+    # touched. 400 is "not 64 hex" and 404 is "no such transaction"; neither is an error.
+    if resp.status_code in (400, 404):
+        return []
+    data = resp.json()
+    status = data.get("status") or {}
+    confirmed = bool(status.get("confirmed"))
+    findings = [Finding(label="confirmed", value="yes" if confirmed else "no, still in the mempool")]
+    if confirmed:
+        # These keys are absent entirely while a transaction is unconfirmed, rather than null.
+        for label, key in (("block height", "block_height"), ("block time", "block_time")):
+            if (got := status.get(key)) is not None:
+                findings.append(Finding(label=label, value=str(got)))
+    if (fee := data.get("fee")) is not None:
+        findings.append(Finding(label="fee", value=_sats(int(fee))))
+    outputs = data.get("vout") or []
+    if total := sum(int(o.get("value") or 0) for o in outputs):
+        findings.append(Finding(label="output total", value=_sats(total)))
+    findings.append(Finding(label="inputs / outputs", value=f"{len(data.get('vin') or [])} / {len(outputs)}"))
+    for out in outputs[:10]:
+        if address := out.get("scriptpubkey_address"):
+            findings.append(Finding(label="output address", value=str(address)))
+    return findings
+
+
+@fetcher(id="blockscout-tx", accepts=[EntityType.TX_HASH])
+async def blockscout_tx(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    """Ethereum transaction via Blockscout. Paired with the Bitcoin one because a bare 64-hex
+    hash does not say which chain it belongs to, so both are asked and the misses read empty."""
+    tx = value if value.lower().startswith("0x") else f"0x{value}"
+    resp = await http.get(
+        client,
+        f"https://eth.blockscout.com/api/v2/transactions/{quote(tx, safe='')}",
+        "eth.blockscout.com",
+        allow=(404, 422),
+    )
+    if resp.status_code in (404, 422):
+        return []
+    data = resp.json()
+    findings: list[Finding] = []
+    for label, key in (("result", "result"), ("block", "block_number"), ("timestamp", "timestamp")):
+        if got := data.get(key):
+            findings.append(Finding(label=label, value=str(got)))
+    for label, key in (("from", "from"), ("to", "to")):
+        if address := (data.get(key) or {}).get("hash"):
+            findings.append(Finding(label=label, value=str(address)))
+    if (wei := data.get("value")) is not None:
+        amount = f"{int(wei) / 1e18:.18f}".rstrip("0").rstrip(".") or "0"
+        findings.append(Finding(label="value", value=f"{amount} ETH"))
+    return findings
+
+
+@fetcher(id="mempool-space-btc", accepts=[EntityType.BTC_ADDRESS])
+async def mempool_address(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    """Bitcoin address activity via the keyless Esplora API."""
+    resp = await http.get(
+        client, f"https://mempool.space/api/address/{quote(value, safe='')}", "mempool.space", allow=(400,)
+    )
+    if resp.status_code == 400:  # text/plain, and means the address itself is malformed
+        return []
+    data = resp.json()
+    chain = data.get("chain_stats") or {}
+    pending = data.get("mempool_stats") or {}
+    received, sent = int(chain.get("funded_txo_sum") or 0), int(chain.get("spent_txo_sum") or 0)
+    count = int(chain.get("tx_count") or 0)
+    if not count and not int(pending.get("tx_count") or 0):
+        # Every valid address exists implicitly, so there is no such thing as "not found" here.
+        # Saying "no on-chain activity" is the truthful reading; "nothing found" would imply the
+        # address is unknown rather than simply unused.
+        return [Finding(label="note", value="valid address with no on-chain activity")]
+    findings = [
+        Finding(label="balance", value=_sats(received - sent)),
+        Finding(label="total received", value=_sats(received)),
+        Finding(label="total sent", value=_sats(sent)),
+        Finding(label="transactions", value=str(count)),
+    ]
+    if unconfirmed := int(pending.get("tx_count") or 0):
+        findings.append(Finding(label="unconfirmed", value=str(unconfirmed)))
+    return findings

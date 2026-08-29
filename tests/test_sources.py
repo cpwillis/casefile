@@ -10,6 +10,9 @@ from casefile.fetchers.sources import (  # noqa: F401 -- import registers them
     hashlookup,
     internetdb,
     malwarebazaar,
+    mempool_address,
+    mempool_tx,
+    nvd_cve,
     phone_meta,
     rdap,
     wikidata,
@@ -547,3 +550,106 @@ async def test_crtsh_adds_no_note_when_nothing_was_cut():
     async with mock_client(handler) as client:
         findings = await crtsh("example.com", EntityType.DOMAIN, client)
     assert [f.label for f in findings] == ["subdomain", "subdomain"]
+
+
+# The three traps the live verification turned up, each of which would report a wrong answer.
+
+
+async def test_nvd_reads_an_unassigned_cve_off_the_body_not_the_status():
+    """NVD answers 200 with an empty result set for a well-formed but unassigned id. Branching on
+    status alone would report every unknown CVE as an error rather than as no such record."""
+
+    def handler(request):
+        return httpx.Response(200, json={"totalResults": 0, "vulnerabilities": []})
+
+    async with mock_client(handler) as client:
+        result = await run_fetcher("nvd-cve", "CVE-1999-99999", EntityType.CVE, client)
+    assert result.state == "empty"
+
+
+async def test_nvd_takes_the_newest_cvss_generation_present():
+    """Four CVSS generations are live in NVD at once. A reader hardcoded to V31 shows no severity
+    at all on freshly published CVEs, which is when severity matters most."""
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "vulnerabilities": [
+                    {
+                        "cve": {
+                            "descriptions": [{"lang": "en", "value": "a flaw"}],
+                            "metrics": {
+                                "cvssMetricV40": [{"cvssData": {"baseScore": 9.3, "baseSeverity": "CRITICAL"}}],
+                                "cvssMetricV2": [{"cvssData": {"baseScore": 5.0, "baseSeverity": "MEDIUM"}}],
+                            },
+                        }
+                    }
+                ]
+            },
+        )
+
+    async with mock_client(handler) as client:
+        findings = await nvd_cve("CVE-2026-1", EntityType.CVE, client)
+    assert {f.label: f.value for f in findings}["severity"] == "9.3 CRITICAL"
+
+
+async def test_mempool_tx_does_not_parse_a_text_plain_miss_as_json():
+    """404 and 400 come back as text/plain, so touching json() before checking the status turns a
+    clean miss into a decode error."""
+
+    def handler(request):
+        return httpx.Response(404, text="Transaction not found")
+
+    async with mock_client(handler) as client:
+        result = await run_fetcher("mempool-space-tx", "0" * 64, EntityType.TX_HASH, client)
+    assert result.state == "empty"
+    assert result.detail is None
+
+
+async def test_mempool_tx_reads_an_unconfirmed_transaction_without_block_keys():
+    """While a transaction is unconfirmed the block_* keys are absent entirely, not null."""
+
+    def handler(request):
+        return httpx.Response(200, json={"status": {"confirmed": False}, "fee": 1040, "vin": [{}], "vout": []})
+
+    async with mock_client(handler) as client:
+        findings = await mempool_tx("a" * 64, EntityType.TX_HASH, client)
+    got = {f.label: f.value for f in findings}
+    assert got["confirmed"].startswith("no")
+    assert "block height" not in got
+
+
+async def test_an_unused_bitcoin_address_says_unused_rather_than_not_found():
+    """There is no 404 for an address: every valid one exists implicitly. Rendering zero activity
+    as "nothing found" would imply the address is unknown rather than simply never used."""
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "chain_stats": {"funded_txo_sum": 0, "spent_txo_sum": 0, "tx_count": 0},
+                "mempool_stats": {"tx_count": 0},
+            },
+        )
+
+    async with mock_client(handler) as client:
+        result = await run_fetcher("mempool-space-btc", "1" + "A" * 33, EntityType.BTC_ADDRESS, client)
+    assert result.state == "ok"
+    (note,) = result.findings
+    assert "no on-chain activity" in note.value
+
+
+async def test_a_bitcoin_address_balance_is_received_minus_sent():
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "chain_stats": {"funded_txo_sum": 500, "spent_txo_sum": 200, "tx_count": 3},
+                "mempool_stats": {"tx_count": 0},
+            },
+        )
+
+    async with mock_client(handler) as client:
+        findings = await mempool_address("1" + "A" * 33, EntityType.BTC_ADDRESS, client)
+    assert {f.label: f.value for f in findings}["balance"].startswith("300 sats")
