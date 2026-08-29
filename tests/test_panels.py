@@ -119,3 +119,27 @@ def test_a_panel_asks_the_store_once_regardless_of_how_many_findings_it_has(monk
 
     assert opened == 1, f"{opened} connections for 200 rows"
     assert text.count("star starred") == 1, "the one starred finding lost its state"
+
+
+def test_a_long_finding_list_gets_a_filter_and_a_short_one_does_not(monkeypatch):
+    """The volume is in the findings, not the links: crtsh returns up to 500 subdomains and a
+    WhatsMyName run returns hundreds of hits, and neither could be narrowed down."""
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(*(Finding("A", f"v{i}") for i in range(30))))
+    long = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
+    assert 'class="filter findings-filter"' in long
+    assert "filter 30 findings" in long
+
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(Finding("A", "192.0.2.10")))
+    short = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
+    assert "findings-filter" not in short
+
+
+def test_the_findings_filter_targets_its_own_list(monkeypatch):
+    """Two panels on a page must not filter each other, so the id is derived from the target and
+    the source rather than from the source alone."""
+    import re
+
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(*(Finding("A", f"v{i}") for i in range(30))))
+    text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
+    target = re.search(r'data-filters="([^"]+)"', text).group(1)
+    assert f'<ul class="findings" id="{target}"' in text

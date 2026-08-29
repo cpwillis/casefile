@@ -152,3 +152,97 @@ def test_the_sanitiser_shows_a_homograph_instead_of_repairing_it(monkeypatch, ca
     assert _sanitize("a\xa0b") == "a\\xa0b"
     # and it still defuses the thing it was written for
     assert "\x1b" not in _sanitize("a\x1b[31mb")
+
+
+# The commands that had no coverage at all, one of them destructive.
+
+
+def test_cases_lists_what_is_saved_and_exits_nonzero_when_nothing_is(capsys):
+    from casefile.cases import save_target
+    from casefile.types import EntityType
+
+    assert main(["--cases"]) == 1
+    assert "no saved cases" in capsys.readouterr().err
+
+    save_target(EntityType.USERNAME, "acme-example")
+    assert main(["--cases"]) == 0
+    out = capsys.readouterr().out
+    assert "acme-example" in out
+
+
+def test_export_writes_the_case_and_rejects_an_unknown_id(capsys):
+    from casefile.cases import Star, list_cases, star
+    from casefile.types import EntityType
+
+    star(EntityType.DOMAIN, "example.com", Star("dns", "A", "192.0.2.10"))
+    cid = list_cases()[0].id
+
+    assert main(["--export", cid]) == 0
+    assert "192.0.2.10" in capsys.readouterr().out
+    assert main(["--export", cid, "--format", "json"]) == 0
+    assert json.loads(capsys.readouterr().out)["name"] == "example.com"
+
+    assert main(["--export", "never-existed"]) == 1
+    assert "no such case" in capsys.readouterr().err
+
+
+def test_export_escapes_a_control_character_rather_than_rewriting_the_terminal(capsys):
+    """An exported value is third-party text going to a terminal, and it must survive readable."""
+    from casefile.cases import Star, list_cases, star
+    from casefile.types import EntityType
+
+    star(EntityType.DOMAIN, "example.com", Star("dns", "A", "a\x1b[31mred"))
+    assert main(["--export", list_cases()[0].id]) == 0
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "red" in out, "the value was dropped instead of escaped"
+
+
+def test_forget_cases_empties_the_store(capsys):
+    from casefile.cases import list_cases, save_target
+    from casefile.types import EntityType
+
+    save_target(EntityType.DOMAIN, "example.com")
+    assert main(["--forget-cases"]) == 0
+    assert "forgot 1" in capsys.readouterr().out
+    assert list_cases() == ()
+
+
+def test_build_demo_writes_a_usable_site(capsys, tmp_path):
+    out = tmp_path / "site"
+    assert main(["--build-demo", str(out)]) == 0
+    assert "wrote" in capsys.readouterr().out
+    assert (out / "index.html").exists()
+    assert (out / "static" / "casefile.css").exists()
+
+
+def test_deep_accepts_a_named_source_not_only_all_of_them(monkeypatch, capsys):
+    """The browser asks per panel. All-or-nothing on the CLI made one expensive source a switch
+    over every expensive source there will ever be."""
+    seen = []
+
+    async def fake(source_id, value, entity_type, client, *, use_cache=True):
+        seen.append(source_id)
+        return SourceResult(source_id, State.OK, (Finding(label="A", value="1"),))
+
+    monkeypatch.setattr("casefile.cli.run_cached", fake)
+    assert main(["octocat", "--json", "--deep", "whatsmyname"]) == 0
+    assert "whatsmyname" in seen
+
+    seen.clear()
+    assert main(["octocat", "--json", "--deep", "no-such-source"]) == 0
+    assert "whatsmyname" not in seen, "a name that matches nothing must not run everything"
+    assert "github" in seen
+
+
+def test_check_links_reports_a_verdict_per_link(monkeypatch, capsys):
+    import casefile.cli as climod
+
+    async def fake(links, client):
+        return {link.id: "missing" if link.id == "crtsh" else "live" for link in links}
+
+    monkeypatch.setattr(climod, "check_links", fake)
+    assert main(["example.com", "--no-fetch", "--check-links"]) == 0
+    out = capsys.readouterr().out
+    assert "missing" in out and "live" in out
+    assert "tell you nothing" in out

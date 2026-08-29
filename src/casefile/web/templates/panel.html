@@ -16,7 +16,15 @@
   </div>
   <p class="panel-running muted">running…</p>
   {% if result.state == "ok" %}
-  <ul class="findings">
+  {# The volume lives here, not in the link lists: crtsh returns up to 500 subdomains and a
+     WhatsMyName run returns hundreds of hits. Reuses the same delegated handler as the links. #}
+  {% set findings_id = [t or '', v or '', result.source_id] | dom_id %}
+  {% if result.findings | length > 8 %}
+  <label class="visually-hidden" for="filter-{{ findings_id }}">Filter {{ result.source_id }} findings</label>
+  <input class="filter findings-filter" id="filter-{{ findings_id }}" type="search"
+         placeholder="filter {{ result.findings | length }} findings…" data-filters="{{ findings_id }}">
+  {% endif %}
+  <ul class="findings" id="{{ findings_id }}">
     {% for f in result.findings %}
     <li>{% if t and v %}{% with sid = result.source_id, starred = (result.source_id, f.label, f.value) in starred_keys %}
       {% include "star_button.html" %}{% endwith %}{% endif %}<span class="f-label">{{ f.label }}</span>

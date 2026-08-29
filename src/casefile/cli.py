@@ -16,15 +16,27 @@ from casefile.detect import detect
 from casefile.export import FORMATS, export_case
 from casefile.fetchers import fetchers_for
 from casefile.fetchers.http import build_client
+from casefile.linkcheck import check_links, tally
 
 REPO = "https://github.com/cpwillis/casefile"
 
 
-async def _fetch_all(candidates, use_cache: bool = True, deep: bool = False):
+def _wanted(record, deep) -> bool:
+    """Whether an on-demand source runs. `deep` is either True for all of them, or a list of ids.
+
+    The browser asks per panel, so the CLI does too rather than making one expensive source an
+    all-or-nothing switch over every expensive source there will ever be.
+    """
+    if not record.on_demand:
+        return True
+    return deep is True or record.id in (deep or ())
+
+
+async def _fetch_all(candidates, use_cache: bool = True, deep=False):
     async with build_client() as client:
         results = {}
         for c in candidates:
-            due = [r for r in fetchers_for(c.type) if deep or not r.on_demand]
+            due = [r for r in fetchers_for(c.type) if _wanted(r, deep)]
             got = await asyncio.gather(*(run_cached(r.id, c.value, c.type, client, use_cache=use_cache) for r in due))
             results[(c.type, c.value)] = got
         return results
@@ -53,6 +65,30 @@ def _shown_links(candidate, results):
     """
     fetched = {r.source_id for r in results.get((candidate.type, candidate.value), [])}
     return links_for(candidate, exclude=frozenset(fetched))
+
+
+async def _check_all(candidates):
+    """One verdict per link, for every reading. Opt-in for the same reason the web button is:
+    it is a request per link, sent from your IP."""
+    async with build_client() as client:
+        out = {}
+        for c in candidates:
+            out[(c.type, c.value)] = await check_links(_shown_links(c, {}), client)
+        return out
+
+
+def _render_links(candidates, results, verdicts):
+    lines = []
+    for c in candidates:
+        marks = verdicts.get((c.type, c.value), {})
+        lines.append(f"\n  {c.type.value.upper():<14} {c.value}")
+        for link in _shown_links(c, results):
+            verdict = marks.get(link.id, "")
+            lines.append(f"    {verdict:<12} {link.name:<28} {link.url}")
+        counts = tally(marks)
+        lines.append("    " + " · ".join(f"{n} {name}" for name, n in sorted(counts.items())))
+    lines.append("\n  only 404 and 410 count as missing; blocked, redirected and unreachable tell you nothing")
+    return "\n".join(lines)
 
 
 def _render_text(raw, candidates, results):
@@ -105,10 +141,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-cache", action="store_true", help="bypass the response cache")
     parser.add_argument(
         "--deep",
-        action="store_true",
-        help="also run on-demand sources. The browser offers these per panel; on the CLI it is "
-        "all or nothing, because there is currently exactly one such source (whatsmyname).",
+        nargs="*",
+        metavar="SOURCE",
+        help="also run on-demand sources: all of them, or only the ones named. These are the "
+        "sources whose egress is large enough to need consent, so they are off by default.",
     )
+    parser.add_argument("--check-links", action="store_true", help="probe each catalogue link and report which exist")
     parser.add_argument("--clear-cache", action="store_true", help="purge the response cache and exit")
     parser.add_argument("--cases", action="store_true", help="list your saved cases and exit")
     parser.add_argument("--build-demo", metavar="DIR", help="render the static demo into DIR and exit")
@@ -174,7 +212,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"nothing recognised in {args.value!r}", file=sys.stderr)
         return 1
 
-    results = {} if args.no_fetch else asyncio.run(_fetch_all(candidates, use_cache=not args.no_cache, deep=args.deep))
+    deep = True if args.deep == [] else (args.deep or False)
+    results = {} if args.no_fetch else asyncio.run(_fetch_all(candidates, use_cache=not args.no_cache, deep=deep))
+    if args.check_links:
+        verdicts = asyncio.run(_check_all(candidates))
+        print(_render_links(candidates, results, verdicts))
+        return 0
     render = _render_json if args.json else _render_text
     print(render(args.value, candidates, results))
     return 0
