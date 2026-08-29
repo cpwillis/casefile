@@ -239,3 +239,89 @@ def test_forget_all_removes_the_rollback_journal():
     forget_all()
     leftovers = [p.name for p in cases_path().parent.iterdir()]
     assert leftovers == [], f"purge left {leftovers} behind"
+
+
+V1_SCHEMA = """
+CREATE TABLE cases (
+    id          TEXT PRIMARY KEY,
+    entity_type TEXT NOT NULL,
+    value       TEXT NOT NULL,
+    created_at  REAL NOT NULL,
+    updated_at  REAL NOT NULL
+);
+CREATE TABLE stars (
+    case_id    TEXT NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    source_id  TEXT NOT NULL,
+    label      TEXT NOT NULL,
+    value      TEXT NOT NULL,
+    url        TEXT,
+    starred_at REAL NOT NULL,
+    PRIMARY KEY (case_id, source_id, label, value)
+);
+"""
+
+
+def _write_v1_store():
+    """A store as 1.0 left it: a case per target, and stars keyed only by case."""
+    import sqlite3
+
+    path = cases_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
+    conn.executescript(V1_SCHEMA)
+    conn.execute("INSERT INTO cases VALUES ('domain:example.com', 'domain', 'example.com', 100.0, 200.0)")
+    conn.execute("INSERT INTO cases VALUES ('username:octocat', 'username', 'octocat', 300.0, 400.0)")
+    conn.executemany(
+        "INSERT INTO stars VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            ("domain:example.com", "dns", "A", "192.0.2.10", None, 150.0),
+            ("domain:example.com", "crtsh", "subdomain", "a.example.com", "https://a.example.com", 160.0),
+            ("username:octocat", "github", "profile", "octocat", "https://github.example/x", 350.0),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_a_pre_existing_v1_store_is_migrated_rather_than_breaking():
+    """CREATE TABLE IF NOT EXISTS is silent when the table exists with different columns, so
+    without a migration an upgraded store opens fine and fails on the first write."""
+    _write_v1_store()
+    cases = list_cases()
+    assert {c.name for c in cases} == {"example.com", "octocat"}
+    by_name = {c.name: c for c in cases}
+    assert [(t.entity_type, t.value) for t in by_name["example.com"].targets] == [("domain", "example.com")]
+    assert by_name["example.com"].star_count == 2
+    assert by_name["octocat"].star_count == 1
+
+
+def test_migration_keeps_every_starred_finding_and_its_target():
+    _write_v1_store()
+    case = next(c for c in list_cases() if c.name == "example.com")
+    assert {(s.source_id, s.label, s.value) for s in case.stars} == {
+        ("dns", "A", "192.0.2.10"),
+        ("crtsh", "subdomain", "a.example.com"),
+    }
+    assert {s.target_value for s in case.stars} == {"example.com"}
+    assert next(s for s in case.stars if s.source_id == "crtsh").url == "https://a.example.com"
+
+
+def test_a_migrated_store_is_then_fully_writable():
+    """The failure this migration exists to prevent was on write, not on open."""
+    _write_v1_store()
+    cid = next(c for c in list_cases() if c.name == "octocat").id
+    save_target(EntityType.DOMAIN, "octocat.example", case_id=cid)
+    star(EntityType.DOMAIN, "octocat.example", _star())
+    rename_case(cid, "octocat investigation")
+    case = load_case(cid)
+    assert case.name == "octocat investigation"
+    assert {t.value for t in case.targets} == {"octocat", "octocat.example"}
+    assert case.star_count == 2
+
+
+def test_migration_runs_once_and_is_stable():
+    _write_v1_store()
+    first = [(c.name, c.star_count) for c in list_cases()]
+    for _ in range(3):
+        list_cases()
+    assert [(c.name, c.star_count) for c in list_cases()] == first

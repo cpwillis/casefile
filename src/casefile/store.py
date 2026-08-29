@@ -12,10 +12,18 @@ from pathlib import Path
 _SIDECARS = ("-journal", "-wal", "-shm")
 
 
-def connect(path: Path, schema: str) -> sqlite3.Connection:
-    """Open a store, creating its directory and schema if this is the first use."""
+def connect(path: Path, schema: str, migrate=None) -> sqlite3.Connection:
+    """Open a store, creating its directory and schema if this is the first use.
+
+    `migrate` runs before the schema script and before foreign keys are switched on, which is
+    the order a table rebuild needs. It matters because CREATE TABLE IF NOT EXISTS is silent
+    when a table of that name already exists with different columns: without a migration hook,
+    an older store does not fail to open, it fails on the first write with a missing column.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
+    if migrate is not None:
+        migrate(conn)
     conn.execute("PRAGMA foreign_keys = ON")  # off by default, and cases' cascade depends on it
     conn.executescript(schema)
     return conn

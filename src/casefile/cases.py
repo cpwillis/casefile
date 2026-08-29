@@ -96,8 +96,44 @@ def cases_path() -> Path:
     return Path(base) / "casefile" / "cases.db"
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Fold a pre-1.1 store, where a case was a single target, into the multi-target shape.
+
+    Each old case becomes a case holding exactly the one identifier it was named after, so
+    nothing is lost and joining it to another identifier is then a normal edit. Runs before the
+    schema script, because CREATE TABLE IF NOT EXISTS would otherwise leave the old columns in
+    place and the first write would fail on a missing one.
+    """
+    columns = {c[1] for c in conn.execute("PRAGMA table_info(cases)").fetchall()}
+    if not columns or "name" in columns:
+        return  # a fresh store, or one already migrated
+    conn.execute("ALTER TABLE cases RENAME TO cases_v1")
+    conn.execute("ALTER TABLE stars RENAME TO stars_v1")
+    conn.executescript(_SCHEMA)
+    for old_id, entity_type, value, created, updated in conn.execute(
+        "SELECT id, entity_type, value, created_at, updated_at FROM cases_v1"
+    ).fetchall():
+        cid = secrets.token_hex(6)
+        conn.execute(
+            "INSERT INTO cases (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+            (cid, value, created, updated),
+        )
+        conn.execute(
+            "INSERT INTO targets (case_id, entity_type, value, added_at) VALUES (?, ?, ?, ?)",
+            (cid, entity_type, value, created),
+        )
+        conn.execute(
+            "INSERT INTO stars (case_id, target_type, target_value, source_id, label, value, url, starred_at) "
+            "SELECT ?, ?, ?, source_id, label, value, url, starred_at FROM stars_v1 WHERE case_id = ?",
+            (cid, entity_type, value, old_id),
+        )
+    conn.execute("DROP TABLE stars_v1")
+    conn.execute("DROP TABLE cases_v1")
+    conn.commit()
+
+
 def _connect() -> sqlite3.Connection:
-    return store.connect(cases_path(), _SCHEMA)
+    return store.connect(cases_path(), _SCHEMA, migrate=_migrate)
 
 
 def _read(default, query):
