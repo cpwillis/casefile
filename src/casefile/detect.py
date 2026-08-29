@@ -5,15 +5,13 @@ from collections.abc import Callable
 from ipaddress import ip_address
 from urllib.parse import urlsplit
 
+import idna
+
 from casefile.types import Candidate, EntityType
 
 Detector = Callable[[str], str | None]
 
 _HASH_LENGTHS = {32, 40, 64}
-# IDNA2008/UTS46 deviation chars: the stdlib "idna" codec is IDNA2003 and maps these
-# differently (eg ß -> "ss"), which would silently yield a DIFFERENT real host. We have no
-# UTS46 without a new dependency, so reject a domain carrying one rather than mis-normalise it.
-_IDNA_DEVIATIONS = {"ß", "ς", "‌", "‍"}
 
 
 def _has_control(s: str) -> bool:
@@ -125,14 +123,18 @@ def _url(s: str) -> str | None:
 
 def _domain(s: str) -> str | None:
     s = s.strip().rstrip(".")  # accept a trailing-dot FQDN
-    if not s or any(c in _IDNA_DEVIATIONS for c in s):
+    if not s:
         return None
     if s.isascii():
+        # Deliberately not routed through idna: it rejects underscores, and _dmarc.example.com
+        # and _sip._tcp.example.com are routine DNS pivots we want to keep.
         candidate = s.lower()
     else:
         try:
-            candidate = s.lower().encode("idna").decode("ascii")
-        except UnicodeError:
+            # UTS46, not the stdlib "idna" codec. The stdlib is IDNA2003 and maps ß to "ss", so
+            # straße.de would silently normalise to strasse.de, a different real host.
+            candidate = idna.encode(s, uts46=True).decode("ascii")
+        except idna.IDNAError:
             return None
     if not re.fullmatch(rf"{_LABEL}(?:\.{_LABEL})+", candidate):
         return None

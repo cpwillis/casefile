@@ -21,6 +21,7 @@ version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
+    { name = "idna" },
     { name = "jinja2" },
     { name = "phonenumbers" },
     { name = "starlette" },
@@ -37,6 +38,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.28" },
+    { name = "idna", specifier = ">=3.10" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "phonenumbers", specifier = ">=9.0" },
     { name = "starlette", specifier = ">=0.41" },

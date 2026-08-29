@@ -55,8 +55,9 @@ rendered output to disk. It demonstrates the tool and cannot perform lookups.
 
 ## Dependencies
 
-Five runtime, down from eight in the first draft. Each has to earn its place against the
-standard library.
+Six runtime. Five were budgeted; `idna` was added later as a deliberate, recorded exception,
+because the stdlib alternative was not merely limited but wrong. Each has to earn its place
+against the standard library.
 
 | Dep | Why stdlib does not cover it |
 |---|---|
@@ -65,6 +66,7 @@ standard library.
 | `uvicorn` | Starlette needs an ASGI server |
 | `jinja2` | Templating, shared by the running app and the demo build |
 | `phonenumbers` | Google's libphonenumber dataset. Offline, and reimplementing it would be absurd |
+| `idna` | UTS46 domain encoding. The stdlib `idna` codec is IDNA2003 and maps `straße.de` to `strasse.de`, a different registrable domain, so the stdlib is not a safe fallback here |
 
 Removed during the audit: `fastapi` (OpenAPI, DI and validation all unused),
 `pydantic` (the validation test is the validation), `typer` (two commands),

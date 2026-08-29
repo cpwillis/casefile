@@ -55,7 +55,9 @@ TIER2_DETECTORS = dict(TIER2)
         (EntityType.DOMAIN, "under_score.com", "under_score.com"),
         (EntityType.DOMAIN, "_dmarc.example.com", "_dmarc.example.com"),
         (EntityType.DOMAIN, "example.com.", "example.com"),
-        (EntityType.DOMAIN, "straße.de", None),
+        # UTS46, not the stdlib IDNA2003 codec, which would map this to strasse.de
+        (EntityType.DOMAIN, "straße.de", "xn--strae-oqa.de"),
+        (EntityType.DOMAIN, "faß.de", "xn--fa-hia.de"),
         (EntityType.DOMAIN, "trailing.", None),
         (EntityType.PHONE, "+61 2 9374 4000", "+61293744000"),
         (EntityType.PHONE, "(02) 9374 4000", "0293744000"),
@@ -168,3 +170,15 @@ def test_url_candidate_lowercases_scheme_and_host():
 
 def test_control_characters_are_rejected():
     assert detect("a\x00b@x.com") == ()
+
+
+def test_idna_deviation_does_not_become_a_different_domain():
+    """straße.de and strasse.de are different registrable domains.
+
+    The stdlib "idna" codec is IDNA2003 and maps the first to the second, which would silently
+    point a user at somebody else's host. UTS46 keeps them distinct.
+    """
+    (sharp,) = [c for c in detect("straße.de") if c.type is EntityType.DOMAIN]
+    (double_s,) = [c for c in detect("strasse.de") if c.type is EntityType.DOMAIN]
+    assert sharp.value != double_s.value
+    assert sharp.value == "xn--strae-oqa.de"
