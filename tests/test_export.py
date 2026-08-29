@@ -98,7 +98,13 @@ def test_unknown_format_is_rejected():
 
 
 def test_export_never_includes_anything_unstarred():
-    """Export renders what you kept, not a fresh scrape. Nothing else may leak in."""
+    """Export renders what you kept, not a fresh scrape. Nothing else may leak in.
+
+    Asserted as a set rather than as absent strings: naming two sources that happen not to be
+    in the fixture would still pass if export invented a third.
+    """
+    import re
+
     out = export_case(CASE, "md")
-    assert "rdap" not in out
-    assert "whatsmyname" not in out
+    assert set(re.findall(r"^## (.+)$", out, re.M)) == {s.source_id for s in CASE.stars}
+    assert {f["value"] for f in json.loads(export_case(CASE, "json"))["stars"]} == {s.value for s in CASE.stars}

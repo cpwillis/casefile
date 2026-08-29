@@ -46,7 +46,7 @@ def test_fetch_fans_out_over_registered_sources(monkeypatch, capsys):
     assert any(s["state"] == "ok" for s in domain["sources"])
 
 
-def test_no_fetch_omits_sources(monkeypatch, capsys):
+def test_no_fetch_omits_sources(capsys):
     assert main(["example.com", "--json", "--no-fetch"]) == 0
     payload = json.loads(capsys.readouterr().out)
     domain = next(c for c in payload["candidates"] if c["type"] == "domain")
@@ -83,11 +83,6 @@ def test_clear_cache_flag_reports_and_exits_zero(capsys):
     """--clear-cache is documented as a privacy control, so it must actually be wired up."""
     assert main(["--clear-cache"]) == 0
     assert "cleared" in capsys.readouterr().out
-
-
-def test_no_fetch_flag_is_accepted(capsys):
-    assert main(["example.com", "--json", "--no-fetch"]) == 0
-    assert "candidates" in capsys.readouterr().out
 
 
 def test_no_cache_flag_disables_the_cache(monkeypatch, capsys):

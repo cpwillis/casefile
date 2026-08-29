@@ -102,10 +102,14 @@ def test_index_shows_where_you_left_off():
 
 
 def test_case_detail_shows_only_starred_findings():
+    """The page renders the store, never a fresh fetch, so its source list is exactly the stars."""
+    import re
+
     client.post("/star", data=STAR, headers=SAME)
     text = client.get("/case/domain:example.com").text
     assert "192.0.2.10" in text
-    assert "rdap" not in text
+    shown = {m.split("\u00b7")[0].strip() for m in re.findall(r'<span class="f-label">([^<]+)</span>', text)}
+    assert shown == {"dns"}, f"case page shows sources that were never starred: {shown}"
 
 
 def test_missing_case_falls_back_to_the_list():
