@@ -1,22 +1,17 @@
 import httpx
 import pytest
 from helpers import client as web
-from helpers import mock_client
+from helpers import mock_client, responder
 
 from casefile.catalog import Link
 from casefile.linkcheck import BLOCKED, LIVE, MISSING, REDIRECTED, UNREACHABLE, check_link, check_links, tally
 
 
-def _responder(status):
-    def handler(request):
-        return httpx.Response(status)
-
-    return handler
-
-
 @pytest.mark.parametrize(
     ("status", "verdict"),
     [
+        # 43 of 78 apparent catalogue failures were bot-protection 403s rather than dead links,
+        # so everything below that is not 404/410 must stay out of MISSING.
         (200, LIVE),
         (204, LIVE),
         (404, MISSING),
@@ -31,16 +26,8 @@ def _responder(status):
     ],
 )
 async def test_status_maps_to_a_verdict(status, verdict):
-    async with mock_client(_responder(status)) as client:
+    async with responder(status) as client:
         assert await check_link("https://h.test/x", client) == verdict
-
-
-async def test_bot_protection_is_never_reported_as_missing():
-    """The finding that shaped this: 43 of 78 apparent catalogue failures were 403s from bot
-    protection, not dead links. Calling those "missing" would invent a cleared lead."""
-    for status in (401, 403, 429, 451):
-        async with mock_client(_responder(status)) as client:
-            assert await check_link("https://h.test/x", client) != MISSING
 
 
 async def test_a_redirect_is_not_counted_as_live():
@@ -66,7 +53,7 @@ async def test_a_probe_that_falls_over_is_a_verdict_not_an_exception():
 
 
 async def test_a_malformed_url_never_raises():
-    async with mock_client(_responder(200)) as client:
+    async with mock_client(responder(200)) as client:
         assert await check_link("not a url", client) == UNREACHABLE
 
 

@@ -3,55 +3,55 @@ from casefile.fetchers import Finding, State, fetcher
 from casefile.types import EntityType
 
 
+def counting(source_id, *, findings=(("A", "1"),), raises=None):
+    """Register a fetcher that counts its calls. Returns the list it appends to.
+
+    Nine tests opened with the same seven-line closure, so the cache behaviour each one actually
+    pins was three lines underneath six of scaffolding.
+    """
+    calls = []
+
+    @fetcher(id=source_id, accepts=[EntityType.DOMAIN])
+    async def _f(value, entity_type, client):
+        calls.append(value)
+        if raises is not None:
+            raise raises
+        return [Finding(label=label, value=v) for label, v in findings]
+
+    return calls
+
+
 def test_cache_path_follows_xdg(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     assert cache_path() == tmp_path / "casefile" / "cache.db"
 
 
 async def test_second_call_inside_ttl_does_not_re_run_the_fetcher():
-    calls = 0
-
-    @fetcher(id="cache-hit", accepts=[EntityType.DOMAIN])
-    async def f(value, entity_type, client):
-        nonlocal calls
-        calls += 1
-        return [Finding(label="A", value="1")]
+    calls = counting("cache-hit")
 
     first = await run_cached("cache-hit", "example.com", EntityType.DOMAIN, None)
     second = await run_cached("cache-hit", "example.com", EntityType.DOMAIN, None)
-    assert calls == 1
+    assert len(calls) == 1
     assert first.findings == second.findings
     assert second.state == State.OK
 
 
 async def test_no_cache_bypasses_the_cache():
-    calls = 0
-
-    @fetcher(id="cache-bypass", accepts=[EntityType.DOMAIN])
-    async def f(value, entity_type, client):
-        nonlocal calls
-        calls += 1
-        return [Finding(label="A", value="1")]
+    calls = counting("cache-bypass")
 
     await run_cached("cache-bypass", "example.com", EntityType.DOMAIN, None)
     await run_cached("cache-bypass", "example.com", EntityType.DOMAIN, None, use_cache=False)
-    assert calls == 2
+    assert len(calls) == 2
 
 
 async def test_expired_entries_are_re_fetched(monkeypatch):
-    calls = 0
-
-    @fetcher(id="cache-ttl", accepts=[EntityType.DOMAIN])
-    async def f(value, entity_type, client):
-        nonlocal calls
-        calls += 1
-        return [Finding(label="A", value="1")]
+    calls = counting("cache-ttl")
 
     monkeypatch.setattr("casefile.cache.RETENTION_SECONDS", 0)
     monkeypatch.setattr("casefile.cache.FAILURE_RETENTION", 0)
     await run_cached("cache-ttl", "example.com", EntityType.DOMAIN, None)
     await run_cached("cache-ttl", "example.com", EntityType.DOMAIN, None)
-    assert calls == 2
+    assert len(calls) == 2
 
 
 async def test_a_failure_is_held_briefly_rather_than_for_the_full_day():
@@ -59,52 +59,34 @@ async def test_a_failure_is_held_briefly_rather_than_for_the_full_day():
     to clear itself without --clear-cache. So a failure is cached, on a much shorter clock."""
     from casefile.cache import FAILURE_RETENTION, _ttl_for
 
-    calls = 0
-
-    @fetcher(id="cache-error", accepts=[EntityType.DOMAIN])
-    async def f(value, entity_type, client):
-        nonlocal calls
-        calls += 1
-        raise ValueError("boom")
+    calls = counting("cache-error", raises=ValueError("boom"))
 
     first = await run_cached("cache-error", "example.com", EntityType.DOMAIN, None)
     await run_cached("cache-error", "example.com", EntityType.DOMAIN, None)
     assert first.state == State.ERROR
-    assert calls == 1, "a reload re-queried a source that had just failed"
+    assert len(calls) == 1, "a reload re-queried a source that had just failed"
     assert _ttl_for(State.ERROR) == FAILURE_RETENTION
     assert _ttl_for(State.OK) == RETENTION_SECONDS
     assert FAILURE_RETENTION < RETENTION_SECONDS / 100
 
 
 async def test_a_stale_failure_is_retried_once_its_short_clock_runs_out(monkeypatch):
-    calls = 0
-
-    @fetcher(id="cache-error-stale", accepts=[EntityType.DOMAIN])
-    async def f(value, entity_type, client):
-        nonlocal calls
-        calls += 1
-        raise ValueError("boom")
+    calls = counting("cache-error-stale", raises=ValueError("boom"))
 
     await run_cached("cache-error-stale", "example.com", EntityType.DOMAIN, None)
     monkeypatch.setattr("casefile.cache.FAILURE_RETENTION", 0)
     await run_cached("cache-error-stale", "example.com", EntityType.DOMAIN, None)
-    assert calls == 2
+    assert len(calls) == 2
 
 
 async def test_no_cache_neither_reads_nor_writes():
     """--no-cache is a privacy control, so it must not leave a copy behind either."""
-    calls = 0
-
-    @fetcher(id="cache-untouched", accepts=[EntityType.DOMAIN])
-    async def f(value, entity_type, client):
-        nonlocal calls
-        calls += 1
-        return [Finding(label="n", value="1")]
+    calls = counting("cache-untouched", findings=(("n", "1"),))
 
     await run_cached("cache-untouched", "example.com", EntityType.DOMAIN, None, use_cache=False)
     await run_cached("cache-untouched", "example.com", EntityType.DOMAIN, None)
     await run_cached("cache-untouched", "example.com", EntityType.DOMAIN, None)
-    assert calls == 2, "the --no-cache run wrote to the cache"
+    assert len(calls) == 2, "the --no-cache run wrote to the cache"
 
 
 async def test_a_forced_refresh_requeries_and_replaces_the_stored_answer():
@@ -126,17 +108,11 @@ async def test_a_forced_refresh_requeries_and_replaces_the_stored_answer():
 
 
 async def test_empty_is_cached_because_it_is_a_real_answer():
-    calls = 0
-
-    @fetcher(id="cache-empty", accepts=[EntityType.DOMAIN])
-    async def f(value, entity_type, client):
-        nonlocal calls
-        calls += 1
-        return []
+    calls = counting("cache-empty", findings=())
 
     await run_cached("cache-empty", "example.com", EntityType.DOMAIN, None)
     await run_cached("cache-empty", "example.com", EntityType.DOMAIN, None)
-    assert calls == 1
+    assert len(calls) == 1
 
 
 async def test_clear_cache_empties_it():
@@ -150,17 +126,17 @@ async def test_clear_cache_empties_it():
 
 
 async def test_different_values_are_separate_entries():
-    calls = 0
+    # this one's finding echoes the value, so it keeps its own stub
+    calls = []
 
     @fetcher(id="cache-keys", accepts=[EntityType.DOMAIN])
-    async def f(value, entity_type, client):
-        nonlocal calls
-        calls += 1
+    async def _f(value, entity_type, client):
+        calls.append(value)
         return [Finding(label="A", value=value)]
 
     await run_cached("cache-keys", "a.example", EntityType.DOMAIN, None)
     await run_cached("cache-keys", "b.example", EntityType.DOMAIN, None)
-    assert calls == 2
+    assert len(calls) == 2
 
 
 async def test_clear_cache_actually_removes_the_data_from_disk():

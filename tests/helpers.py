@@ -16,6 +16,16 @@ def mock_client(handler) -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))
 
 
+def responder(status: int = 200, **kwargs) -> httpx.AsyncClient:
+    """A client that answers every request the same way.
+
+    Most fetcher tests do not care what was requested, only what comes back, and were spending
+    three lines on a throwaway handler to say so. Tests that assert on the request keep writing
+    their own handler and passing it to mock_client.
+    """
+    return mock_client(lambda request: httpx.Response(status, **kwargs))
+
+
 def stub_result(*findings, state=State.OK, detail=None):
     """A run_cached replacement returning one fixed result for whatever it is asked about.
 

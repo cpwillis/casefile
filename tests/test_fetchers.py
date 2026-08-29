@@ -37,11 +37,6 @@ def test_source_result_is_flat_and_defaults_empty():
     assert r.elapsed_ms == 0
 
 
-def test_exceptions_exist():
-    assert issubclass(NeedsKey, Exception)
-    assert issubclass(RateLimited, Exception)
-
-
 def test_register_and_look_up_a_fetcher():
     @fetcher(id="probe", accepts=[EntityType.DOMAIN, EntityType.EMAIL])
     async def probe(value, entity_type, client):

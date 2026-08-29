@@ -1,6 +1,6 @@
 import httpx
 import pytest
-from helpers import mock_client
+from helpers import mock_client, responder
 
 from casefile.fetchers import Finding, run_fetcher
 from casefile.fetchers.sources import (  # noqa: F401 -- import registers them
@@ -88,10 +88,7 @@ async def test_crtsh_dedupes_names():
 
 
 async def test_empty_answer_becomes_empty_state():
-    def handler(request):
-        return httpx.Response(200, json={"Answer": []})
-
-    async with mock_client(handler) as client:
+    async with responder(200, json={"Answer": []}) as client:
         r = await run_fetcher("dns", "example.com", EntityType.DOMAIN, client)
     assert r.state == "empty"
 
@@ -168,10 +165,7 @@ async def test_internetdb_lists_ports_and_hostnames():
 
 
 async def test_internetdb_404_is_empty_not_error():
-    def handler(request):
-        return httpx.Response(404, json={"detail": "No information available"})
-
-    async with mock_client(handler) as client:
+    async with responder(404, json={"detail": "No information available"}) as client:
         result = await run_fetcher("internetdb", "8.8.8.8", EntityType.IP, client)
     assert result.state == "empty"
 
@@ -244,10 +238,7 @@ async def test_github_surfaces_profile_fields():
 
 
 async def test_github_404_is_empty_not_error():
-    def handler(request):
-        return httpx.Response(404, json={"message": "Not Found"})
-
-    async with mock_client(handler) as client:
+    async with responder(404, json={"message": "Not Found"}) as client:
         result = await run_fetcher("github", "nope", EntityType.USERNAME, client)
     assert result.state == "empty"
 
@@ -277,10 +268,7 @@ async def test_wikidata_returns_entity_matches():
 
 
 async def test_wikidata_no_matches_is_empty():
-    def handler(request):
-        return httpx.Response(200, json={"search": []})
-
-    async with mock_client(handler) as client:
+    async with responder(200, json={"search": []}) as client:
         result = await run_fetcher("wikidata", "zzzz", EntityType.COMPANY, client)
     assert result.state == "empty"
 
@@ -306,10 +294,7 @@ async def test_hashlookup_reports_a_known_file():
 
 
 async def test_hashlookup_unknown_hash_is_empty():
-    def handler(request):
-        return httpx.Response(404, json={"message": "Non existing MD5"})
-
-    async with mock_client(handler) as client:
+    async with responder(404, json={"message": "Non existing MD5"}) as client:
         result = await run_fetcher("hashlookup", "0" * 32, EntityType.HASH, client)
     assert result.state == "empty"
 
@@ -373,10 +358,7 @@ async def test_malwarebazaar_with_a_key_posts_and_parses(monkeypatch):
 async def test_malwarebazaar_hash_not_found_is_empty(monkeypatch):
     monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: "secret")
 
-    def handler(request):
-        return httpx.Response(200, json={"query_status": "hash_not_found"})
-
-    async with mock_client(handler) as client:
+    async with responder(200, json={"query_status": "hash_not_found"}) as client:
         result = await run_fetcher("malwarebazaar", "a" * 64, EntityType.HASH, client)
     assert result.state == "empty"
 
@@ -384,10 +366,7 @@ async def test_malwarebazaar_hash_not_found_is_empty(monkeypatch):
 async def test_malwarebazaar_rejected_key_is_needs_key(monkeypatch):
     monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: "bad")
 
-    def handler(request):
-        return httpx.Response(200, json={"error": "Unauthorized"})
-
-    async with mock_client(handler) as client:
+    async with responder(200, json={"error": "Unauthorized"}) as client:
         result = await run_fetcher("malwarebazaar", "a" * 64, EntityType.HASH, client)
     assert result.state == "needs_key"
 
@@ -428,10 +407,7 @@ async def test_dns_servfail_is_an_error_not_an_empty_answer():
     """DoH answers HTTP 200 for SERVFAIL, so reading only the Answer section turned a resolver
     failure into "this domain has no records" and cached it for a day."""
 
-    def handler(request):
-        return httpx.Response(200, json={"Status": 2, "Comment": ["EDE(9): DNSKEY Missing"]})
-
-    async with mock_client(handler) as client:
+    async with responder(200, json={"Status": 2, "Comment": ["EDE(9): DNSKEY Missing"]}) as client:
         result = await run_fetcher("dns", "broken.example", EntityType.DOMAIN, client)
     assert result.state == "error"
     assert "SERVFAIL" in result.detail
@@ -441,10 +417,7 @@ async def test_dns_nxdomain_is_reported_as_a_finding_not_as_silence():
     """ "The name does not exist" is a positive result, and distinct from "it exists with no
     records of the types we asked for"."""
 
-    def handler(request):
-        return httpx.Response(200, json={"Status": 3})
-
-    async with mock_client(handler) as client:
+    async with responder(200, json={"Status": 3}) as client:
         result = await run_fetcher("dns", "nope.example", EntityType.DOMAIN, client)
     assert result.state == "ok"
     (note,) = result.findings
@@ -454,10 +427,7 @@ async def test_dns_nxdomain_is_reported_as_a_finding_not_as_silence():
 async def test_dns_no_records_of_these_types_stays_empty():
     """The third case, which must not be confused with either of the two above."""
 
-    def handler(request):
-        return httpx.Response(200, json={"Status": 0})
-
-    async with mock_client(handler) as client:
+    async with responder(200, json={"Status": 0}) as client:
         result = await run_fetcher("dns", "bare.example", EntityType.DOMAIN, client)
     assert result.state == "empty"
 
@@ -520,10 +490,7 @@ async def test_rdap_survives_a_malformed_vcard():
 
 
 async def test_rdap_asn_reports_its_range():
-    def handler(request):
-        return httpx.Response(200, json={"startAutnum": 64496, "endAutnum": 64511, "name": "EXAMPLE-AS"})
-
-    async with mock_client(handler) as client:
+    async with responder(200, json={"startAutnum": 64496, "endAutnum": 64511, "name": "EXAMPLE-AS"}) as client:
         findings = await rdap("AS64496", EntityType.ASN, client)
     assert {f.label: f.value for f in findings}["as range"] == "AS64496 - AS64511"
 
@@ -544,10 +511,7 @@ async def test_crtsh_caps_its_output_and_says_that_it_did():
 
 
 async def test_crtsh_adds_no_note_when_nothing_was_cut():
-    def handler(request):
-        return httpx.Response(200, json=[{"name_value": "a.example.com\nb.example.com"}])
-
-    async with mock_client(handler) as client:
+    async with responder(200, json=[{"name_value": "a.example.com\nb.example.com"}]) as client:
         findings = await crtsh("example.com", EntityType.DOMAIN, client)
     assert [f.label for f in findings] == ["subdomain", "subdomain"]
 
@@ -559,10 +523,7 @@ async def test_nvd_reads_an_unassigned_cve_off_the_body_not_the_status():
     """NVD answers 200 with an empty result set for a well-formed but unassigned id. Branching on
     status alone would report every unknown CVE as an error rather than as no such record."""
 
-    def handler(request):
-        return httpx.Response(200, json={"totalResults": 0, "vulnerabilities": []})
-
-    async with mock_client(handler) as client:
+    async with responder(200, json={"totalResults": 0, "vulnerabilities": []}) as client:
         result = await run_fetcher("nvd-cve", "CVE-1999-99999", EntityType.CVE, client)
     assert result.state == "empty"
 
@@ -598,10 +559,7 @@ async def test_mempool_tx_does_not_parse_a_text_plain_miss_as_json():
     """404 and 400 come back as text/plain, so touching json() before checking the status turns a
     clean miss into a decode error."""
 
-    def handler(request):
-        return httpx.Response(404, text="Transaction not found")
-
-    async with mock_client(handler) as client:
+    async with responder(404, text="Transaction not found") as client:
         result = await run_fetcher("mempool-space-tx", "0" * 64, EntityType.TX_HASH, client)
     assert result.state == "empty"
     assert result.detail is None
@@ -610,10 +568,7 @@ async def test_mempool_tx_does_not_parse_a_text_plain_miss_as_json():
 async def test_mempool_tx_reads_an_unconfirmed_transaction_without_block_keys():
     """While a transaction is unconfirmed the block_* keys are absent entirely, not null."""
 
-    def handler(request):
-        return httpx.Response(200, json={"status": {"confirmed": False}, "fee": 1040, "vin": [{}], "vout": []})
-
-    async with mock_client(handler) as client:
+    async with responder(200, json={"status": {"confirmed": False}, "fee": 1040, "vin": [{}], "vout": []}) as client:
         findings = await mempool_tx("a" * 64, EntityType.TX_HASH, client)
     got = {f.label: f.value for f in findings}
     assert got["confirmed"].startswith("no")

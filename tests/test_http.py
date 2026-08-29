@@ -2,7 +2,7 @@ import asyncio
 
 import httpx
 import pytest
-from helpers import mock_client
+from helpers import mock_client, responder
 
 from casefile.fetchers import RateLimited, http
 from casefile.fetchers.http import USER_AGENT, build_client, domain_slot
@@ -89,28 +89,19 @@ async def test_retries_once_then_raises_rate_limited(method):
 
 
 async def test_get_returns_on_success():
-    def handler(request):
-        return httpx.Response(200, json={"ok": True})
-
-    async with mock_client(handler) as client:
+    async with responder(200, json={"ok": True}) as client:
         resp = await http.fetch(client, "https://h.test/x")
     assert resp.json() == {"ok": True}
 
 
 async def test_get_allow_returns_404_without_raising():
-    def handler(request):
-        return httpx.Response(404, json={"message": "Not Found"})
-
-    async with mock_client(handler) as client:
+    async with responder(404, json={"message": "Not Found"}) as client:
         resp = await http.fetch(client, "https://h.test/x", allow=(404,))
     assert resp.status_code == 404
 
 
 async def test_get_still_raises_on_unallowed_404():
-    def handler(request):
-        return httpx.Response(404, json={"message": "Not Found"})
-
-    async with mock_client(handler) as client:
+    async with responder(404, json={"message": "Not Found"}) as client:
         with pytest.raises(httpx.HTTPStatusError):
             await http.fetch(client, "https://h.test/x")
 
