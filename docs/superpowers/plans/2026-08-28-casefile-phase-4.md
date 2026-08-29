@@ -875,12 +875,12 @@ Append to `tests/test_sources.py`:
 
 ```python
 async def test_phone_meta_reports_region_and_formats():
-    findings = await phone_meta("+61293744000", EntityType.PHONE, client=None)
+    findings = await phone_meta("+61255500000", EntityType.PHONE, client=None)
     labels = {f.label: f.value for f in findings}
     assert labels["region"] == "AU"
     assert labels["location"] == "Australia"
-    assert labels["E.164"] == "+61293744000"
-    assert labels["international"] == "+61 2 9374 4000"
+    assert labels["E.164"] == "+61255500000"
+    assert labels["international"] == "+61 2 5550 0000"
     assert labels["valid"] == "yes"
 
 
@@ -889,7 +889,7 @@ async def test_phone_meta_makes_no_network_call():
         raise AssertionError("phone_meta must be offline")
 
     async with _client(handler) as client:
-        findings = await phone_meta("+14155552671", EntityType.PHONE, client)
+        findings = await phone_meta("+14155550100", EntityType.PHONE, client)
     assert any(f.label == "location" for f in findings)
 
 
@@ -898,7 +898,7 @@ async def test_phone_meta_without_country_code_explains_itself():
 
     That is not "found nothing", it is "cannot tell without a country code", so say so.
     """
-    findings = await phone_meta("0293744000", EntityType.PHONE, client=None)
+    findings = await phone_meta("0255500000", EntityType.PHONE, client=None)
     assert len(findings) == 1
     assert findings[0].label == "note"
     assert "country code" in findings[0].value
@@ -1705,7 +1705,7 @@ async def test_hashlookup_is_live_and_keyless():
 
 
 async def test_phone_meta_needs_no_network():
-    r = await _run("phone_meta", "+14155552671", EntityType.PHONE)
+    r = await _run("phone_meta", "+14155550100", EntityType.PHONE)
     assert r.state is State.OK
 
 
@@ -1777,7 +1777,7 @@ Run: `uv run casefile`, then check each of these in the browser:
 - `example.com` shows dns, rdap and crtsh panels loading independently.
 - `8.8.8.8` shows an internetdb panel and an rdap panel.
 - `octocat` shows a github panel and a whatsmyname panel; the WMN panel takes 30-60 s and renders the CC BY-SA attribution line.
-- `+14155552671` shows a phone_meta panel with region, location and both formats, instantly and with no network.
+- `+14155550100` shows a phone_meta panel with region, location and both formats, instantly and with no network.
 - `d41d8cd98f00b204e9800998ecf8427e` shows a hashlookup panel and a malwarebazaar panel reading "needs a key".
 - Re-run the same search: panels return instantly from the cache. Then `casefile --clear-cache` and confirm they are slow again.
 

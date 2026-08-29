@@ -385,12 +385,12 @@ async def test_malwarebazaar_rejected_key_is_needs_key(monkeypatch):
 
 
 async def test_phone_meta_reports_region_and_formats():
-    findings = await phone_meta("+61293744000", EntityType.PHONE, client=None)
+    findings = await phone_meta("+61255500000", EntityType.PHONE, client=None)
     labels = {f.label: f.value for f in findings}
     assert labels["region"] == "AU"
     assert labels["location"] == "Australia"
-    assert labels["E.164"] == "+61293744000"
-    assert labels["international"] == "+61 2 9374 4000"
+    assert labels["E.164"] == "+61255500000"
+    assert labels["international"] == "+61 2 5550 0000"
     assert labels["valid"] == "yes"
 
 
@@ -399,7 +399,7 @@ async def test_phone_meta_makes_no_network_call():
         raise AssertionError("phone_meta must be offline")
 
     async with mock_client(handler) as client:
-        findings = await phone_meta("+14155552671", EntityType.PHONE, client)
+        findings = await phone_meta("+14155550100", EntityType.PHONE, client)
     assert any(f.label == "location" for f in findings)
 
 
@@ -410,7 +410,7 @@ async def test_phone_meta_distinguishes_no_country_code_from_unparseable():
     "Cannot tell without a country code" is not "found nothing", and saying so is the point:
     a bare empty panel would read as "this number has no records".
     """
-    (note,) = await phone_meta("0293744000", EntityType.PHONE, client=None)
+    (note,) = await phone_meta("0255500000", EntityType.PHONE, client=None)
     assert note.label == "note"
     assert "country code" in note.value
     assert await phone_meta("+999", EntityType.PHONE, client=None) == []

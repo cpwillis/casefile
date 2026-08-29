@@ -33,7 +33,7 @@ async def test_source_is_live_and_keyless(source_id, value, entity_type):
 
 
 async def test_phone_meta_needs_no_network():
-    r = await _run("phone_meta", "+14155552671", EntityType.PHONE)
+    r = await _run("phone_meta", "+14155550100", EntityType.PHONE)
     assert r.state is State.OK
 
 

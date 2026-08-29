@@ -1,10 +1,13 @@
 """Tests that defend decisions rather than behaviour. A failure here is a reversal."""
 
+import ast
+import re
 from pathlib import Path
 
 from helpers import client
 
 from casefile.detect import detect
+from casefile.types import EntityType
 from casefile.web.app import app
 
 
@@ -40,3 +43,29 @@ def test_async_client_is_constructed_in_one_place():
         if "httpx.AsyncClient(" in p.read_text() and p.relative_to(package).as_posix() != "fetchers/http.py"
     ]
     assert offenders == [], f"AsyncClient built outside fetchers/http.py: {offenders}"
+
+
+# Numbers reserved for fiction, and the only ones a fixture may use.
+# AU: ACMA reserves 5550 xxxx in each geographic area code. NANP: 555-0100 to 555-0199.
+RESERVED_PHONE = re.compile(r"^(?:61[2378]5550\d{4}|0?[2378]5550\d{4}|1?\d{3}55501\d{2})$")
+
+
+def test_no_fixture_uses_a_dialable_real_phone_number():
+    """A test number must not be able to ring a real person or organisation.
+
+    The suite is full of digit strings that are not phone numbers (IMO, MMSI, dates, ports), so
+    the filter is: anything casefile itself reads as a phone AND is long enough to be a real
+    subscriber number has to come from a reserved fiction range.
+    """
+    offenders = []
+    for path in sorted(Path(__file__).parent.glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+                continue
+            literal = node.value.strip()
+            digits = re.sub(r"\D", "", literal)
+            if len(digits) < 10 or not any(c.type is EntityType.PHONE for c in detect(literal)):
+                continue
+            if not RESERVED_PHONE.match(digits):
+                offenders.append(f"{path.name}:{node.lineno} {literal!r}")
+    assert not offenders, "fixtures using non-reserved phone numbers: " + ", ".join(offenders)
