@@ -95,3 +95,12 @@ form.inline { display: inline; }
 .save-state select { border: 1px solid var(--line); border-radius: 4px; background: var(--bg);
                      color: var(--fg); padding: 2px 4px; font-size: 12px; }
 .case-list li { flex-wrap: wrap; }
+
+.linkset-tally { font-size: 12px; margin: 0 0 8px; }
+.verdict { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.verdict-live { color: var(--ok); }
+.verdict-missing { color: var(--bad); }
+.verdict-blocked, .verdict-redirected, .verdict-unreachable { color: var(--muted); }
+.links li[data-verdict="missing"] a { text-decoration: line-through; opacity: .7; }
+.linkset.htmx-request .links { opacity: .5; }
+.linkset.htmx-request .panel-running { display: block; }

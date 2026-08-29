@@ -95,15 +95,7 @@
       <label class="visually-hidden" for="filter-{{ section.type }}">Filter {{ section.type }} links</label>
       <input class="filter" id="filter-{{ section.type }}" type="search" placeholder="filter links…"
              data-filters="links-{{ section.type }}-list">
-      <ul class="links" id="links-{{ section.type }}-list">
-        {% for link in section.links %}
-        <li><a href="{{ link.url }}" rel="noreferrer noopener" target="_blank">{{ link.name }}</a>
-          {% if link.notes %}<span class="muted">{{ link.notes }}</span>{% endif %}
-        </li>
-        {% else %}
-        <li class="muted">no sources for this type yet</li>
-        {% endfor %}
-      </ul>
+      {% include "links.html" %}
       {% endfor %}
     </section>
   </main>

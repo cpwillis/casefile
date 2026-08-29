@@ -1,0 +1,33 @@
+{# One reading's link list, optionally annotated with what a probe found. Rendered inline on the
+   result page and returned on its own by /links, so both paths agree by construction. #}
+<div class="linkset" id="links-{{ section.type }}-list">
+  {% if verdicts %}
+  <p class="muted linkset-tally">
+    {% for name, count in tally.items() %}{{ count }} {{ name }}{% if not loop.last %} · {% endif %}{% endfor %}
+    · nothing here was opened, only asked whether it exists
+  </p>
+  {% elif not demo %}
+  {% set check_url = '/links?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type %}
+  <button class="panel-run" type="button"
+          hx-get="{{ check_url }}"
+          hx-target="closest .linkset" hx-swap="outerHTML"
+          hx-disabled-elt="this" hx-indicator="closest .linkset">
+    Check which of these exist
+  </button>
+  <p class="panel-running muted">checking {{ section.links | length }} links, one request each…</p>
+  <p class="muted panel-cost">sends one request per link from your IP, and does not open any of them</p>
+  {% endif %}
+  <ul class="links">
+    {% for link in section.links %}
+    <li data-verdict="{{ verdicts.get(link.id, '') if verdicts else '' }}">
+      <a href="{{ link.url }}" rel="noreferrer noopener" target="_blank">{{ link.name }}</a>
+      {% if verdicts and verdicts.get(link.id) %}
+      <span class="verdict verdict-{{ verdicts[link.id] }}">{{ verdicts[link.id] }}</span>
+      {% endif %}
+      {% if link.notes %}<span class="muted">{{ link.notes }}</span>{% endif %}
+    </li>
+    {% else %}
+    <li class="muted">no sources for this type yet</li>
+    {% endfor %}
+  </ul>
+</div>

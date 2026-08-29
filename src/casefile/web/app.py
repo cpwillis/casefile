@@ -37,7 +37,8 @@ from casefile.detect import detect
 from casefile.export import FORMATS, export_case, media_type, safe_url
 from casefile.fetchers import SourceResult, State, fetched_ids, fetchers_for, registered_fetcher, wmn
 from casefile.fetchers.http import build_client
-from casefile.types import EntityType
+from casefile.linkcheck import check_links, tally
+from casefile.types import Candidate, EntityType
 
 HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=HERE / "templates")
@@ -200,6 +201,28 @@ async def star_route(request: Request) -> Response:
     )
 
 
+async def link_check(request: Request) -> Response:
+    """Probe one reading's links and re-render the list with what came back.
+
+    On demand, never on page load: it is one request per link from your IP, which is the same
+    consent question the WhatsMyName checker asks.
+    """
+    if request.headers.get("sec-fetch-site") == "cross-site":
+        return PlainTextResponse("cross-site request refused", status_code=403)
+    value = request.query_params.get("v", "")
+    try:
+        entity_type = EntityType(request.query_params.get("t", ""))
+    except ValueError:
+        return PlainTextResponse("unknown entity type", status_code=400)
+    links = links_for(Candidate(entity_type, value), exclude=fetched_ids())
+    async with build_client() as client:
+        verdicts = await check_links(links, client)
+    section = {"type": entity_type.value, "value": value, "links": links}
+    return templates.TemplateResponse(
+        request, "links.html", {"section": section, "verdicts": verdicts, "tally": tally(verdicts)}
+    )
+
+
 def _form(body: str) -> dict:
     return {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
 
@@ -290,6 +313,7 @@ app = Starlette(
         Route("/panel/{source_id}", panel),
         Route("/star", star_route, methods=["POST"]),
         Route("/save", save_route, methods=["POST"]),
+        Route("/links", link_check),
         Route("/case/{case_id}/rename", case_rename, methods=["POST"]),
         Route("/cases", cases),
         Route("/case/{case_id}", case_detail),
