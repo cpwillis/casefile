@@ -195,8 +195,8 @@ def delete_case(case_id: str) -> bool:
         return False
     try:
         with _connect() as conn:
+            # the stars go with it: foreign keys are on and stars.case_id cascades
             cur = conn.execute("DELETE FROM cases WHERE id = ?", (case_id,))
-            conn.execute("DELETE FROM stars WHERE case_id = ?", (case_id,))
             return cur.rowcount > 0
     except (sqlite3.Error, OSError):
         return False

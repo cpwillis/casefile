@@ -100,6 +100,31 @@ def test_forget_all_empties_the_store_and_removes_the_file():
     assert not cases_path().exists()
 
 
+def test_deleting_a_case_takes_its_stars_with_it():
+    """delete_case relies on the ON DELETE CASCADE, so the pragma that enables it is load-bearing.
+
+    Without this, a regression in store.connect's `PRAGMA foreign_keys = ON` would orphan every
+    star silently: the case list would look right and the rows would still be on disk.
+    """
+    from casefile.cases import _connect, delete_case
+
+    star(EntityType.DOMAIN, "example.com", _star(label="A"))
+    star(EntityType.DOMAIN, "example.com", _star(label="MX", value="0 ."))
+    star(EntityType.DOMAIN, "other.example", _star())
+    assert delete_case(case_id_for(EntityType.DOMAIN, "example.com")) is True
+    with _connect() as conn:
+        remaining = conn.execute("SELECT case_id FROM stars").fetchall()
+    assert remaining == [("domain:other.example",)], f"orphaned stars left behind: {remaining}"
+
+
+def test_deleting_an_unknown_case_reports_that_nothing_went():
+    star(EntityType.DOMAIN, "example.com", _star())
+    from casefile.cases import delete_case
+
+    assert delete_case("domain:never-saved.example") is False
+    assert len(list_cases()) == 1
+
+
 def test_unknown_case_loads_as_none():
     assert load_case("domain:nope.example") is None
 

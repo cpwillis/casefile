@@ -72,25 +72,29 @@ async def index(request: Request) -> HTMLResponse:
 async def result(request: Request) -> HTMLResponse:
     raw = request.query_params.get("v", "").strip()
     if not raw:
-        return templates.TemplateResponse(request, "index.html")
+        return RedirectResponse("/")  # one homepage, rather than a second render without its context
     return templates.TemplateResponse(request, "result.html", {"raw": raw, "sections": sections_for(raw)})
+
+
+def _dead_panel(request: Request, source_id: str, detail: str) -> HTMLResponse:
+    """A refused panel is still a rendered panel: htmx will not swap a 4xx, so a status code
+    would leave the tile stuck on "loading…" with no reason shown."""
+    result = SourceResult(source_id, State.ERROR, detail=detail)
+    return templates.TemplateResponse(request, "panel.html", {"result": result})
 
 
 async def panel(request: Request) -> HTMLResponse:
     source_id = request.path_params["source_id"]
     if request.headers.get("sec-fetch-site") == "cross-site":
-        result = SourceResult(source_id, State.ERROR, detail="cross-site request refused")
-        return templates.TemplateResponse(request, "panel.html", {"result": result})
+        return _dead_panel(request, source_id, "cross-site request refused")
     value = request.query_params.get("v", "")
     try:
         entity_type = EntityType(request.query_params.get("t", ""))
     except ValueError:
-        result = SourceResult(source_id, State.ERROR, detail="unknown entity type")
-        return templates.TemplateResponse(request, "panel.html", {"result": result})
+        return _dead_panel(request, source_id, "unknown entity type")
     rec = registered_fetcher(source_id)
     if rec is not None and entity_type not in rec.accepts:
-        result = SourceResult(source_id, State.ERROR, detail=f"{source_id} does not accept {entity_type}")
-        return templates.TemplateResponse(request, "panel.html", {"result": result})
+        return _dead_panel(request, source_id, f"{source_id} does not accept {entity_type}")
     async with build_client() as client:
         result = await run_cached(source_id, value, entity_type, client)
     return templates.TemplateResponse(request, "panel.html", {"result": result, "t": entity_type.value, "v": value})
@@ -144,26 +148,16 @@ async def star_route(request: Request) -> Response:
     # The button states its intent rather than toggling server state. A second tab showing a
     # stale page would otherwise un-save rows it never saved, cascading the case away silently.
     action = form.get("action", "star")
+    error = None
     try:
         if action == "unstar":
             unstar(entity_type, value, finding)
         else:
             star(entity_type, value, finding)
     except CaseStoreError as exc:
-        # Show the failure on the button rather than 500ing. htmx does not swap 5xx, so a
-        # silent non-save would look identical to a successful one.
-        return templates.TemplateResponse(
-            request,
-            "star_button.html",
-            {
-                "t": entity_type.value,
-                "v": value,
-                "sid": finding.source_id,
-                "f": finding,
-                "starred": False,
-                "error": str(exc),
-            },
-        )
+        # Shown on the button rather than 500ing. htmx does not swap 5xx, so a silent non-save
+        # would look identical to a successful one.
+        error = str(exc)
     return templates.TemplateResponse(
         request,
         "star_button.html",
@@ -172,7 +166,8 @@ async def star_route(request: Request) -> Response:
             "v": value,
             "sid": finding.source_id,
             "f": finding,
-            "starred": is_starred(entity_type, value, finding),
+            "starred": error is None and is_starred(entity_type, value, finding),
+            "error": error,
         },
     )
 

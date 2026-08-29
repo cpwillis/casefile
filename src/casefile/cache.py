@@ -42,6 +42,8 @@ def _connect():
 
 
 def _load(source_id: str, entity_type, value: str, ttl: float) -> SourceResult | None:
+    if not cache_path().exists():
+        return None  # a miss must not bring the store into being; only storing a response does
     with _connect() as conn:
         row = conn.execute(
             "SELECT fetched_at, payload FROM responses WHERE source_id = ? AND entity_type = ? AND value = ?",

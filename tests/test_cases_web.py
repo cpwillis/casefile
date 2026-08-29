@@ -143,3 +143,24 @@ def test_export_downloads_each_format(fmt, needle):
 def test_export_rejects_an_unknown_format():
     client.post("/star", data=STAR, headers=SAME)
     assert client.get("/case/domain:example.com/export.pdf").status_code == 404
+
+
+def test_an_unwritable_store_shows_the_failure_on_the_button(tmp_path, monkeypatch):
+    """htmx does not swap a 5xx, so a save that failed must come back as a visibly failed button
+    rather than as a status code the page silently ignores."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    from casefile.cases import cases_path
+
+    cases_path().parent.mkdir(parents=True, exist_ok=True)
+    cases_path().write_bytes(b"this is not a sqlite database")
+    resp = client.post("/star", data=STAR, headers=SAME)
+    assert resp.status_code == 200
+    assert "could not save" in resp.text
+    assert 'aria-pressed="false"' in resp.text
+
+
+def test_an_empty_search_returns_to_the_one_homepage():
+    """Rendering index.html a second time without its context silently dropped the saved cases."""
+    client.post("/star", data=STAR, headers=SAME)
+    resp = client.get("/q", params={"v": "   "}, follow_redirects=True)
+    assert "Where you left off" in resp.text
