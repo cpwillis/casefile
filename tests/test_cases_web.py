@@ -59,11 +59,24 @@ def test_deleting_a_case_refuses_cross_site():
     assert client.post("/case/domain:example.com/delete", headers={"sec-fetch-site": "cross-site"}).status_code == 403
 
 
-def test_a_foreign_host_is_refused_even_when_same_origin():
-    """Sec-Fetch-Site alone does not survive DNS rebinding, so Host is pinned too."""
-    resp = client.post("/star", data=STAR, headers={**SAME, "host": "evil.example"})
-    assert resp.status_code == 403
-    assert client.get("/cases", headers={"host": "evil.example"}).status_code == 403
+def test_a_foreign_host_is_refused_on_every_route_even_when_same_origin():
+    """Sec-Fetch-Site alone does not survive DNS rebinding, so Host is pinned too.
+
+    Asserted across every route rather than the two that used to carry a hand-pasted guard:
+    the pin is middleware now precisely so a new route cannot quietly opt out of it. /panel is
+    in the list on purpose, being the only route that makes outbound requests from your IP.
+    """
+    evil = {"host": "evil.example"}
+    assert client.post("/star", data=STAR, headers={**SAME, **evil}).status_code == 400
+    for path in (
+        "/",
+        "/q?v=example.com",
+        "/cases",
+        "/case/domain:example.com",
+        "/case/domain:example.com/export.md",
+        "/panel/dns?v=example.com&t=domain",
+    ):
+        assert client.get(path, headers=evil).status_code == 400, f"{path} accepted a foreign Host"
 
 
 def test_export_filename_survives_a_unicode_target():

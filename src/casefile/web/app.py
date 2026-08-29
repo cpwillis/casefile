@@ -8,6 +8,8 @@ from urllib.parse import parse_qs
 
 import uvicorn
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
@@ -97,24 +99,14 @@ async def panel(request: Request) -> HTMLResponse:
 _MEDIA = {"md": "text/markdown; charset=utf-8", "json": "application/json", "html": "text/html; charset=utf-8"}
 
 
-_ALLOWED_HOSTS = ("127.0.0.1", "localhost", "::1")
-
-
-def _local_host(request: Request) -> bool:
-    """Sec-Fetch-Site alone does not survive DNS rebinding: a rebound name is same-origin to the
-    browser. Pinning Host means a foreign name cannot reach these routes at all."""
-    host = (request.headers.get("host") or "").rsplit(":", 1)[0].strip("[]")
-    return host in _ALLOWED_HOSTS
-
-
 def _same_origin(request: Request) -> bool:
-    """Mutations demand same-origin, which is stricter than the read-only panel guard.
+    """Mutations demand same-origin, on top of the Host pin every route already gets.
 
     A missing Sec-Fetch-Site is refused too: the only legitimate caller of a mutating route is
     this app's own page, and every browser that can reach it sends the header. A page you visit
     while casefile is running must not be able to write to your cases.
     """
-    return _local_host(request) and request.headers.get("sec-fetch-site") == "same-origin"
+    return request.headers.get("sec-fetch-site") == "same-origin"
 
 
 _UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
@@ -189,14 +181,10 @@ async def star_route(request: Request) -> Response:
 
 
 async def cases(request: Request) -> Response:
-    if not _local_host(request):
-        return PlainTextResponse("forbidden host", status_code=403)
     return templates.TemplateResponse(request, "cases.html", {"cases": list_cases()})
 
 
 async def case_detail(request: Request) -> Response:
-    if not _local_host(request):
-        return PlainTextResponse("forbidden host", status_code=403)
     case = load_case(request.path_params["case_id"])
     if case is None:
         return templates.TemplateResponse(request, "cases.html", {"cases": list_cases(), "missing": True})
@@ -204,8 +192,6 @@ async def case_detail(request: Request) -> Response:
 
 
 async def case_export(request: Request) -> Response:
-    if not _local_host(request):
-        return PlainTextResponse("forbidden host", status_code=403)
     fmt = request.path_params["fmt"]
     if fmt not in FORMATS:
         return PlainTextResponse(f"unknown format {fmt}", status_code=404)
@@ -227,7 +213,14 @@ async def case_delete(request: Request) -> Response:
     return RedirectResponse("/cases", status_code=303)
 
 
+# Pinning Host is what survives DNS rebinding: Sec-Fetch-Site cannot help, because to the
+# browser a rebound name is same-origin. Applied as middleware rather than per route so that a
+# new route cannot be added unguarded, which is how /panel, the one route with outbound egress,
+# ended up as the only sensitive route without the pin.
+_TRUSTED_HOSTS = ["127.0.0.1", "localhost"]
+
 app = Starlette(
+    middleware=[Middleware(TrustedHostMiddleware, allowed_hosts=_TRUSTED_HOSTS)],
     routes=[
         Route("/", index),
         Route("/q", result),
@@ -238,7 +231,7 @@ app = Starlette(
         Route("/case/{case_id}/export.{fmt}", case_export),
         Route("/case/{case_id}/delete", case_delete, methods=["POST"]),
         Mount("/static", StaticFiles(directory=HERE / "static"), name="static"),
-    ]
+    ],
 )
 
 
