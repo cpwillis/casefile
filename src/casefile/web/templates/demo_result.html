@@ -1,0 +1,46 @@
+{% extends "demo_base.html" %}
+{% block title %}{{ raw }} · casefile demo{% endblock %}
+{% block content %}
+<h1 class="visually-hidden">casefile results for {{ raw }}</h1>
+<p class="summary muted">{{ sections | length }} reading{{ "s" if sections | length != 1 }}
+ · {{ sections | map(attribute="links") | map("length") | sum }} links</p>
+<div class="layout">
+  <nav class="rail" aria-label="Readings and sources">
+    {% for section in sections %}
+    <div class="rail-block">
+      <a class="rail-type" href="#type-{{ section.type }}">{{ section.type }}</a>
+      <a class="rail-links" href="#links-{{ section.type }}">{{ section.links | length }} links</a>
+    </div>
+    {% endfor %}
+    <p class="rail-tally muted">other examples</p>
+    {% for t in targets %}<p class="rail-links"><a href="{{ t.href }}">{{ t.query }}</a></p>{% endfor %}
+  </nav>
+  <main class="pane" id="pane">
+    {% for section in sections %}
+    <section class="type-section" id="type-{{ section.type }}">
+      <h2>{{ section.type }} <span class="muted">{{ section.value }}</span>
+        {% if loop.first %}<span class="tag">most likely</span>{% endif %}</h2>
+      {% if section.prerendered or section.unavailable %}
+      <h3>Sources</h3>
+      <div class="panels">
+        {% for result in section.prerendered %}{% include "panel.html" %}{% endfor %}
+        {% for sid in section.unavailable %}
+        <div class="panel" data-state="on-demand">
+          <div class="panel-head"><span class="panel-id">{{ sid }}</span>
+            <span class="panel-state">not in this demo</span></div>
+          <p class="muted panel-cost">Run casefile locally to query this source.</p>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <h3 id="links-{{ section.type }}">Links ({{ section.links | length }})</h3>
+      <ul class="links" id="links-{{ section.type }}-list">
+        {% for link in section.links %}
+        <li><a href="{{ link.url }}" rel="noreferrer noopener" target="_blank">{{ link.name }}</a></li>
+        {% else %}<li class="muted">no sources for this type yet</li>{% endfor %}
+      </ul>
+    </section>
+    {% endfor %}
+  </main>
+</div>
+{% endblock %}

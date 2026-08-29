@@ -62,3 +62,5 @@ a { color: var(--accent); }
 .summary { font-size: 13px; margin: 0 0 12px; }
 .copy { background: none; border: 0; cursor: pointer; color: var(--muted); font-size: 12px; padding: 0 4px; }
 .copy:hover { color: var(--accent); }
+.demo-banner { background: var(--bg); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 10px 16px; text-align: center; }
+.demo-banner code { background: rgba(128,128,128,.15); padding: 1px 6px; border-radius: 3px; }

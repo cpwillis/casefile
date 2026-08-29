@@ -1,4 +1,4 @@
-.PHONY: check test live fmt lint
+.PHONY: check test live fmt lint demo
 check: lint test
 test:
 	uv run pytest
@@ -10,3 +10,5 @@ lint:
 fmt:
 	uv run ruff format
 	uv run ruff check --fix
+demo:
+	uv run casefile --build-demo site

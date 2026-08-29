@@ -1,0 +1,48 @@
+{
+  "_note": "Canned results for the static demo. Institutional or reserved targets only, never a private individual. RFC 5737 addresses throughout.",
+  "targets": [
+    {
+      "query": "example.com",
+      "panels": {
+        "dns": {"state": "ok", "findings": [
+          {"label": "A", "value": "192.0.2.10"},
+          {"label": "MX", "value": "0 ."},
+          {"label": "TXT", "value": "v=spf1 -all"}
+        ]},
+        "rdap": {"state": "ok", "findings": [
+          {"label": "handle", "value": "EXAMPLE-DOM"},
+          {"label": "registration", "value": "1995-08-14"}
+        ]},
+        "crtsh": {"state": "empty", "findings": []},
+        "github": {"state": "timeout", "findings": [], "detail": "no response within the timeout"},
+        "wikidata": {"state": "ok", "findings": [
+          {"label": "Example.com", "value": "domain reserved for documentation", "url": "https://www.wikidata.org/wiki/Q1188253"}
+        ]}
+      }
+    },
+    {
+      "query": "octocat",
+      "panels": {
+        "github": {"state": "ok", "findings": [
+          {"label": "name", "value": "The Octocat"},
+          {"label": "company", "value": "GitHub"},
+          {"label": "public_repos", "value": "8"},
+          {"label": "profile", "value": "octocat", "url": "https://github.com/octocat"}
+        ]},
+        "wikidata": {"state": "empty", "findings": []}
+      }
+    },
+    {
+      "query": "Cloudflare",
+      "panels": {
+        "wikidata": {"state": "ok", "findings": [
+          {"label": "Cloudflare", "value": "American internet infrastructure and website security company", "url": "https://www.wikidata.org/wiki/Q4778915"}
+        ]}
+      }
+    },
+    {
+      "query": "IMO 9074729",
+      "panels": {}
+    }
+  ]
+}

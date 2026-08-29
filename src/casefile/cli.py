@@ -5,6 +5,7 @@ import asyncio
 import json
 import sys
 from dataclasses import asdict
+from pathlib import Path
 
 import casefile.fetchers.sources  # noqa: F401 -- registers fetchers
 from casefile import __version__
@@ -91,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--clear-cache", action="store_true", help="purge the response cache and exit")
     parser.add_argument("--cases", action="store_true", help="list your saved cases and exit")
+    parser.add_argument("--build-demo", metavar="DIR", help="render the static demo into DIR and exit")
     parser.add_argument("--export", metavar="CASE_ID", help="export one saved case and exit")
     parser.add_argument("--format", default="md", choices=("md", "json", "html"), help="export format (default: md)")
     parser.add_argument(
@@ -103,6 +105,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser on launch")
     parser.add_argument("--version", action="version", version=f"casefile {__version__}")
     args = parser.parse_args(argv)
+
+    if args.build_demo:
+        from casefile.demo import build_demo
+
+        written = build_demo(Path(args.build_demo))
+        print(f"wrote {len(written)} files to {args.build_demo}")
+        return 0
 
     if args.clear_cache:
         from casefile.cache import clear_cache
