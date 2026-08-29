@@ -7,9 +7,9 @@ name: release
 # https://pypi.org/manage/project/casefile/settings/publishing/ with:
 #   owner: cpwillis   repository: casefile   workflow: release.yml   environment: pypi
 
+# Manual only. Tagging must not publish by itself: a PyPI version can never be re-uploaded,
+# so releasing is an explicit act, not a side effect of pushing a tag.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions: {}
