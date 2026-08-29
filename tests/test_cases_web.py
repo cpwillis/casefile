@@ -230,3 +230,14 @@ def test_removing_a_target_from_the_result_page():
     client.post("/save", data=SAVE, headers=SAME)
     client.post("/save", data=dict(SAVE, action="remove"), headers=SAME)
     assert list_cases() == ()
+
+
+def test_the_save_control_does_not_nest_a_form_inside_a_paragraph():
+    """Browsers close a <p> when a <form> opens inside it, which broke the control onto its own
+    line. Invalid nesting renders acceptably right up until it does not."""
+    import re
+
+    client.post("/save", data=SAVE, headers=SAME)
+    text = client.get("/q", params={"v": "acme-example"}).text
+    for para in re.findall(r"<p\b[^>]*>.*?</p>", text, re.S):
+        assert "<form" not in para, f"a form is nested inside a paragraph: {para[:120]}"

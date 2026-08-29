@@ -22,12 +22,12 @@
     <li>
       <a href="/q?v={{ t.value | urlencode }}">{{ t.value }}</a>
       <span class="muted">{{ t.entity_type }} · {{ t.star_count }} saved</span>
-      <form method="post" action="/save" class="inline">
+      <form method="post" action="/save" class="inline"
+            onsubmit="return confirm('Remove this identifier and its findings from the case?');">
         <input type="hidden" name="t" value="{{ t.entity_type }}">
         <input type="hidden" name="v" value="{{ t.value }}">
         <input type="hidden" name="action" value="remove">
-        <button type="submit" class="linkish"
-                onsubmit="return confirm('Remove this identifier and its findings from the case?');">remove</button>
+        <button type="submit" class="linkish">remove</button>
       </form>
     </li>
     {% endfor %}

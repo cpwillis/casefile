@@ -1,14 +1,14 @@
 {# One reading's save state: already in a case, or a control to put it in one. Shown per reading
    rather than per page because a page has several readings and they are separately worth keeping. #}
 {% if section.case %}
-<p class="save-state muted">Saved to <a href="/case/{{ section.case.id | urlencode }}">{{ section.case.name }}</a>
+<div class="save-state muted">Saved to <a href="/case/{{ section.case.id | urlencode }}">{{ section.case.name }}</a>
   <form method="post" action="/save" class="inline">
     <input type="hidden" name="t" value="{{ section.type }}">
     <input type="hidden" name="v" value="{{ section.value }}">
     <input type="hidden" name="action" value="remove">
     <button type="submit" class="linkish">remove</button>
   </form>
-</p>
+</div>
 {% else %}
 <form method="post" action="/save" class="save-state inline">
   <input type="hidden" name="t" value="{{ section.type }}">
