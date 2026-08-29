@@ -72,9 +72,9 @@ def test_domain_slot_survives_a_second_event_loop():
     asyncio.run(contend())  # second, independent loop: must not raise RuntimeError
 
 
-@pytest.mark.parametrize("verb", ["get", "post"])
-async def test_retries_once_then_raises_rate_limited(verb):
-    """Both verbs share _send_with_retry, so both must show the same one-retry policy."""
+@pytest.mark.parametrize("method", ["GET", "POST"])
+async def test_retries_once_then_raises_rate_limited(method):
+    """Both verbs go through one fetch(), so both must show the same one-retry policy."""
     calls = 0
 
     def handler(request):
@@ -84,7 +84,7 @@ async def test_retries_once_then_raises_rate_limited(verb):
 
     async with mock_client(handler) as client:
         with pytest.raises(RateLimited):
-            await getattr(http, verb)(client, "https://h.test/x", "h.test")
+            await http.fetch(client, "https://h.test/x", method=method)
     assert calls == 2  # original plus one retry
 
 
@@ -93,7 +93,7 @@ async def test_get_returns_on_success():
         return httpx.Response(200, json={"ok": True})
 
     async with mock_client(handler) as client:
-        resp = await http.get(client, "https://h.test/x", "h.test")
+        resp = await http.fetch(client, "https://h.test/x")
     assert resp.json() == {"ok": True}
 
 
@@ -102,7 +102,7 @@ async def test_get_allow_returns_404_without_raising():
         return httpx.Response(404, json={"message": "Not Found"})
 
     async with mock_client(handler) as client:
-        resp = await http.get(client, "https://h.test/x", "h.test", allow=(404,))
+        resp = await http.fetch(client, "https://h.test/x", allow=(404,))
     assert resp.status_code == 404
 
 
@@ -112,7 +112,7 @@ async def test_get_still_raises_on_unallowed_404():
 
     async with mock_client(handler) as client:
         with pytest.raises(httpx.HTTPStatusError):
-            await http.get(client, "https://h.test/x", "h.test")
+            await http.fetch(client, "https://h.test/x")
 
 
 async def test_post_sends_form_data_and_returns_body():
@@ -124,7 +124,7 @@ async def test_post_sends_form_data_and_returns_body():
         return httpx.Response(200, json={"query_status": "ok"})
 
     async with mock_client(handler) as client:
-        resp = await http.post(client, "https://h.test/api", "h.test", data={"query": "get_info", "hash": "abc"})
+        resp = await http.fetch(client, "https://h.test/api", method="POST", data={"query": "get_info", "hash": "abc"})
     assert seen["method"] == "POST"
     assert "query=get_info" in seen["body"]
     assert resp.json() == {"query_status": "ok"}

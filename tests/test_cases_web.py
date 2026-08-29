@@ -14,11 +14,6 @@ SAME = {"sec-fetch-site": "same-origin"}
 STAR = {"t": "domain", "v": "example.com", "source_id": "dns", "label": "A", "value": "192.0.2.10", "url": ""}
 
 
-def test_star_requires_a_same_origin_header():
-    """A page you visit while casefile runs must not be able to write to your cases."""
-    assert client.post("/star", data=STAR, headers={"sec-fetch-site": "cross-site"}).status_code == 403
-
-
 def test_star_refuses_a_request_with_no_sec_fetch_site():
     """Stricter than the read-only panel guard: only this app's own page may mutate."""
     assert client.post("/star", data=STAR).status_code == 403
@@ -46,8 +41,6 @@ def test_starring_then_unstarring_round_trips():
 
 def test_a_stale_tab_cannot_unsave_by_re_saving():
     """Two tabs on the same page: clicking save twice must not cascade the case away."""
-    from casefile.cases import list_cases
-
     client.post("/star", data=STAR, headers=SAME)
     client.post("/star", data=STAR, headers=SAME)  # a stale tab repeating "save"
     assert len(list_cases()) == 1
@@ -58,12 +51,6 @@ def test_deleting_a_case_removes_it():
     resp = client.post(f"/case/{_saved_case_id()}/delete", headers=SAME, follow_redirects=False)
     assert resp.status_code == 303
     assert list_cases() == ()
-
-
-def test_deleting_a_case_refuses_cross_site():
-    client.post("/star", data=STAR, headers=SAME)
-    cid = _saved_case_id()
-    assert client.post(f"/case/{cid}/delete", headers={"sec-fetch-site": "cross-site"}).status_code == 403
 
 
 def test_a_foreign_host_is_refused_on_every_route_even_when_same_origin():
@@ -93,8 +80,6 @@ def test_export_filename_survives_a_unicode_target():
     export of an ordinary internationalised email address.
     """
     client.post("/star", data=dict(STAR, t="email", v="a@\u65e5\u672c\u8a9e.example"), headers=SAME)
-    from casefile.cases import list_cases
-
     (case,) = list_cases()
     resp = client.get(f"/case/{case.id}/export.md")
     assert resp.status_code == 200
@@ -205,25 +190,12 @@ def test_an_unsaved_search_offers_to_save_and_to_join():
     assert "acme-example" in text, "no way to join this search onto an existing case"
 
 
-def test_save_refuses_cross_site():
-    assert client.post("/save", data=SAVE, headers={"sec-fetch-site": "cross-site"}).status_code == 403
-
-
 def test_a_case_can_be_renamed_from_its_page():
     client.post("/save", data=SAVE, headers=SAME)
     cid = list_cases()[0].id
     resp = client.post(f"/case/{cid}/rename", data={"name": "Acme investigation"}, headers=SAME, follow_redirects=False)
     assert resp.status_code == 303
     assert list_cases()[0].name == "Acme investigation"
-
-
-def test_rename_refuses_cross_site():
-    client.post("/save", data=SAVE, headers=SAME)
-    cid = list_cases()[0].id
-    assert (
-        client.post(f"/case/{cid}/rename", data={"name": "x"}, headers={"sec-fetch-site": "cross-site"}).status_code
-        == 403
-    )
 
 
 def test_removing_a_target_from_the_result_page():
@@ -410,3 +382,38 @@ def test_the_unrecognised_page_has_a_heading_and_a_way_out():
     text = client.get("/q", params={"v": "!!!"}).text
     assert "<h1>Nothing recognised</h1>" in text
     assert 'href="/cases"' in text
+
+
+def test_a_new_write_route_is_guarded_without_remembering_to_guard_it():
+    """The reason the origin check is middleware and not a per-route line: applied per route, the
+    fifth POST someone adds arrives unguarded, which is exactly how /panel became the one egress
+    route without the Host pin."""
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+
+    from casefile.web.app import app
+
+    async def unguarded(request):
+        return PlainTextResponse("wrote something")
+
+    route = Route("/probe-new-write", unguarded, methods=["POST"])
+    app.router.routes.append(route)
+    try:
+        assert client.post("/probe-new-write").status_code == 403
+        assert client.post("/probe-new-write", headers={"sec-fetch-site": "cross-site"}).status_code == 403
+        assert client.post("/probe-new-write", headers=SAME).status_code == 200
+    finally:
+        app.router.routes.remove(route)
+
+
+@pytest.mark.parametrize(
+    ("path", "data"),
+    [
+        ("/star", STAR),
+        ("/save", SAVE),
+        ("/case/anything/rename", {"name": "x"}),
+        ("/case/anything/delete", {}),
+    ],
+)
+def test_every_write_refuses_a_cross_site_request(path, data):
+    assert client.post(path, data=data, headers={"sec-fetch-site": "cross-site"}).status_code == 403

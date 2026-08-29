@@ -5,7 +5,7 @@ from casefile.types import EntityType
 # which was never coverage. Re-based once the loader started rejecting duplicate URLs.
 MINIMUM_SLOTS = 240
 FLOOR_PER_TYPE = 3
-EXEMPT = {EntityType.USERNAME, EntityType.PLATE}  # WMN covers username; nothing detects plate in v1
+EXEMPT = {EntityType.USERNAME}  # WhatsMyName covers username, so it needs no catalogue floor
 
 
 def test_every_type_has_a_floor_of_sources():

@@ -6,6 +6,7 @@ to twenty third parties.
 """
 
 import json
+from dataclasses import asdict
 from datetime import UTC, datetime
 from html import escape
 from itertools import groupby
@@ -102,30 +103,15 @@ def _to_markdown(case: Case) -> str:
 
 
 def _to_json(case: Case) -> str:
-    return json.dumps(
-        {
-            "name": case.name,
-            "created_at": case.created_at,
-            "updated_at": case.updated_at,
-            "targets": [
-                {"entity_type": t.entity_type, "value": t.value, "star_count": t.star_count} for t in case.targets
-            ],
-            "stars": [
-                {
-                    "target_type": s.target_type,
-                    "target_value": s.target_value,
-                    "source_id": s.source_id,
-                    "label": s.label,
-                    "value": s.value,
-                    "url": s.url,
-                    "starred_at": s.starred_at,
-                }
-                for s in case.stars
-            ],
-            **({"attribution": [{"text": CREDIT, "url": CREDIT_URL}]} if _credit(case) else {}),
-        },
-        indent=2,
-    )
+    """The model as it stands, not a hand-copied subset of it.
+
+    The hand-written version had already drifted: it omitted id, added_at and star_count, which
+    the other two renderers include, so the machine-readable export carried less than the page.
+    """
+    payload = asdict(case)
+    if _credit(case):
+        payload["attribution"] = [{"text": CREDIT, "url": CREDIT_URL}]
+    return json.dumps(payload, indent=2)
 
 
 def _to_html(case: Case) -> str:

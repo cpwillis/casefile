@@ -200,7 +200,6 @@ def case_for_target(entity_type: EntityType, value: str) -> Case | None:
 
 
 def save_target(entity_type: EntityType, value: str, case_id: str | None = None, name: str = "") -> str:
-    """Put an identifier in a case, creating the case when `case_id` is None. Returns the case id."""
     """Put an identifier in a case, creating the case when `case_id` is None. Returns the case id.
 
     This is what both "save this search" and "add this search to that case" call. Saving a target

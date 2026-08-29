@@ -22,7 +22,6 @@ class EntityType(StrEnum):
     COORDINATES = "coordinates"
     MAC = "mac"
     VIN = "vin"
-    PLATE = "plate"
     MMSI = "mmsi"
     IMO = "imo"
     ICAO24 = "icao24"

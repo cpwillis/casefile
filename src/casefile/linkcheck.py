@@ -10,6 +10,7 @@ negative this tool exists to avoid. Only 404 and 410 are reported as nothing-the
 """
 
 import asyncio
+from collections import Counter
 
 import httpx
 
@@ -23,8 +24,6 @@ UNREACHABLE = "unreachable"
 
 # What a status code is allowed to prove. Anything absent from this map is "cannot tell".
 _VERDICTS = {404: MISSING, 410: MISSING, 401: BLOCKED, 403: BLOCKED, 429: BLOCKED, 451: BLOCKED}
-
-TELLS_YOU_NOTHING = (BLOCKED, REDIRECTED, UNREACHABLE)
 
 
 async def check_link(url: str, client: httpx.AsyncClient) -> str:
@@ -54,8 +53,5 @@ async def check_links(links, client: httpx.AsyncClient) -> dict[str, str]:
     return dict(zip((link.id for link in links), verdicts, strict=True))
 
 
-def tally(verdicts: dict[str, str]) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for verdict in verdicts.values():
-        counts[verdict] = counts.get(verdict, 0) + 1
-    return counts
+def tally(verdicts: dict[str, str]) -> Counter:
+    return Counter(verdicts.values())

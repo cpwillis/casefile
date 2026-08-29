@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, quote
 import uvicorn
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
@@ -24,7 +25,6 @@ from casefile.cases import (
     Star,
     case_for_target,
     delete_case,
-    is_starred,
     list_cases,
     load_case,
     remove_target,
@@ -50,6 +50,10 @@ from casefile.fetchers import (
 from casefile.fetchers.http import build_client
 from casefile.linkcheck import check_links, tally
 from casefile.types import Candidate, EntityType
+
+# A value-keyed lookup instead of EntityType(value) in a try/except at every route: this is a
+# dict get, and four copies of exception-as-control-flow is how the shape spreads.
+_TYPES = {t.value: t for t in EntityType}
 
 HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=HERE / "templates")
@@ -141,9 +145,8 @@ async def panel(request: Request) -> HTMLResponse:
     if request.headers.get("sec-fetch-site") == "cross-site":
         return _dead_panel(request, source_id, "cross-site request refused")
     value = request.query_params.get("v", "")
-    try:
-        entity_type = EntityType(request.query_params.get("t", ""))
-    except ValueError:
+    entity_type = _TYPES.get(request.query_params.get("t", ""))
+    if entity_type is None:
         return _dead_panel(request, source_id, "unknown entity type")
     rec = registered_fetcher(source_id)
     if rec is not None and entity_type not in rec.accepts:
@@ -165,16 +168,6 @@ async def panel(request: Request) -> HTMLResponse:
     )
 
 
-def _same_origin(request: Request) -> bool:
-    """Mutations demand same-origin, on top of the Host pin every route already gets.
-
-    A missing Sec-Fetch-Site is refused too: the only legitimate caller of a mutating route is
-    this app's own page, and every browser that can reach it sends the header. A page you visit
-    while casefile is running must not be able to write to your cases.
-    """
-    return request.headers.get("sec-fetch-site") == "same-origin"
-
-
 _UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 
@@ -191,15 +184,9 @@ def _filename_for(case, fmt: str) -> str:
 
 async def star_route(request: Request) -> Response:
     """Star or unstar one finding, returning the button's replacement."""
-    if not _same_origin(request):
-        return PlainTextResponse("cross-site request refused", status_code=403)
-    # Parsed with stdlib rather than request.form(), which pulls in python-multipart. htmx posts
-    # hx-vals as urlencoded, so parse_qs is all that is needed and the dependency budget holds.
-    body = (await request.body()).decode("utf-8", "replace")
-    form = {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
-    try:
-        entity_type = EntityType(form.get("t", ""))
-    except ValueError:
+    form = await _form(request)
+    entity_type = _TYPES.get(form.get("t", ""))
+    if entity_type is None:
         return PlainTextResponse("unknown entity type", status_code=400)
     value = form.get("v", "")
     finding = Star(
@@ -234,7 +221,8 @@ async def star_route(request: Request) -> Response:
             "v": value,
             "sid": finding.source_id,
             "f": finding,
-            "starred": error is None and is_starred(entity_type, value, finding),
+            "starred": error is None
+            and (finding.source_id, finding.label, finding.value) in starred_keys(entity_type, value),
             "error": error,
         },
     )
@@ -249,9 +237,8 @@ async def link_check(request: Request) -> Response:
     if request.headers.get("sec-fetch-site") == "cross-site":
         return PlainTextResponse("cross-site request refused", status_code=403)
     value = request.query_params.get("v", "")
-    try:
-        entity_type = EntityType(request.query_params.get("t", ""))
-    except ValueError:
+    entity_type = _TYPES.get(request.query_params.get("t", ""))
+    if entity_type is None:
         return PlainTextResponse("unknown entity type", status_code=400)
     links = links_for(Candidate(entity_type, value), exclude=fetched_ids())
     async with build_client() as client:
@@ -262,7 +249,10 @@ async def link_check(request: Request) -> Response:
     )
 
 
-def _form(body: str) -> dict:
+async def _form(request: Request) -> dict:
+    """Parsed with stdlib rather than request.form(), which pulls in python-multipart. htmx posts
+    hx-vals as urlencoded, so parse_qs is all that is needed and the dependency budget holds."""
+    body = (await request.body()).decode("utf-8", "replace")
     return {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
 
 
@@ -273,12 +263,9 @@ async def save_route(request: Request) -> Response:
     effect of starring a finding, so a search worth keeping but with nothing yet worth starring
     could not be kept at all.
     """
-    if not _same_origin(request):
-        return PlainTextResponse("cross-site request refused", status_code=403)
-    form = _form((await request.body()).decode("utf-8", "replace"))
-    try:
-        entity_type = EntityType(form.get("t", ""))
-    except ValueError:
+    form = await _form(request)
+    entity_type = _TYPES.get(form.get("t", ""))
+    if entity_type is None:
         return PlainTextResponse("unknown entity type", status_code=400)
     value = form.get("v", "")
     if not value:
@@ -309,10 +296,8 @@ def _mutation_error(request: Request, message: str) -> Response:
 
 
 async def case_rename(request: Request) -> Response:
-    if not _same_origin(request):
-        return PlainTextResponse("cross-site request refused", status_code=403)
     case_id = request.path_params["case_id"]
-    form = _form((await request.body()).decode("utf-8", "replace"))
+    form = await _form(request)
     try:
         rename_case(case_id, form.get("name", ""))
     except CaseStoreError as exc:
@@ -347,8 +332,6 @@ async def case_export(request: Request) -> Response:
 
 
 async def case_delete(request: Request) -> Response:
-    if not _same_origin(request):
-        return PlainTextResponse("cross-site request refused", status_code=403)
     if not delete_case(request.path_params["case_id"]):
         # Reporting a delete that never happened is the same class of lie as a source that
         # reports "nothing found" for a lookup it never made.
@@ -377,8 +360,26 @@ class _RevalidatedStatics(StaticFiles):
         return response
 
 
+class _SameOriginWrites(BaseHTTPMiddleware):
+    """Every write demands same-origin, on top of the Host pin.
+
+    Middleware for the same reason the Host pin is: applied per route, the fifth POST someone
+    adds arrives unguarded, which is exactly how /panel became the one egress route without the
+    pin. A missing Sec-Fetch-Site is refused too, because the only legitimate caller of a write
+    is this app's own page and every browser that can reach it sends the header.
+    """
+
+    async def dispatch(self, request, call_next):
+        if request.method not in ("GET", "HEAD") and request.headers.get("sec-fetch-site") != "same-origin":
+            return PlainTextResponse("cross-site request refused", status_code=403)
+        return await call_next(request)
+
+
 app = Starlette(
-    middleware=[Middleware(TrustedHostMiddleware, allowed_hosts=_TRUSTED_HOSTS)],
+    middleware=[
+        Middleware(TrustedHostMiddleware, allowed_hosts=_TRUSTED_HOSTS),
+        Middleware(_SameOriginWrites),
+    ],
     routes=[
         Route("/", index),
         Route("/q", result),

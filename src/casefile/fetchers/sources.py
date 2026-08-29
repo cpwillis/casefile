@@ -30,10 +30,9 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
     types = ("A", "AAAA", "MX", "TXT", "NS")
     absent = 0
     for qtype in types:
-        resp = await http.get(
+        resp = await http.fetch(
             client,
             "https://cloudflare-dns.com/dns-query",
-            "cloudflare-dns.com",
             params={"name": name, "type": qtype},
             headers={"accept": "application/dns-json"},
         )
@@ -76,7 +75,7 @@ def _vcard_name(entity: dict) -> str | None:
 async def rdap(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     kind = {EntityType.DOMAIN: "domain", EntityType.IP: "ip", EntityType.ASN: "autnum"}[entity_type]
     key = value[2:] if entity_type is EntityType.ASN else value  # rdap wants a bare AS number
-    resp = await http.get(client, f"https://rdap.org/{kind}/{quote(key, safe='')}", "rdap.org")
+    resp = await http.fetch(client, f"https://rdap.org/{kind}/{quote(key, safe='')}")
     data = resp.json()
     findings: list[Finding] = []
     if handle := data.get("handle"):
@@ -121,7 +120,7 @@ _CRTSH_LIMIT = 500
     note="Names seen in public certificate transparency logs. A name here need not still resolve.",
 )
 async def crtsh(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
-    resp = await http.get(client, "https://crt.sh/", "crt.sh", params={"q": value, "output": "json"})
+    resp = await http.fetch(client, "https://crt.sh/", params={"q": value, "output": "json"})
     names: set[str] = set()
     for row in resp.json():
         for name in row.get("name_value", "").splitlines():
@@ -153,10 +152,9 @@ async def internetdb(value: str, entity_type: EntityType, client: httpx.AsyncCli
         # Skipped, not empty. Verified: 10.0.0.1 answers 200 with junk, so asking is worse than
         # useless, but rendering that as "responded, nothing found" claims an answer we never got.
         return [Finding(label="note", value="not a public address, so InternetDB was not queried", note=True)]
-    resp = await http.get(
+    resp = await http.fetch(
         client,
         f"https://internetdb.shodan.io/{quote(value, safe='')}",
-        "internetdb.shodan.io",
         allow=(404,),
     )
     if resp.status_code == 404:
@@ -181,10 +179,9 @@ _GITHUB_FIELDS = ("name", "company", "location", "bio", "blog", "public_repos", 
     name="GitHub profile",
 )
 async def github(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
-    resp = await http.get(
+    resp = await http.fetch(
         client,
         f"https://api.github.com/users/{quote(value, safe='')}",
-        "api.github.com",
         allow=(404,),
         headers={"accept": "application/vnd.github+json"},
     )
@@ -206,10 +203,9 @@ async def github(value: str, entity_type: EntityType, client: httpx.AsyncClient)
     note="A full-text search for the name. Matches are not filtered by whether they are people or organisations.",
 )
 async def wikidata(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
-    resp = await http.get(
+    resp = await http.fetch(
         client,
         "https://www.wikidata.org/w/api.php",
-        "www.wikidata.org",
         params={
             "action": "wbsearchentities",
             "search": value,
@@ -246,10 +242,9 @@ async def hashlookup(value: str, entity_type: EntityType, client: httpx.AsyncCli
     kind = _HASHLOOKUP_PATHS.get(len(value))
     if kind is None:
         return []
-    resp = await http.get(
+    resp = await http.fetch(
         client,
         f"https://hashlookup.circl.lu/lookup/{kind}/{quote(value, safe='')}",
-        "hashlookup.circl.lu",
         allow=(404,),
         headers={"accept": "application/json"},
     )
@@ -285,10 +280,10 @@ async def malwarebazaar(value: str, entity_type: EntityType, client: httpx.Async
     key = get_key("ABUSECH_AUTH_KEY")
     if not key:
         raise NeedsKey("set ABUSECH_AUTH_KEY in .env to enable MalwareBazaar")
-    resp = await http.post(
+    resp = await http.fetch(
         client,
         "https://mb-api.abuse.ch/api/v1/",
-        "mb-api.abuse.ch",
+        method="POST",
         data={"query": "get_info", "hash": value},
         headers={"Auth-Key": key},
     )
@@ -370,10 +365,9 @@ _CVSS_KEYS = ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2")
 )
 async def nvd_cve(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     """NVD's keyless CVE API. Rate limited to 5 requests per 30s without a key, so one call only."""
-    resp = await http.get(
+    resp = await http.fetch(
         client,
         "https://services.nvd.nist.gov/rest/json/cves/2.0",
-        "services.nvd.nist.gov",
         params={"cveId": value},
         allow=(404,),
     )
@@ -428,9 +422,7 @@ def _sats(value: int) -> str:
 )
 async def mempool_tx(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     """Bitcoin transaction via the keyless Esplora API. A hash that is not Bitcoin's reads empty."""
-    resp = await http.get(
-        client, f"https://mempool.space/api/tx/{quote(value, safe='')}", "mempool.space", allow=(404, 400)
-    )
+    resp = await http.fetch(client, f"https://mempool.space/api/tx/{quote(value, safe='')}", allow=(404, 400))
     # 404 and 400 come back as text/plain, so the status has to be checked before json() is
     # touched. 400 is "not 64 hex" and 404 is "no such transaction"; neither is an error.
     if resp.status_code in (400, 404):
@@ -466,10 +458,9 @@ async def blockscout_tx(value: str, entity_type: EntityType, client: httpx.Async
     """Ethereum transaction via Blockscout. Paired with the Bitcoin one because a bare 64-hex
     hash does not say which chain it belongs to, so both are asked and the misses read empty."""
     tx = value if value.lower().startswith("0x") else f"0x{value}"
-    resp = await http.get(
+    resp = await http.fetch(
         client,
         f"https://eth.blockscout.com/api/v2/transactions/{quote(tx, safe='')}",
-        "eth.blockscout.com",
         allow=(404, 422),
     )
     if resp.status_code in (404, 422):
@@ -495,9 +486,7 @@ async def blockscout_tx(value: str, entity_type: EntityType, client: httpx.Async
 )
 async def mempool_address(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     """Bitcoin address activity via the keyless Esplora API."""
-    resp = await http.get(
-        client, f"https://mempool.space/api/address/{quote(value, safe='')}", "mempool.space", allow=(400,)
-    )
+    resp = await http.fetch(client, f"https://mempool.space/api/address/{quote(value, safe='')}", allow=(400,))
     if resp.status_code == 400:  # text/plain, and means the address itself is malformed
         return []
     data = resp.json()

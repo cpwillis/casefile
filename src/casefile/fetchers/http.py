@@ -45,26 +45,25 @@ async def domain_slot(host: str):
         yield
 
 
-async def _send_with_retry(client, request_factory, host: str, allow: tuple[int, ...]) -> httpx.Response:
-    """One request, one retry on 429/5xx, then give up. Statuses in `allow` are returned as-is."""
+async def fetch(
+    client: httpx.AsyncClient, url: str, *, method: str = "GET", allow: tuple[int, ...] = (), **kwargs
+) -> httpx.Response:
+    """One request through the limiter, one retry on 429/5xx, then give up.
+
+    `allow` lists statuses a caller wants back rather than raised. The rate-limit host is derived
+    from the url rather than passed alongside it: two spellings of one host that must agree, at
+    every call site, and a mismatch silently opens a second semaphore for a host nobody is
+    talking to, which is the cap quietly ceasing to apply.
+    """
+    host = httpx.URL(url).host
     async with domain_slot(host):
-        resp = await request_factory()
+        resp = await client.request(method, url, **kwargs)
         if resp.status_code == 429 or resp.status_code >= 500:
             await asyncio.sleep(0.5)  # single backoff
-            resp = await request_factory()
+            resp = await client.request(method, url, **kwargs)
         if resp.status_code == 429:
             raise RateLimited(f"{host} returned 429")
         if resp.status_code in allow:
             return resp
         resp.raise_for_status()
         return resp
-
-
-async def get(client: httpx.AsyncClient, url: str, host: str, *, allow: tuple[int, ...] = (), **kwargs):
-    """GET through the limiter, with one retry. `allow` lists statuses to return rather than raise."""
-    return await _send_with_retry(client, lambda: client.get(url, **kwargs), host, allow)
-
-
-async def post(client: httpx.AsyncClient, url: str, host: str, *, allow: tuple[int, ...] = (), **kwargs):
-    """POST through the limiter, with one retry. Same policy as get."""
-    return await _send_with_retry(client, lambda: client.post(url, **kwargs), host, allow)

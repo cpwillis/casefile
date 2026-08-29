@@ -22,7 +22,6 @@ class Source:
     accepts: tuple[EntityType, ...]
     url: str
     notes: str | None = None
-    provenance: str | None = None
 
 
 def _parse_source(raw: dict, origin: Path) -> Source:
@@ -34,7 +33,6 @@ def _parse_source(raw: dict, origin: Path) -> Source:
             accepts=accepts,
             url=raw["url"],
             notes=raw.get("notes"),
-            provenance=raw.get("provenance"),
         )
     except (KeyError, ValueError) as exc:
         raise CatalogError(f"{origin.name}: invalid source entry {raw.get('id', '<no id>')}: {exc}") from exc
