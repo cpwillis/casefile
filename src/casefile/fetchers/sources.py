@@ -8,8 +8,7 @@ import phonenumbers
 from phonenumbers import PhoneNumberFormat, carrier, geocoder, timezone
 
 from casefile.config import get_key
-from casefile.fetchers import Finding, NeedsKey, fetcher
-from casefile.fetchers.http import get_json, post_json
+from casefile.fetchers import Finding, NeedsKey, fetcher, http
 from casefile.types import EntityType
 
 _DNS_TYPES = {1: "A", 28: "AAAA", 15: "MX", 16: "TXT", 2: "NS"}
@@ -20,7 +19,7 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
     name = value.split("@")[-1] if entity_type is EntityType.EMAIL else value
     findings: list[Finding] = []
     for qtype in ("A", "AAAA", "MX", "TXT", "NS"):
-        resp = await get_json(
+        resp = await http.get(
             client,
             "https://cloudflare-dns.com/dns-query",
             "cloudflare-dns.com",
@@ -37,7 +36,7 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
 async def rdap(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     kind = {EntityType.DOMAIN: "domain", EntityType.IP: "ip", EntityType.ASN: "autnum"}[entity_type]
     key = value[2:] if entity_type is EntityType.ASN else value  # rdap wants a bare AS number
-    resp = await get_json(client, f"https://rdap.org/{kind}/{quote(key, safe='')}", "rdap.org")
+    resp = await http.get(client, f"https://rdap.org/{kind}/{quote(key, safe='')}", "rdap.org")
     data = resp.json()
     findings: list[Finding] = []
     if handle := data.get("handle"):
@@ -49,7 +48,7 @@ async def rdap(value: str, entity_type: EntityType, client: httpx.AsyncClient) -
 
 @fetcher(id="crtsh", accepts=[EntityType.DOMAIN])
 async def crtsh(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
-    resp = await get_json(client, "https://crt.sh/", "crt.sh", params={"q": value, "output": "json"})
+    resp = await http.get(client, "https://crt.sh/", "crt.sh", params={"q": value, "output": "json"})
     names: set[str] = set()
     for row in resp.json():
         for name in row.get("name_value", "").splitlines():
@@ -67,7 +66,7 @@ async def internetdb(value: str, entity_type: EntityType, client: httpx.AsyncCli
     # link-local, CGNAT and the RFC 5737/3849 documentation ranges, for both v4 and v6.
     if not address.is_global:
         return []  # verified: 10.0.0.1 returns 200 with junk data, so never ask
-    resp = await get_json(
+    resp = await http.get(
         client,
         f"https://internetdb.shodan.io/{quote(value, safe='')}",
         "internetdb.shodan.io",
@@ -95,7 +94,7 @@ _GITHUB_FIELDS = ("name", "company", "location", "bio", "blog", "public_repos", 
 
 @fetcher(id="github", accepts=[EntityType.USERNAME])
 async def github(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
-    resp = await get_json(
+    resp = await http.get(
         client,
         f"https://api.github.com/users/{quote(value, safe='')}",
         "api.github.com",
@@ -115,7 +114,7 @@ async def github(value: str, entity_type: EntityType, client: httpx.AsyncClient)
 
 @fetcher(id="wikidata", accepts=[EntityType.PERSON, EntityType.COMPANY])
 async def wikidata(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
-    resp = await get_json(
+    resp = await http.get(
         client,
         "https://www.wikidata.org/w/api.php",
         "www.wikidata.org",
@@ -150,7 +149,7 @@ async def hashlookup(value: str, entity_type: EntityType, client: httpx.AsyncCli
     kind = _HASHLOOKUP_PATHS.get(len(value))
     if kind is None:
         return []
-    resp = await get_json(
+    resp = await http.get(
         client,
         f"https://hashlookup.circl.lu/lookup/{kind}/{quote(value, safe='')}",
         "hashlookup.circl.lu",
@@ -177,7 +176,7 @@ async def malwarebazaar(value: str, entity_type: EntityType, client: httpx.Async
     key = get_key("ABUSECH_AUTH_KEY")
     if not key:
         raise NeedsKey("set ABUSECH_AUTH_KEY in .env to enable MalwareBazaar")
-    resp = await post_json(
+    resp = await http.post(
         client,
         "https://mb-api.abuse.ch/api/v1/",
         "mb-api.abuse.ch",

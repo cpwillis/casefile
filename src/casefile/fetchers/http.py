@@ -60,21 +60,11 @@ async def _send_with_retry(client, request_factory, host: str, allow: tuple[int,
         return resp
 
 
-async def get_json(
-    client: httpx.AsyncClient, url: str, host: str, *, allow: tuple[int, ...] = (), **kwargs
-) -> httpx.Response:
-    """GET with one retry. `allow` lists statuses a caller wants to inspect instead of raising."""
+async def get(client: httpx.AsyncClient, url: str, host: str, *, allow: tuple[int, ...] = (), **kwargs):
+    """GET through the limiter, with one retry. `allow` lists statuses to return rather than raise."""
     return await _send_with_retry(client, lambda: client.get(url, **kwargs), host, allow)
 
 
-async def post_json(
-    client: httpx.AsyncClient,
-    url: str,
-    host: str,
-    *,
-    data: dict | None = None,
-    headers: dict | None = None,
-    allow: tuple[int, ...] = (),
-) -> httpx.Response:
-    """POST form data with one retry. Same limiter and retry policy as get_json."""
-    return await _send_with_retry(client, lambda: client.post(url, data=data, headers=headers), host, allow)
+async def post(client: httpx.AsyncClient, url: str, host: str, *, allow: tuple[int, ...] = (), **kwargs):
+    """POST through the limiter, with one retry. Same policy as get."""
+    return await _send_with_retry(client, lambda: client.post(url, **kwargs), host, allow)

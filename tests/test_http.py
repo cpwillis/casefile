@@ -4,8 +4,8 @@ import httpx
 import pytest
 from helpers import mock_client
 
-from casefile.fetchers import RateLimited
-from casefile.fetchers.http import USER_AGENT, build_client, domain_slot, get_json, post_json
+from casefile.fetchers import RateLimited, http
+from casefile.fetchers.http import USER_AGENT, build_client, domain_slot
 
 
 def test_user_agent_names_the_project_and_version():
@@ -82,7 +82,7 @@ async def test_get_json_retries_once_then_raises_rate_limited():
 
     async with mock_client(handler) as client:
         with pytest.raises(RateLimited):
-            await get_json(client, "https://h.test/x", "h.test")
+            await http.get(client, "https://h.test/x", "h.test")
     assert calls == 2  # original plus one retry
 
 
@@ -91,7 +91,7 @@ async def test_get_json_returns_on_success():
         return httpx.Response(200, json={"ok": True})
 
     async with mock_client(handler) as client:
-        resp = await get_json(client, "https://h.test/x", "h.test")
+        resp = await http.get(client, "https://h.test/x", "h.test")
     assert resp.json() == {"ok": True}
 
 
@@ -100,7 +100,7 @@ async def test_get_json_allow_returns_404_without_raising():
         return httpx.Response(404, json={"message": "Not Found"})
 
     async with mock_client(handler) as client:
-        resp = await get_json(client, "https://h.test/x", "h.test", allow=(404,))
+        resp = await http.get(client, "https://h.test/x", "h.test", allow=(404,))
     assert resp.status_code == 404
 
 
@@ -110,7 +110,7 @@ async def test_get_json_still_raises_on_unallowed_404():
 
     async with mock_client(handler) as client:
         with pytest.raises(httpx.HTTPStatusError):
-            await get_json(client, "https://h.test/x", "h.test")
+            await http.get(client, "https://h.test/x", "h.test")
 
 
 async def test_post_json_sends_form_data_and_returns_body():
@@ -122,7 +122,7 @@ async def test_post_json_sends_form_data_and_returns_body():
         return httpx.Response(200, json={"query_status": "ok"})
 
     async with mock_client(handler) as client:
-        resp = await post_json(client, "https://h.test/api", "h.test", data={"query": "get_info", "hash": "abc"})
+        resp = await http.post(client, "https://h.test/api", "h.test", data={"query": "get_info", "hash": "abc"})
     assert seen["method"] == "POST"
     assert "query=get_info" in seen["body"]
     assert resp.json() == {"query_status": "ok"}
@@ -138,5 +138,5 @@ async def test_post_json_retries_once_then_raises_rate_limited():
 
     async with mock_client(handler) as client:
         with pytest.raises(RateLimited):
-            await post_json(client, "https://h.test/api", "h.test", data={"a": "b"})
+            await http.post(client, "https://h.test/api", "h.test", data={"a": "b"})
     assert calls == 2
