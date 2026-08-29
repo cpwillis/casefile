@@ -74,12 +74,10 @@ def test_the_demo_result_page_matches_the_live_one(built):
     result.html, so this compares the parts that are not supposed to differ. Panels legitimately
     differ (live ones self-load, demo ones are baked in) and are excluded.
     """
-    from starlette.testclient import TestClient
-
-    from casefile.web.app import app
+    from helpers import client
 
     target = "example.com"
-    live = TestClient(app, base_url="http://127.0.0.1").get("/q", params={"v": target}).text
+    live = client.get("/q", params={"v": target}).text
     demo = (built / f"{_slug(target)}.html").read_text()
 
     links = lambda html: re.findall(r'<li><a href="(http[^"]+)"[^>]*>([^<]+)</a>', html)  # noqa: E731

@@ -3,6 +3,7 @@ import json
 import pytest
 
 from casefile.cli import main
+from casefile.fetchers import Finding, SourceResult, State
 
 
 def test_text_output_lists_types_and_links(capsys):
@@ -33,13 +34,10 @@ def test_only_one_positional_value_is_accepted():
 
 
 def test_fetch_fans_out_over_registered_sources(monkeypatch, capsys):
-    import casefile.cli as climod
-    from casefile.fetchers import Finding, SourceResult, State
-
     async def fake_run(source_id, value, entity_type, client, *, use_cache=True):
         return SourceResult(source_id, State.OK, (Finding(label="A", value="192.0.2.10"),))
 
-    monkeypatch.setattr(climod, "run_cached", fake_run)
+    monkeypatch.setattr("casefile.cli.run_cached", fake_run)
     assert main(["example.com", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     domain = next(c for c in payload["candidates"] if c["type"] == "domain")
@@ -64,13 +62,11 @@ def test_json_links_carry_the_full_contract_keys(capsys):
 
 def test_text_output_strips_control_characters_from_third_party_findings(monkeypatch, capsys):
     """A finding value with ESC/CR must not reach the terminal raw, or it can blank prior output."""
-    import casefile.cli as climod
-    from casefile.fetchers import Finding, SourceResult, State
 
     async def fake_run(source_id, value, entity_type, client, *, use_cache=True):
         return SourceResult(source_id, State.OK, (Finding(label="handle", value="benign\x1b[2K\rERASED"),))
 
-    monkeypatch.setattr(climod, "run_cached", fake_run)
+    monkeypatch.setattr("casefile.cli.run_cached", fake_run)
     assert main(["example.com"]) == 0
     out = capsys.readouterr().out
     assert "\x1b" not in out
@@ -88,63 +84,41 @@ def test_clear_cache_flag_reports_and_exits_zero(capsys):
 def test_no_cache_flag_disables_the_cache(monkeypatch, capsys):
     """--no-fetch would skip _fetch_all entirely, giving --no-cache zero coverage, so this
     case must actually reach the fetch path with --no-fetch absent."""
-    import casefile.cli as climod
-    from casefile.fetchers import SourceResult, State
-
     seen_use_cache = []
 
     async def fake_run(source_id, value, entity_type, client, *, use_cache=True):
         seen_use_cache.append(use_cache)
         return SourceResult(source_id, State.OK)
 
-    monkeypatch.setattr(climod, "run_cached", fake_run)
+    monkeypatch.setattr("casefile.cli.run_cached", fake_run)
     assert main(["example.com", "--json", "--no-cache"]) == 0
     assert "candidates" in capsys.readouterr().out
     assert seen_use_cache
     assert all(use_cache is False for use_cache in seen_use_cache)
 
 
-def test_cli_skips_on_demand_sources_by_default(monkeypatch, capsys):
+@pytest.mark.parametrize(("extra", "deep"), [([], False), (["--deep"], True)])
+def test_deep_is_what_admits_the_on_demand_sources(monkeypatch, capsys, extra, deep):
     """casefile <username> must not fire hundreds of requests without --deep."""
-    import casefile.cli as climod
-    from casefile.fetchers import Finding, SourceResult, State
-
     seen = []
 
     async def fake(source_id, value, entity_type, client, *, use_cache=True):
         seen.append(source_id)
         return SourceResult(source_id, State.OK, (Finding(label="A", value="1"),))
 
-    monkeypatch.setattr(climod, "run_cached", fake)
-    assert main(["octocat", "--json"]) == 0
-    assert "whatsmyname" not in seen
-    assert "github" in seen
-
-
-def test_deep_flag_includes_on_demand_sources(monkeypatch, capsys):
-    import casefile.cli as climod
-    from casefile.fetchers import Finding, SourceResult, State
-
-    seen = []
-
-    async def fake(source_id, value, entity_type, client, *, use_cache=True):
-        seen.append(source_id)
-        return SourceResult(source_id, State.OK, (Finding(label="A", value="1"),))
-
-    monkeypatch.setattr(climod, "run_cached", fake)
-    assert main(["octocat", "--json", "--deep"]) == 0
-    assert "whatsmyname" in seen
+    monkeypatch.setattr("casefile.cli.run_cached", fake)
+    assert main(["octocat", "--json", *extra]) == 0
+    assert ("whatsmyname" in seen) is deep
+    assert "github" in seen  # the cheap source runs either way
 
 
 def test_text_output_keeps_a_finding_url(monkeypatch, capsys):
     """For a WhatsMyName hit the value is the site category and the url is the actual result,
     so a text renderer that drops urls reports a hit you cannot follow."""
-    import casefile.cli as climod
-    from casefile.fetchers import Finding, SourceResult, State
 
     async def fake(source_id, value, entity_type, client, *, use_cache=True):
         return SourceResult(source_id, State.OK, (Finding("GitHub", "coding", url="https://github.example/x"),))
 
-    monkeypatch.setattr(climod, "run_cached", fake)
+    monkeypatch.setattr("casefile.cli.run_cached", fake)
     assert main(["octocat"]) == 0
     assert "https://github.example/x" in capsys.readouterr().out

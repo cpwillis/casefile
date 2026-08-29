@@ -1,4 +1,5 @@
 import httpx
+import pytest
 from helpers import mock_client
 
 from casefile.fetchers import Finding, run_fetcher
@@ -172,27 +173,20 @@ async def test_internetdb_404_is_empty_not_error():
     assert result.state == "empty"
 
 
-async def test_internetdb_skips_private_addresses_without_a_request():
-    """Verified live: 10.0.0.1 returns 200 with junk (ports:[161]), so never ask about internal IPs."""
+@pytest.mark.parametrize("addr", ["10.0.0.1", "100.64.0.1", "fc00::1", "192.0.2.10", "169.254.1.1"])
+async def test_internetdb_never_queries_a_non_global_address(addr):
+    """RFC1918, CGNAT, IPv6 private space and the documentation ranges all count.
 
-    def handler(request):
-        raise AssertionError("no request should be made for a private address")
-
-    async with mock_client(handler) as client:
-        result = await run_fetcher("internetdb", "10.0.0.1", EntityType.IP, client)
-    assert result.state == "empty"
-
-
-async def test_internetdb_skips_non_global_addresses_of_both_families():
-    """CGNAT and IPv6 private space are not RFC1918 but must still never be queried."""
+    Verified live before the rule was written: 10.0.0.1 returns 200 with junk (ports: [161]),
+    so the guard is about a wrong answer, not a wasted request.
+    """
 
     def handler(request):
         raise AssertionError("no request should be made for a non-global address")
 
-    for addr in ("100.64.0.1", "fc00::1", "192.0.2.10", "169.254.1.1"):
-        async with mock_client(handler) as client:
-            result = await run_fetcher("internetdb", addr, EntityType.IP, client)
-        assert result.state == "empty", addr
+    async with mock_client(handler) as client:
+        result = await run_fetcher("internetdb", addr, EntityType.IP, client)
+    assert result.state == "empty"
 
 
 async def test_internetdb_surfaces_cpes_and_vulns():
@@ -409,25 +403,14 @@ async def test_phone_meta_makes_no_network_call():
     assert any(f.label == "location" for f in findings)
 
 
-async def test_phone_meta_without_country_code_explains_itself():
-    """Verified: phonenumbers.parse raises 'Missing or invalid default region' with no + prefix.
+async def test_phone_meta_distinguishes_no_country_code_from_unparseable():
+    """Both raise the same INVALID_COUNTRY_CODE from phonenumbers, so the branch keys off the
+    missing + prefix rather than the library's prose.
 
-    That is not "found nothing", it is "cannot tell without a country code", so say so.
+    "Cannot tell without a country code" is not "found nothing", and saying so is the point:
+    a bare empty panel would read as "this number has no records".
     """
-    findings = await phone_meta("0293744000", EntityType.PHONE, client=None)
-    assert len(findings) == 1
-    assert findings[0].label == "note"
-    assert "country code" in findings[0].value
-
-
-async def test_phone_meta_unparseable_is_empty():
-    findings = await phone_meta("+999", EntityType.PHONE, client=None)
-    assert findings == []
-
-
-async def test_phone_meta_note_does_not_depend_on_library_message_text():
-    """The no-country-code branch keys off the missing + prefix, not libphonenumber's prose."""
-    no_prefix = await phone_meta("0293744000", EntityType.PHONE, client=None)
-    assert [f.label for f in no_prefix] == ["note"]
-    with_prefix_but_invalid = await phone_meta("+999", EntityType.PHONE, client=None)
-    assert with_prefix_but_invalid == []
+    (note,) = await phone_meta("0293744000", EntityType.PHONE, client=None)
+    assert note.label == "note"
+    assert "country code" in note.value
+    assert await phone_meta("+999", EntityType.PHONE, client=None) == []

@@ -1,11 +1,8 @@
-from starlette.testclient import TestClient
+from helpers import client, stub_result
 
 import casefile.fetchers.sources  # noqa: F401 -- register the real fetchers
-from casefile.fetchers import fetchers_for
+from casefile.fetchers import Finding, State, fetchers_for
 from casefile.types import EntityType
-from casefile.web.app import app
-
-client = TestClient(app, base_url="http://127.0.0.1")
 
 
 def test_domain_has_the_three_fetchers_registered():
@@ -14,12 +11,7 @@ def test_domain_has_the_three_fetchers_registered():
 
 
 def test_panel_route_renders_a_state(monkeypatch):
-    from casefile.fetchers import Finding, SourceResult, State
-
-    async def fake_run(source_id, value, entity_type, client):
-        return SourceResult(source_id, State.OK, (Finding(label="A", value="192.0.2.10"),))
-
-    monkeypatch.setattr("casefile.web.app.run_cached", fake_run)
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(Finding(label="A", value="192.0.2.10")))
     resp = client.get("/panel/dns", params={"v": "example.com", "t": "domain"})
     assert resp.status_code == 200
     assert "192.0.2.10" in resp.text
@@ -27,14 +19,9 @@ def test_panel_route_renders_a_state(monkeypatch):
 
 
 def test_panel_empty_and_error_render_differently(monkeypatch):
-    from casefile.fetchers import SourceResult, State
-
-    async def fake(source_id, value, entity_type, client):
-        state = State.EMPTY if source_id == "e" else State.ERROR
-        return SourceResult(source_id, state, detail=None if state == State.EMPTY else "boom")
-
-    monkeypatch.setattr("casefile.web.app.run_cached", fake)
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(state=State.EMPTY))
     empty = client.get("/panel/e", params={"v": "example.com", "t": "domain"}).text
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(state=State.ERROR, detail="boom"))
     error = client.get("/panel/x", params={"v": "example.com", "t": "domain"}).text
     assert 'data-state="empty"' in empty
     assert 'data-state="error"' in error
@@ -42,12 +29,7 @@ def test_panel_empty_and_error_render_differently(monkeypatch):
 
 
 def test_panel_escapes_untrusted_findings(monkeypatch):
-    from casefile.fetchers import Finding, SourceResult, State
-
-    async def fake(source_id, value, entity_type, client):
-        return SourceResult(source_id, State.OK, (Finding(label="x", value="<script>alert(1)</script>"),))
-
-    monkeypatch.setattr("casefile.web.app.run_cached", fake)
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(Finding("x", "<script>alert(1)</script>")))
     text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
     assert "<script>alert(1)</script>" not in text
     assert "&lt;script&gt;" in text
@@ -67,38 +49,23 @@ def test_panel_rejects_type_the_source_does_not_accept():
 
 
 def test_panel_does_not_link_a_javascript_scheme_url(monkeypatch):
-    from casefile.fetchers import Finding, SourceResult, State
-
-    async def fake(source_id, value, entity_type, client):
-        return SourceResult(source_id, State.OK, (Finding(label="x", value="click me", url="javascript:alert(1)"),))
-
-    monkeypatch.setattr("casefile.web.app.run_cached", fake)
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(Finding("x", "click me", "javascript:alert(1)")))
     text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
     assert 'href="javascript:' not in text
     assert "click me" in text
 
 
 def test_panel_still_links_an_http_url(monkeypatch):
-    from casefile.fetchers import Finding, SourceResult, State
-
-    async def fake(source_id, value, entity_type, client):
-        return SourceResult(
-            source_id, State.OK, (Finding(label="x", value="sub.example.com", url="https://sub.example.com"),)
-        )
-
-    monkeypatch.setattr("casefile.web.app.run_cached", fake)
+    monkeypatch.setattr(
+        "casefile.web.app.run_cached", stub_result(Finding("x", "sub.example.com", "https://sub.example.com"))
+    )
     text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
     assert 'href="https://sub.example.com"' in text
 
 
 def test_whatsmyname_panel_renders_the_required_attribution(monkeypatch):
     """CC BY-SA requires attribution where the material is used, so the UI must carry it."""
-    from casefile.fetchers import Finding, SourceResult, State
-
-    async def fake(source_id, value, entity_type, client):
-        return SourceResult(source_id, State.OK, (Finding(label="Hit", value="tech", url="https://h.test/x"),))
-
-    monkeypatch.setattr("casefile.web.app.run_cached", fake)
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(Finding("Hit", "tech", "https://h.test/x")))
     text = client.get("/panel/whatsmyname", params={"v": "someone", "t": "username"}).text
     assert "WhatsMyName" in text
     assert "CC BY-SA 4.0" in text

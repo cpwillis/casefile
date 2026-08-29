@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from starlette.testclient import TestClient
+from helpers import client
 
 from casefile.detect import detect
 from casefile.web.app import app
@@ -19,7 +19,7 @@ def test_app_has_no_startup_hooks():
 
 def test_the_web_page_renders_every_reading_detect_found():
     """Detection and the page must agree: a reading with no section is a silently dropped lead."""
-    text = TestClient(app, base_url="http://127.0.0.1").get("/q", params={"v": "example.com"}).text
+    text = client.get("/q", params={"v": "example.com"}).text
     for candidate in detect("example.com"):
         assert f'id="type-{candidate.type.value}"' in text
 

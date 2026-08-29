@@ -33,8 +33,9 @@ def test_non_https_scheme_is_rejected(tmp_path):
 
 
 def test_sources_for_filters_by_type():
-    catalog = load_catalog()
-    for source in sources_for(catalog, EntityType.DOMAIN):
+    domain_sources = sources_for(load_catalog(), EntityType.DOMAIN)
+    assert domain_sources, "no domain sources, so the filter below is not being checked"
+    for source in domain_sources:
         assert EntityType.DOMAIN in source.accepts
 
 

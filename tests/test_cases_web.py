@@ -1,9 +1,6 @@
 import pytest
-from starlette.testclient import TestClient
+from helpers import client
 
-from casefile.web.app import app
-
-client = TestClient(app, base_url="http://127.0.0.1")
 SAME = {"sec-fetch-site": "same-origin"}
 STAR = {"t": "domain", "v": "example.com", "source_id": "dns", "label": "A", "value": "192.0.2.10", "url": ""}
 

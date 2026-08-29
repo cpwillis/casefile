@@ -1,10 +1,8 @@
 import inspect
 
-from starlette.testclient import TestClient
+from helpers import client
 
-from casefile.web.app import app, serve
-
-client = TestClient(app, base_url="http://127.0.0.1")
+from casefile.web.app import serve
 
 
 def _panel_block(html: str, source_id: str) -> str:
