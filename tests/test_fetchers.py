@@ -52,8 +52,8 @@ def test_register_and_look_up_a_fetcher():
     assert rec.id == "probe"
     assert rec.accepts == (EntityType.DOMAIN, EntityType.EMAIL)
     assert rec.func is probe
-    assert "probe" in fetchers_for(EntityType.DOMAIN)
-    assert "probe" not in fetchers_for(EntityType.IP)
+    assert "probe" in [r.id for r in fetchers_for(EntityType.DOMAIN)]
+    assert "probe" not in [r.id for r in fetchers_for(EntityType.IP)]
 
 
 def test_unknown_id_returns_none():
@@ -149,9 +149,6 @@ def test_on_demand_defaults_to_false_and_is_recorded():
     async def pricey(value, entity_type, client):
         return []
 
-    from casefile.fetchers import registered_fetcher
-
     assert registered_fetcher("cheap-probe").on_demand is False
     assert registered_fetcher("pricey-probe").on_demand is True
     assert registered_fetcher("pricey-probe").cost_note == "lots of requests"
-    assert registered_fetcher("no-such-fetcher") is None

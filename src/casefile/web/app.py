@@ -38,12 +38,6 @@ templates.env.globals["is_starred"] = lambda t, v, sid, f: is_starred(
 )
 
 
-def _panels_for(entity_type) -> list:
-    """The registry rows a type's panels render from. Every id fetchers_for yields is registered
-    by construction, so these are never None."""
-    return [registered_fetcher(source_id) for source_id in fetchers_for(entity_type)]
-
-
 def sections_for(raw: str, results: dict | None = None) -> list[dict]:
     """The result page's data shape, one entry per reading of the input.
 
@@ -57,7 +51,7 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
             {
                 "type": candidate.type.value,
                 "value": candidate.value,
-                "panels": _panels_for(candidate.type),
+                "panels": fetchers_for(candidate.type),
                 "results": results or {},
                 "links": links_for(candidate, exclude=fetched_ids()),
             }

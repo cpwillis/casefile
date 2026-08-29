@@ -14,7 +14,7 @@ from casefile.cases import forget_all, list_cases, load_case
 from casefile.catalog import links_for
 from casefile.detect import detect
 from casefile.export import FORMATS, export_case
-from casefile.fetchers import fetchers_for, registered_fetcher
+from casefile.fetchers import fetchers_for
 from casefile.fetchers.http import build_client
 
 REPO = "https://github.com/cpwillis/casefile"
@@ -24,8 +24,8 @@ async def _fetch_all(candidates, use_cache: bool = True, deep: bool = False):
     async with build_client() as client:
         results = {}
         for c in candidates:
-            ids = [sid for sid in fetchers_for(c.type) if deep or not registered_fetcher(sid).on_demand]
-            got = await asyncio.gather(*(run_cached(sid, c.value, c.type, client, use_cache=use_cache) for sid in ids))
+            due = [r for r in fetchers_for(c.type) if deep or not r.on_demand]
+            got = await asyncio.gather(*(run_cached(r.id, c.value, c.type, client, use_cache=use_cache) for r in due))
             results[(c.type, c.value)] = got
         return results
 

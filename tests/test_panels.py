@@ -9,7 +9,7 @@ client = TestClient(app, base_url="http://127.0.0.1")
 
 
 def test_domain_has_the_three_fetchers_registered():
-    ids = fetchers_for(EntityType.DOMAIN)
+    ids = [r.id for r in fetchers_for(EntityType.DOMAIN)]
     assert {"dns", "rdap", "crtsh"} <= set(ids)
 
 

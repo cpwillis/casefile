@@ -75,8 +75,10 @@ def fetched_ids() -> frozenset[str]:
     return frozenset(_REGISTRY)
 
 
-def fetchers_for(entity_type: EntityType) -> tuple[str, ...]:
-    return tuple(r.id for r in _REGISTRY.values() if entity_type in r.accepts)
+def fetchers_for(entity_type: EntityType) -> tuple[Registered, ...]:
+    """The registry rows that accept this type. Rows, not ids: both callers want on_demand and
+    cost_note off them, and returning ids only made each one look the row up again."""
+    return tuple(r for r in _REGISTRY.values() if entity_type in r.accepts)
 
 
 async def run_fetcher(source_id, value, entity_type, client) -> "SourceResult":

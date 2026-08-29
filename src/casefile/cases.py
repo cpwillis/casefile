@@ -79,6 +79,22 @@ def _connect() -> sqlite3.Connection:
     return store.connect(cases_path(), _SCHEMA)
 
 
+def _read(default, query):
+    """Run a read against the store, or hand back `default` if there is no usable store.
+
+    Both halves of the read policy live here so a reader added later cannot omit one: browsing
+    never brings the store into being (only starring does), and a missing or corrupt store reads
+    as "nothing saved" rather than breaking a search that never depended on it.
+    """
+    if not cases_path().exists():
+        return default
+    try:
+        with _connect() as conn:
+            return query(conn)
+    except (sqlite3.Error, OSError):
+        return default
+
+
 def star(entity_type: EntityType, value: str, finding: Star) -> str:
     """Keep one finding. Creates the case if this is the first star. Returns the case id."""
     case_id = case_id_for(entity_type, value)
@@ -119,65 +135,52 @@ def unstar(entity_type: EntityType, value: str, finding: Star) -> None:
 
 
 def is_starred(entity_type: EntityType, value: str, finding: Star) -> bool:
-    """Never raises. This runs on every finding row, so a broken store must not break search."""
-    if not cases_path().exists():
-        return False  # browsing must not create the store; only starring does
-    try:
-        with _connect() as conn:
-            row = conn.execute(
+    """Runs on every finding row, so a broken store must not break search."""
+    return _read(
+        False,
+        lambda conn: (
+            conn.execute(
                 "SELECT 1 FROM stars WHERE case_id = ? AND source_id = ? AND label = ? AND value = ?",
                 (case_id_for(entity_type, value), finding.source_id, finding.label, finding.value),
             ).fetchone()
-        return row is not None
-    except (sqlite3.Error, OSError):
-        return False
+            is not None
+        ),
+    )
 
 
 def list_cases() -> tuple[Case, ...]:
-    """Every saved case, most recently updated first. Never raises."""
-    if not cases_path().exists():
-        return ()
-    try:
-        with _connect() as conn:
-            rows = conn.execute(
-                "SELECT c.id, c.entity_type, c.value, c.created_at, c.updated_at, COUNT(s.case_id) "
-                "FROM cases c LEFT JOIN stars s ON s.case_id = c.id "
-                "GROUP BY c.id ORDER BY c.updated_at DESC, c.id"
-            ).fetchall()
-    except (sqlite3.Error, OSError):
-        return ()
-    return tuple(
-        Case(id=r[0], entity_type=r[1], value=r[2], created_at=r[3], updated_at=r[4], star_count=r[5]) for r in rows
-    )
+    """Every saved case, most recently updated first."""
+
+    def query(conn):
+        rows = conn.execute(
+            "SELECT c.id, c.entity_type, c.value, c.created_at, c.updated_at, COUNT(s.case_id) "
+            "FROM cases c LEFT JOIN stars s ON s.case_id = c.id "
+            "GROUP BY c.id ORDER BY c.updated_at DESC, c.id"
+        ).fetchall()
+        return tuple(
+            Case(id=r[0], entity_type=r[1], value=r[2], created_at=r[3], updated_at=r[4], star_count=r[5]) for r in rows
+        )
+
+    return _read((), query)
 
 
 def load_case(case_id: str) -> Case | None:
-    """Never raises. A corrupt store reads as "no such case" rather than a 500."""
-    if not cases_path().exists():
-        return None
-    try:
-        with _connect() as conn:
-            row = conn.execute(
-                "SELECT id, entity_type, value, created_at, updated_at FROM cases WHERE id = ?", (case_id,)
-            ).fetchone()
-            if row is None:
-                return None
-            stars = conn.execute(
-                "SELECT source_id, label, value, url FROM stars WHERE case_id = ? ORDER BY source_id, label, value",
-                (case_id,),
-            ).fetchall()
-    except (sqlite3.Error, OSError):
-        return None
-    kept = tuple(Star(source_id=s[0], label=s[1], value=s[2], url=s[3]) for s in stars)
-    return Case(
-        id=row[0],
-        entity_type=row[1],
-        value=row[2],
-        created_at=row[3],
-        updated_at=row[4],
-        star_count=len(kept),
-        stars=kept,
-    )
+    """A corrupt store reads as "no such case" rather than a 500."""
+
+    def query(conn):
+        row = conn.execute(
+            "SELECT id, entity_type, value, created_at, updated_at FROM cases WHERE id = ?", (case_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        stars = conn.execute(
+            "SELECT source_id, label, value, url FROM stars WHERE case_id = ? ORDER BY source_id, label, value",
+            (case_id,),
+        ).fetchall()
+        kept = tuple(Star(source_id=s[0], label=s[1], value=s[2], url=s[3]) for s in stars)
+        return Case(row[0], row[1], row[2], row[3], row[4], star_count=len(kept), stars=kept)
+
+    return _read(None, query)
 
 
 def forget_all() -> int:
@@ -191,12 +194,5 @@ def delete_case(case_id: str) -> bool:
     Un-starring from a live result page cannot reach a finding whose source has since changed
     or died, so deleting the whole case has to be possible on its own.
     """
-    if not cases_path().exists():
-        return False
-    try:
-        with _connect() as conn:
-            # the stars go with it: foreign keys are on and stars.case_id cascades
-            cur = conn.execute("DELETE FROM cases WHERE id = ?", (case_id,))
-            return cur.rowcount > 0
-    except (sqlite3.Error, OSError):
-        return False
+    # the stars go with it: foreign keys are on and stars.case_id cascades
+    return _read(False, lambda conn: conn.execute("DELETE FROM cases WHERE id = ?", (case_id,)).rowcount > 0)
