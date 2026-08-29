@@ -85,7 +85,3 @@ def build_demo(out_dir: Path, data: Path | None = None) -> list[Path]:
         shutil.copy2(HERE / "static" / name, static_out / name)
         written.append(static_out / name)
     return written
-
-
-def demo_slug_for(query: str) -> str:
-    return _slug(query)

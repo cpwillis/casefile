@@ -3,7 +3,7 @@ import pytest
 from helpers import mock_client
 
 from casefile.fetchers import run_fetcher
-from casefile.fetchers.wmn import WMN_ATTRIBUTION, Site, account_exists, check_url, load_sites
+from casefile.fetchers.wmn import Site, account_exists, check_url, load_sites
 from casefile.types import EntityType
 
 
@@ -25,11 +25,6 @@ def test_check_url_substitutes_and_encodes():
     url = check_url(site, "a b/c")
     assert "{account}" not in url
     assert "a%20b%2Fc" in url
-
-
-def test_attribution_names_the_project_and_licence():
-    assert "WhatsMyName" in WMN_ATTRIBUTION
-    assert "CC BY-SA 4.0" in WMN_ATTRIBUTION
 
 
 def test_protection_flags_are_exposed():

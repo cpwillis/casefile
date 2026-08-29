@@ -210,20 +210,17 @@ def _username(s: str) -> str | None:
     return s if re.fullmatch(r"[A-Za-z0-9._-]{2,39}", s) and any(c.isalpha() for c in s) else None
 
 
-def _person(s: str) -> str | None:
-    s = s.strip()
-    return s if re.fullmatch(_NAMEISH, s) else None
-
-
-def _company(s: str) -> str | None:
+def _nameish(s: str) -> str | None:
+    """Person and company share this: nothing in the string itself separates the two readings,
+    so both are offered and the catalogue decides what each is worth looking up in."""
     s = s.strip()
     return s if re.fullmatch(_NAMEISH, s) else None
 
 
 TIER3: tuple[tuple[EntityType, Detector], ...] = (
     (EntityType.USERNAME, _username),
-    (EntityType.PERSON, _person),
-    (EntityType.COMPANY, _company),
+    (EntityType.PERSON, _nameish),
+    (EntityType.COMPANY, _nameish),
 )
 
 

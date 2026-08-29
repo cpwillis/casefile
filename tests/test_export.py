@@ -23,6 +23,13 @@ def test_every_format_is_reachable():
     assert set(FORMATS) == {"md", "json", "html"}
 
 
+def test_the_web_layer_knows_a_media_type_for_every_format():
+    """FORMATS is the one list; a format the download route cannot type would 500 on click."""
+    from casefile.web.app import _MEDIA
+
+    assert set(_MEDIA) == set(FORMATS)
+
+
 @pytest.mark.parametrize("fmt", ["md", "json", "html"])
 def test_every_format_names_the_target_and_its_stars(fmt):
     out = export_case(CASE, fmt)

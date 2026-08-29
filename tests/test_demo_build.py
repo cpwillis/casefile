@@ -3,7 +3,7 @@ import re
 
 import pytest
 
-from casefile.demo import build_demo, demo_slug_for, load_targets
+from casefile.demo import _slug, build_demo, load_targets
 
 FORBIDDEN = ("hx-get", "hx-post", "hx-trigger", "/panel/", "/star", "/case/", "127.0.0.1", "localhost")
 
@@ -17,7 +17,7 @@ def built(tmp_path):
 def test_build_writes_an_index_and_a_page_per_target(built):
     assert (built / "index.html").exists()
     for target in load_targets():
-        assert (built / f"{demo_slug_for(target.query)}.html").exists()
+        assert (built / f"{_slug(target.query)}.html").exists()
 
 
 def test_the_demo_is_inert(built):
@@ -80,7 +80,7 @@ def test_the_demo_result_page_matches_the_live_one(built):
 
     target = "example.com"
     live = TestClient(app, base_url="http://127.0.0.1").get("/q", params={"v": target}).text
-    demo = (built / f"{demo_slug_for(target)}.html").read_text()
+    demo = (built / f"{_slug(target)}.html").read_text()
 
     links = lambda html: re.findall(r'<li><a href="(http[^"]+)"[^>]*>([^<]+)</a>', html)  # noqa: E731
     assert links(demo) == links(live), "demo and live disagree on the link list"
@@ -100,5 +100,5 @@ def test_demo_data_carries_no_real_personal_data():
 
 def test_every_demo_target_produces_at_least_one_section(built):
     for target in load_targets():
-        page = (built / f"{demo_slug_for(target.query)}.html").read_text()
+        page = (built / f"{_slug(target.query)}.html").read_text()
         assert 'class="type-section"' in page, f"{target.query} rendered no readings"

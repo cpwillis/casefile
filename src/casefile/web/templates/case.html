@@ -8,9 +8,8 @@
     <a href="/q?v={{ case.value | urlencode }}">Re-run this search</a>
     <span class="muted">·</span>
     export
-    <a href="/case/{{ case.id | urlencode }}/export.md">md</a>
-    <a href="/case/{{ case.id | urlencode }}/export.json">json</a>
-    <a href="/case/{{ case.id | urlencode }}/export.html">html</a>
+    {% for fmt in export_formats %}<a href="/case/{{ case.id | urlencode }}/export.{{ fmt }}">{{ fmt }}</a>
+    {% endfor %}
   </p>
   <form method="post" action="/case/{{ case.id | urlencode }}/delete"
         onsubmit="return confirm('Delete this case and everything saved in it?');">

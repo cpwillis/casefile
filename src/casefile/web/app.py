@@ -28,6 +28,7 @@ HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=HERE / "templates")
 # Exposed to templates so a finding row can render its own star state without a second query
 # layer. Kept to one read-only helper rather than handing templates the whole store.
+templates.env.globals["export_formats"] = FORMATS
 templates.env.globals["is_starred"] = lambda t, v, sid, f: is_starred(
     EntityType(t), v, Star(sid, f.label, f.value, f.url)
 )

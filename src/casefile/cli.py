@@ -11,6 +11,7 @@ import casefile.fetchers.sources  # noqa: F401 -- registers fetchers
 from casefile import __version__
 from casefile.cache import run_cached
 from casefile.detect import detect
+from casefile.export import FORMATS
 from casefile.fetchers import fetchers_for, registered_fetcher
 from casefile.fetchers.http import build_client
 from casefile.report import links_for
@@ -32,22 +33,14 @@ def _links(candidate):
     return [{"id": link.id, "name": link.name, "url": link.url, "notes": link.notes} for link in links_for(candidate)]
 
 
-def _sanitize(text: str) -> str:
+def _sanitize(text: str, keep: str = "") -> str:
     """Strip non-printable characters from third-party text before it reaches a terminal.
 
     Third-party findings (RDAP fields, crt.sh names) are free text we don't control; without
     this, an ANSI escape or carriage return in a value could erase or rewrite earlier output.
+    `keep` names the control characters a multi-line document needs to survive.
     """
-    return "".join(ch for ch in text if ch.isprintable())
-
-
-def _sanitize_document(text: str) -> str:
-    """Same idea for multi-line output: drop control characters but keep newlines and tabs.
-
-    An exported case is third-party text printed to a terminal, so an ANSI escape inside a
-    starred value would otherwise rewrite the screen.
-    """
-    return "".join(ch for ch in text if ch.isprintable() or ch in "\n\t")
+    return "".join(ch for ch in text if ch.isprintable() or ch in keep)
 
 
 def _render_text(raw, candidates, results):
@@ -103,7 +96,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cases", action="store_true", help="list your saved cases and exit")
     parser.add_argument("--build-demo", metavar="DIR", help="render the static demo into DIR and exit")
     parser.add_argument("--export", metavar="CASE_ID", help="export one saved case and exit")
-    parser.add_argument("--format", default="md", choices=("md", "json", "html"), help="export format (default: md)")
+    parser.add_argument(
+        "--format", default="md", choices=FORMATS, help=f"export format: {', '.join(FORMATS)} (default: md)"
+    )
     parser.add_argument(
         "--forget-cases",
         action="store_true",
@@ -155,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         # Same sanitiser the text renderer uses: exported values are third-party text and
         # an escape sequence would otherwise rewrite the terminal.
-        print(_sanitize_document(export_case(case, args.format)))
+        print(_sanitize(export_case(case, args.format), keep="\n\t"))
         return 0
 
     if args.value is None:

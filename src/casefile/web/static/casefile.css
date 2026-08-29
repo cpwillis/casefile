@@ -27,7 +27,6 @@ a { color: var(--accent); }
 .tag { font-size: 11px; border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px; color: var(--muted); text-transform: none; letter-spacing: 0; }
 .filter { width: 100%; max-width: 320px; padding: 6px 8px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); }
 .links { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 16px; }
-.links li[hidden] { display: none; }
 
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }

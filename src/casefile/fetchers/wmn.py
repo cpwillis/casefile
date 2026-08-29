@@ -20,10 +20,6 @@ from casefile.fetchers.http import domain_slot
 from casefile.types import EntityType
 
 DATA_PATH = Path(__file__).resolve().parents[1] / "vendor" / "wmn-data.json"
-WMN_ATTRIBUTION = (
-    "Username checks use the WhatsMyName dataset by Micah Hoffman and contributors, "
-    "licensed CC BY-SA 4.0: https://github.com/WebBreacher/WhatsMyName"
-)
 PLACEHOLDER = "{account}"
 
 
