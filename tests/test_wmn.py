@@ -1,5 +1,6 @@
 import httpx
 import pytest
+from helpers import mock_client
 
 from casefile.fetchers import run_fetcher
 from casefile.fetchers.wmn import WMN_ATTRIBUTION, Site, account_exists, check_url, load_sites
@@ -82,7 +83,7 @@ async def test_whatsmyname_reports_only_hits(monkeypatch):
             return httpx.Response(200, text="found-me")
         return httpx.Response(404, text="no-user")
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+    async with mock_client(handler) as client:
         result = await run_fetcher("whatsmyname", "someone", EntityType.USERNAME, client)
     assert result.state == "ok"
     assert [f.label for f in result.findings] == ["Hit"]
@@ -95,7 +96,7 @@ async def test_whatsmyname_no_hits_is_empty(monkeypatch):
     def handler(request):
         return httpx.Response(404, text="no-user")
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+    async with mock_client(handler) as client:
         result = await run_fetcher("whatsmyname", "nobody", EntityType.USERNAME, client)
     assert result.state == "empty"
 
@@ -112,7 +113,7 @@ async def test_whatsmyname_survives_a_dead_site(monkeypatch):
             raise httpx.ConnectError("refused")
         return httpx.Response(200, text="found-me")
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+    async with mock_client(handler) as client:
         result = await run_fetcher("whatsmyname", "someone", EntityType.USERNAME, client)
     assert [f.label for f in result.findings] == ["note", "Alive"]
 
@@ -128,7 +129,7 @@ async def test_whatsmyname_survives_a_site_with_an_unparseable_url(monkeypatch):
     def handler(request):
         return httpx.Response(200, text="found-me")
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+    async with mock_client(handler) as client:
         result = await run_fetcher("whatsmyname", "junk", EntityType.USERNAME, client)
     assert result.state == "ok"
     assert [f.label for f in result.findings] == ["note", "Good"]
@@ -141,7 +142,7 @@ async def test_whatsmyname_total_failure_is_an_error_not_an_empty_result(monkeyp
     def handler(request):
         raise httpx.ConnectError("no network")
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+    async with mock_client(handler) as client:
         result = await run_fetcher("whatsmyname", "someone", EntityType.USERNAME, client)
     assert result.state == "error"
     assert "nothing was actually checked" in result.detail

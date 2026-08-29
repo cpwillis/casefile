@@ -79,20 +79,18 @@ def test_text_output_strips_control_characters_from_third_party_findings(monkeyp
     assert "ERASED" in out
 
 
-def test_clear_cache_flag_reports_and_exits_zero(capsys, tmp_path, monkeypatch):
+def test_clear_cache_flag_reports_and_exits_zero(capsys):
     """--clear-cache is documented as a privacy control, so it must actually be wired up."""
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     assert main(["--clear-cache"]) == 0
     assert "cleared" in capsys.readouterr().out
 
 
-def test_no_fetch_flag_is_accepted(capsys, tmp_path, monkeypatch):
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+def test_no_fetch_flag_is_accepted(capsys):
     assert main(["example.com", "--json", "--no-fetch"]) == 0
     assert "candidates" in capsys.readouterr().out
 
 
-def test_no_cache_flag_disables_the_cache(monkeypatch, capsys, tmp_path):
+def test_no_cache_flag_disables_the_cache(monkeypatch, capsys):
     """--no-fetch would skip _fetch_all entirely, giving --no-cache zero coverage, so this
     case must actually reach the fetch path with --no-fetch absent."""
     import casefile.cli as climod
@@ -104,7 +102,6 @@ def test_no_cache_flag_disables_the_cache(monkeypatch, capsys, tmp_path):
         seen_use_cache.append(use_cache)
         return SourceResult(source_id, State.OK)
 
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     monkeypatch.setattr(climod, "run_cached", fake_run)
     assert main(["example.com", "--json", "--no-cache"]) == 0
     assert "candidates" in capsys.readouterr().out
@@ -112,9 +109,8 @@ def test_no_cache_flag_disables_the_cache(monkeypatch, capsys, tmp_path):
     assert all(use_cache is False for use_cache in seen_use_cache)
 
 
-def test_cli_skips_on_demand_sources_by_default(monkeypatch, capsys, tmp_path):
+def test_cli_skips_on_demand_sources_by_default(monkeypatch, capsys):
     """casefile <username> must not fire hundreds of requests without --deep."""
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     import casefile.cli as climod
     from casefile.fetchers import Finding, SourceResult, State
 
@@ -130,8 +126,7 @@ def test_cli_skips_on_demand_sources_by_default(monkeypatch, capsys, tmp_path):
     assert "github" in seen
 
 
-def test_deep_flag_includes_on_demand_sources(monkeypatch, capsys, tmp_path):
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+def test_deep_flag_includes_on_demand_sources(monkeypatch, capsys):
     import casefile.cli as climod
     from casefile.fetchers import Finding, SourceResult, State
 

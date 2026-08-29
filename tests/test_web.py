@@ -1,18 +1,10 @@
 import inspect
 
-import pytest
 from starlette.testclient import TestClient
 
 from casefile.web.app import app, serve
 
 client = TestClient(app, base_url="http://127.0.0.1")
-
-
-@pytest.fixture(autouse=True)
-def isolated_store(tmp_path, monkeypatch):
-    """Rendering a panel reads the cases store, so tests must not touch the real one."""
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    yield
 
 
 def _panel_block(html: str, source_id: str) -> str:

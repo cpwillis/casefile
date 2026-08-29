@@ -8,12 +8,6 @@ SAME = {"sec-fetch-site": "same-origin"}
 STAR = {"t": "domain", "v": "example.com", "source_id": "dns", "label": "A", "value": "192.0.2.10", "url": ""}
 
 
-@pytest.fixture(autouse=True)
-def isolated_store(tmp_path, monkeypatch):
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    yield
-
-
 def test_star_requires_a_same_origin_header():
     """A page you visit while casefile runs must not be able to write to your cases."""
     assert client.post("/star", data=STAR, headers={"sec-fetch-site": "cross-site"}).status_code == 403

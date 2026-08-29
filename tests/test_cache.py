@@ -1,15 +1,6 @@
-import pytest
-
 from casefile.cache import cache_path, clear_cache, run_cached
 from casefile.fetchers import Finding, State, fetcher
 from casefile.types import EntityType
-
-
-@pytest.fixture(autouse=True)
-def isolated_cache(tmp_path, monkeypatch):
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
-    clear_cache()
-    yield
 
 
 def test_cache_path_follows_xdg(tmp_path, monkeypatch):
