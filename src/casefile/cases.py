@@ -19,6 +19,7 @@ class CaseStoreError(Exception):
     """The cases store could not be written. Callers must surface this, never swallow it:
     silently failing to save is worse than saying the save failed."""
 
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cases (
     id          TEXT PRIMARY KEY,

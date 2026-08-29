@@ -161,8 +161,14 @@ async def star_route(request: Request) -> Response:
         return templates.TemplateResponse(
             request,
             "star_button.html",
-            {"t": entity_type.value, "v": value, "sid": finding.source_id, "f": finding,
-             "starred": False, "error": str(exc)},
+            {
+                "t": entity_type.value,
+                "v": value,
+                "sid": finding.source_id,
+                "f": finding,
+                "starred": False,
+                "error": str(exc),
+            },
         )
     return templates.TemplateResponse(
         request,
