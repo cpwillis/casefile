@@ -13,8 +13,12 @@ from pathlib import Path
 from casefile import store
 from casefile.fetchers import Finding, SourceResult, State, run_fetcher
 
-CACHEABLE = (State.OK, State.EMPTY)
+ANSWERED = (State.OK, State.EMPTY)  # a source that actually replied, whether or not it had data
 RETENTION_SECONDS = 86400.0
+# A failure keeps for minutes, not a day: long enough that reloading a page does not re-hammer a
+# source that just 502'd, short enough that a transient outage clears itself and a key you have
+# just configured takes effect without --clear-cache.
+FAILURE_RETENTION = 300.0
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS responses (
     source_id   TEXT NOT NULL,
@@ -41,7 +45,11 @@ def _connect():
     return conn
 
 
-def _load(source_id: str, entity_type, value: str, ttl: float) -> SourceResult | None:
+def _ttl_for(state: str) -> float:
+    return RETENTION_SECONDS if state in ANSWERED else FAILURE_RETENTION
+
+
+def _load(source_id: str, entity_type, value: str, ttl: float | None = None) -> SourceResult | None:
     if not cache_path().exists():
         return None  # a miss must not bring the store into being; only storing a response does
     with _connect() as conn:
@@ -49,9 +57,11 @@ def _load(source_id: str, entity_type, value: str, ttl: float) -> SourceResult |
             "SELECT fetched_at, payload FROM responses WHERE source_id = ? AND entity_type = ? AND value = ?",
             (source_id, str(entity_type), value),
         ).fetchone()
-    if row is None or time.time() - row[0] > ttl:
+    if row is None:
         return None
     data = json.loads(row[1])
+    if time.time() - row[0] > (_ttl_for(data["state"]) if ttl is None else ttl):
+        return None
     findings = tuple(Finding(**f) for f in data.get("findings", []))
     return SourceResult(
         source_id=data["source_id"],
@@ -76,13 +86,35 @@ def clear_cache() -> int:
     return store.purge(cache_path(), "responses")
 
 
-async def run_cached(source_id, value, entity_type, client, *, ttl: float = RETENTION_SECONDS, use_cache: bool = True):
-    """run_fetcher with a SQLite read-through cache. Only ok and empty are stored.
+def cached_result(source_id, entity_type, value) -> SourceResult | None:
+    """A stored response if one is still fresh, making no request at all. Never raises.
+
+    This is what lets an already-run panel paint on page load instead of round-tripping, and
+    what lets an on-demand source stay on the page across reloads: consent is for the egress,
+    and a cache hit spends none.
+    """
+    try:
+        return _load(source_id, entity_type, value)
+    except Exception:  # noqa: BLE001 -- a broken cache must never break a render
+        return None
+
+
+async def run_cached(
+    source_id, value, entity_type, client, *, ttl: float | None = None, use_cache: bool = True, refresh: bool = False
+):
+    """run_fetcher with a SQLite read-through cache. Every outcome is stored, with a retention
+    that depends on it: see FAILURE_RETENTION.
+
+    The two ways to skip the stored answer are not the same and must not be merged: `use_cache`
+    off means do not touch the cache at all (the CLI's --no-cache, a privacy control), while
+    `refresh` means ignore what is stored but replace it with what comes back, which is what the
+    per-panel refresh control needs. A refresh that did not write would be thrown away and the
+    next page load would show the stale answer again.
 
     Cache failures are contained: a broken or unwritable cache degrades to an uncached lookup
     rather than failing the request, because a 500 leaves the panel loading forever.
     """
-    if use_cache:
+    if use_cache and not refresh:
         try:
             hit = _load(source_id, entity_type, value, ttl)
         except Exception:  # noqa: BLE001 -- a broken cache must never break a lookup
@@ -90,7 +122,7 @@ async def run_cached(source_id, value, entity_type, client, *, ttl: float = RETE
         if hit is not None:
             return hit
     result = await run_fetcher(source_id, value, entity_type, client)
-    if use_cache and result.state in CACHEABLE:
+    if use_cache:
         try:  # noqa: SIM105 -- explicit try/except reads clearer here than contextlib.suppress
             _store(result, entity_type, value)
         except Exception:  # noqa: BLE001 -- failing to cache is not failing to fetch

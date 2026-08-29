@@ -52,7 +52,11 @@ async def test_expired_entries_are_re_fetched():
     assert calls == 2
 
 
-async def test_errors_are_never_cached():
+async def test_a_failure_is_held_briefly_rather_than_for_the_full_day():
+    """Reloading a page must not re-hammer a source that just 502'd, but a transient outage has
+    to clear itself without --clear-cache. So a failure is cached, on a much shorter clock."""
+    from casefile.cache import FAILURE_RETENTION, _ttl_for
+
     calls = 0
 
     @fetcher(id="cache-error", accepts=[EntityType.DOMAIN])
@@ -64,7 +68,58 @@ async def test_errors_are_never_cached():
     first = await run_cached("cache-error", "example.com", EntityType.DOMAIN, None)
     await run_cached("cache-error", "example.com", EntityType.DOMAIN, None)
     assert first.state == State.ERROR
-    assert calls == 2, "a transient failure must not be cached for the whole TTL"
+    assert calls == 1, "a reload re-queried a source that had just failed"
+    assert _ttl_for(State.ERROR) == FAILURE_RETENTION
+    assert _ttl_for(State.OK) == RETENTION_SECONDS
+    assert FAILURE_RETENTION < RETENTION_SECONDS / 100
+
+
+async def test_a_stale_failure_is_retried_once_its_short_clock_runs_out():
+    calls = 0
+
+    @fetcher(id="cache-error-stale", accepts=[EntityType.DOMAIN])
+    async def f(value, entity_type, client):
+        nonlocal calls
+        calls += 1
+        raise ValueError("boom")
+
+    await run_cached("cache-error-stale", "example.com", EntityType.DOMAIN, None)
+    await run_cached("cache-error-stale", "example.com", EntityType.DOMAIN, None, ttl=0)
+    assert calls == 2
+
+
+async def test_no_cache_neither_reads_nor_writes():
+    """--no-cache is a privacy control, so it must not leave a copy behind either."""
+    calls = 0
+
+    @fetcher(id="cache-untouched", accepts=[EntityType.DOMAIN])
+    async def f(value, entity_type, client):
+        nonlocal calls
+        calls += 1
+        return [Finding(label="n", value="1")]
+
+    await run_cached("cache-untouched", "example.com", EntityType.DOMAIN, None, use_cache=False)
+    await run_cached("cache-untouched", "example.com", EntityType.DOMAIN, None)
+    await run_cached("cache-untouched", "example.com", EntityType.DOMAIN, None)
+    assert calls == 2, "the --no-cache run wrote to the cache"
+
+
+async def test_a_forced_refresh_requeries_and_replaces_the_stored_answer():
+    """The per-panel refresh control: you have a cached answer and want a current one."""
+    calls = 0
+
+    @fetcher(id="cache-refresh", accepts=[EntityType.DOMAIN])
+    async def f(value, entity_type, client):
+        nonlocal calls
+        calls += 1
+        return [Finding(label="n", value=str(calls))]
+
+    assert (await run_cached("cache-refresh", "example.com", EntityType.DOMAIN, None)).findings[0].value == "1"
+    assert (await run_cached("cache-refresh", "example.com", EntityType.DOMAIN, None)).findings[0].value == "1"
+    fresh = await run_cached("cache-refresh", "example.com", EntityType.DOMAIN, None, refresh=True)
+    assert fresh.findings[0].value == "2"
+    # and the refresh replaced what is stored, rather than leaving the stale one behind
+    assert (await run_cached("cache-refresh", "example.com", EntityType.DOMAIN, None)).findings[0].value == "2"
 
 
 async def test_empty_is_cached_because_it_is_a_real_answer():
