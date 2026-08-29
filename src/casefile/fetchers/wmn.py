@@ -21,6 +21,9 @@ from casefile.types import EntityType
 
 DATA_PATH = Path(__file__).resolve().parents[1] / "vendor" / "wmn-data.json"
 PLACEHOLDER = "{account}"
+SOURCE_ID = "whatsmyname"
+CREDIT = "Username checks use the WhatsMyName dataset by Micah Hoffman and contributors, CC BY-SA 4.0."
+CREDIT_URL = "https://github.com/WebBreacher/WhatsMyName"
 
 
 @dataclass(frozen=True, slots=True)

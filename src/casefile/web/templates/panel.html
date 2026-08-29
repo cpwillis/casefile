@@ -22,9 +22,8 @@
   {% else %}
   <p class="panel-detail">{{ result.detail or result.state }}</p>
   {% endif %}
-  {% if result.source_id == "whatsmyname" and result.state in ("ok", "empty") %}
-  <p class="attribution muted">Username checks use the <a href="https://github.com/WebBreacher/WhatsMyName"
-     rel="noreferrer noopener" target="_blank">WhatsMyName</a> dataset by Micah Hoffman and contributors,
-     licensed CC BY-SA 4.0.</p>
+  {% if result.source_id == wmn.id and result.state in ("ok", "empty") %}
+  <p class="attribution muted">{{ wmn.credit }}
+     <a href="{{ wmn.url }}" rel="noreferrer noopener" target="_blank">WhatsMyName</a></p>
   {% endif %}
 </div>

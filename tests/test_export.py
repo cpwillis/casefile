@@ -119,3 +119,29 @@ def test_export_never_includes_anything_unstarred():
     out = export_case(CASE, "md")
     assert set(re.findall(r"^## (.+)$", out, re.M)) == {s.source_id for s in CASE.stars}
     assert {f["value"] for f in json.loads(export_case(CASE, "json"))["stars"]} == {s.value for s in CASE.stars}
+
+
+WMN_CASE = Case(
+    id="username:octocat",
+    entity_type="username",
+    value="octocat",
+    created_at=0.0,
+    updated_at=0.0,
+    star_count=1,
+    stars=(Star(source_id="whatsmyname", label="GitHub", value="coding", url="https://github.example/x"),),
+)
+
+
+@pytest.mark.parametrize("fmt", ["md", "json", "html"])
+def test_a_whatsmyname_finding_carries_its_licence_credit(fmt):
+    """CC BY-SA asks for attribution where the material is used. An exported file is the one
+    artifact that leaves the machine without vendor/WMN-LICENCE.txt beside it."""
+    out = export_case(WMN_CASE, fmt)
+    assert "WhatsMyName" in out
+    assert "CC BY-SA 4.0" in out
+
+
+@pytest.mark.parametrize("fmt", ["md", "json", "html"])
+def test_an_export_with_no_whatsmyname_finding_carries_no_credit(fmt):
+    """Attribution follows the material, so a case that used none must not claim to."""
+    assert "WhatsMyName" not in export_case(CASE, fmt)

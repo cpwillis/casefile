@@ -22,7 +22,7 @@ from casefile.cases import CaseStoreError, Star, delete_case, is_starred, list_c
 from casefile.catalog import links_for
 from casefile.detect import detect
 from casefile.export import FORMATS, export_case, media_type, safe_url
-from casefile.fetchers import SourceResult, State, fetched_ids, fetchers_for, registered_fetcher
+from casefile.fetchers import SourceResult, State, fetched_ids, fetchers_for, registered_fetcher, wmn
 from casefile.fetchers.http import build_client
 from casefile.types import EntityType
 
@@ -31,6 +31,7 @@ templates = Jinja2Templates(directory=HERE / "templates")
 # Exposed to templates so a finding row can render its own star state without a second query
 # layer. Kept to one read-only helper rather than handing templates the whole store.
 templates.env.globals["export_formats"] = FORMATS
+templates.env.globals["wmn"] = {"id": wmn.SOURCE_ID, "credit": wmn.CREDIT, "url": wmn.CREDIT_URL}
 # One scheme allowlist for findings, shared with export rather than re-expressed per template.
 templates.env.filters["safe_url"] = safe_url
 templates.env.globals["is_starred"] = lambda t, v, sid, f: is_starred(

@@ -11,6 +11,7 @@ from html import escape
 from itertools import groupby
 
 from casefile.cases import Case
+from casefile.fetchers.wmn import CREDIT, CREDIT_URL, SOURCE_ID
 
 _SAFE_SCHEMES = ("https://", "http://")
 
@@ -53,6 +54,12 @@ def safe_url(url: str | None) -> str | None:
     return None
 
 
+def _credit(case: Case) -> bool:
+    """CC BY-SA asks for attribution where the material is used, and an exported file is the one
+    artifact that leaves this machine without the vendored licence beside it."""
+    return any(s.source_id == SOURCE_ID for s in case.stars)
+
+
 def _by_source(case: Case):
     ordered = sorted(case.stars, key=lambda s: (s.source_id, s.label, s.value))
     return groupby(ordered, key=lambda s: s.source_id)
@@ -71,6 +78,8 @@ def _to_markdown(case: Case) -> str:
             rendered = f"[{_md(s.value)}]({url})" if url else _md(s.value)
             lines.append(f"- **{_md(s.label)}**: {rendered}")
     lines += ["", "---", "", "Exported by casefile. Only starred findings are included."]
+    if _credit(case):
+        lines += ["", f"{_md(CREDIT)} {CREDIT_URL}"]
     return "\n".join(lines) + "\n"
 
 
@@ -82,6 +91,7 @@ def _to_json(case: Case) -> str:
             "created_at": case.created_at,
             "updated_at": case.updated_at,
             "stars": [{"source_id": s.source_id, "label": s.label, "value": s.value, "url": s.url} for s in case.stars],
+            **({"attribution": [{"text": CREDIT, "url": CREDIT_URL}]} if _credit(case) else {}),
         },
         indent=2,
     )
@@ -108,6 +118,11 @@ def _to_html(case: Case) -> str:
             parts.append(f'<li><span class="label">{escape(s.label)}</span><span>{value}</span></li>')
         parts.append("</ul>")
     parts.append('<p class="meta">Exported by casefile. Only starred findings are included.</p>')
+    if _credit(case):
+        parts.append(
+            f'<p class="meta">{escape(CREDIT)} '
+            f'<a href="{CREDIT_URL}" rel="noreferrer noopener">{escape(CREDIT_URL)}</a></p>'
+        )
     parts.append("</body></html>")
     return "\n".join(parts) + "\n"
 
