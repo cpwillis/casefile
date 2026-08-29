@@ -52,7 +52,7 @@ TIER2_DETECTORS = dict(TIER2)
         (EntityType.DOMAIN, "Example.COM", "example.com"),
         (EntityType.DOMAIN, "sub.example.co.uk", "sub.example.co.uk"),
         (EntityType.DOMAIN, "münchen.de", "xn--mnchen-3ya.de"),
-        (EntityType.DOMAIN, "under_score.com", "under_score.com"),
+        (EntityType.DOMAIN, "under_score.example", "under_score.example"),
         (EntityType.DOMAIN, "_dmarc.example.com", "_dmarc.example.com"),
         (EntityType.DOMAIN, "example.com.", "example.com"),
         # UTS46, not the stdlib IDNA2003 codec, which would map this to strasse.de
@@ -170,7 +170,7 @@ def test_url_candidate_lowercases_scheme_and_host():
 
 
 def test_control_characters_are_rejected():
-    assert detect("a\x00b@x.com") == ()
+    assert detect("a\x00b@x.example") == ()
 
 
 def test_idna_deviation_does_not_become_a_different_domain():

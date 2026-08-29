@@ -3,6 +3,7 @@
 import ast
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from helpers import client
 
@@ -69,3 +70,48 @@ def test_no_fixture_uses_a_dialable_real_phone_number():
             if not RESERVED_PHONE.match(digits):
                 offenders.append(f"{path.name}:{node.lineno} {literal!r}")
     assert not offenders, "fixtures using non-reserved phone numbers: " + ", ".join(offenders)
+
+
+# A label of its own, anywhere in the host: example.com, sub.example.co.uk, h.test, x.invalid.
+RESERVED_LABEL = frozenset({"example", "test", "invalid", "localhost", "local"})
+REGISTRABLE = re.compile(r"\.(com|net|org|io|dev|co|uk|au|me|app|sh|lu|info|biz|xyz)$", re.I)
+
+
+def _hosts_the_project_targets() -> set[str]:
+    """Hosts casefile genuinely reaches: the catalogue, the fetchers, and its own project links.
+
+    Derived rather than hand-listed, so adding a catalogue entry never means editing this test.
+    """
+    from casefile.catalog import load_catalog
+
+    hosts = {urlsplit(source.url).hostname for source in load_catalog()}
+    package = Path(__file__).resolve().parents[1] / "src" / "casefile"
+    for path in package.rglob("*.py"):
+        hosts |= {urlsplit(u).hostname for u in re.findall(r"https?://[^\s\"'<>)\]]+", path.read_text())}
+    hosts |= {"github.com", "pypi.org", "docs.astral.sh", "cpwillis.dev", "casefile.cpwillis.dev", "osint.cpwillis.dev"}
+    return {h for h in hosts if h}
+
+
+def test_no_fixture_or_doc_names_a_real_world_host():
+    """Fixtures must be synthetic. This is the check that was missing when a real investigation
+    target was transcribed into the test suite of a public OSINT repo.
+
+    A registrable host in a test or in the README must be one the project legitimately targets.
+    Anything else belongs to somebody, and an OSINT repo is the worst place to publish it.
+    """
+    allowed = _hosts_the_project_targets()
+    offenders = set()
+    files = [*Path(__file__).parent.glob("*.py"), Path(__file__).resolve().parents[1] / "README.md"]
+    for path in files:
+        # Escapes are decoded first: a source file holding an escaped newline inside a
+        # string otherwise yields a host glued to the letter that follows it, which is a
+        # tokenising artifact rather than a finding.
+        text = path.read_text().replace("\\n", "\n").replace("\\t", "\t")
+        for raw in re.findall(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+", text):
+            host = raw.rstrip(".").lower()
+            if host.startswith(("casefile.", "tests.", "helpers.")) or not REGISTRABLE.search(host):
+                continue  # module paths, filenames, versions: not hostnames
+            if RESERVED_LABEL & set(host.split(".")) or host in allowed:
+                continue
+            offenders.add(f"{path.name}: {host}")
+    assert not offenders, "non-reserved hosts in fixtures or docs: " + ", ".join(sorted(offenders))

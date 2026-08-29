@@ -12,3 +12,10 @@ dist/
 .DS_Store
 .superpowers/
 site/
+
+# Belt and braces. The two stores live under XDG paths outside the repo, so these should never
+# match anything; they exist so a stray XDG_DATA_HOME or a copied db cannot become a commit.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
