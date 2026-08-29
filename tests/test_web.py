@@ -7,6 +7,18 @@ from casefile.web.app import app, serve
 client = TestClient(app)
 
 
+def _panel_block(html: str, source_id: str) -> str:
+    """The single `<div class="panel" ...>` that references this source.
+
+    Parsed by scanning back to the opening div and forward to its close rather than slicing a
+    fixed character window, so the test cannot pass or fail because markup moved.
+    """
+    marker = html.index(f"/panel/{source_id}")
+    start = html.rindex('<div class="panel"', 0, marker)
+    end = html.index("</div>", html.index("</div>", start) + 6) + len("</div>")
+    return html[start:end]
+
+
 def test_index_renders_a_search_form():
     response = client.get("/")
     assert response.status_code == 200
@@ -81,12 +93,12 @@ def test_domain_search_does_not_auto_load_the_expensive_checker():
     assert 'hx-get="/panel/whatsmyname' in text  # the panel is offered
     assert 'hx-trigger="load"' in text  # other panels still self-load
     # but the whatsmyname panel specifically must be a button, not a load trigger
-    block = text[text.index("/panel/whatsmyname") - 400 : text.index("/panel/whatsmyname") + 200]
+    block = _panel_block(text, "whatsmyname")
     assert "panel-run" in block
     assert 'data-state="on-demand"' in block
+    assert "hx-trigger" not in block  # the whole point: nothing fires this without a click
 
 
 def test_cheap_panels_still_self_load():
-    text = client.get("/q", params={"v": "example.com"}).text
-    block = text[text.index("/panel/dns") - 300 : text.index("/panel/dns") + 200]
+    block = _panel_block(client.get("/q", params={"v": "example.com"}).text, "dns")
     assert 'hx-trigger="load"' in block

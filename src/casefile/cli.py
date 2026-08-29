@@ -83,7 +83,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="emit JSON instead of text")
     parser.add_argument("--no-fetch", action="store_true", help="skip live fetching, show links only")
     parser.add_argument("--no-cache", action="store_true", help="bypass the response cache")
-    parser.add_argument("--deep", action="store_true", help="also run on-demand sources (many more requests)")
+    parser.add_argument(
+        "--deep",
+        action="store_true",
+        help="also run on-demand sources. The browser offers these per panel; on the CLI it is "
+        "all or nothing, because there is currently exactly one such source (whatsmyname).",
+    )
     parser.add_argument("--clear-cache", action="store_true", help="purge the response cache and exit")
     parser.add_argument("--port", type=int, default=8765, help="port for the web app (default: 8765)")
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser on launch")
