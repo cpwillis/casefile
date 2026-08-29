@@ -1,23 +1,45 @@
+{# `demo` switches this from the live app to the static build. The demo renders through the real
+   templates rather than copies of them, so it cannot drift from what casefile actually does. #}
+{% set assets = 'static' if demo else '/static' %}
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}casefile{% endblock %}</title>
-<link rel="stylesheet" href="/static/casefile.css">
+<title>{% block title %}casefile{% if demo %} demo{% endif %}{% endblock %}</title>
+<link rel="stylesheet" href="{{ assets }}/casefile.css">
 </head>
 <body>
 <a class="skip" href="#pane">Skip to results</a>
 <header class="topbar">
+  {% if demo %}
+  <form class="search" role="search" onsubmit="return false;">
+    <label class="visually-hidden" for="target">Identifier to look up</label>
+    <input id="target" type="search" value="{{ raw | default('') }}"
+           placeholder="this demo cannot search, run casefile locally" disabled>
+    <button type="button" disabled>Search</button>
+  </form>
+  {% else %}
   <form action="/q" method="get" class="search" role="search">
     <label class="visually-hidden" for="target">Identifier to look up</label>
     <input id="target" type="search" name="v" value="{{ raw | default('') }}"
            placeholder="domain, ip, email, username, company, hash…" autofocus>
     <button type="submit">Search</button>
   </form>
+  {% endif %}
 </header>
+{% if demo %}
+<div class="demo-banner">
+  This is a static demo of <strong>casefile</strong>, rendered from the real application against
+  canned data. It cannot look anything up. To actually use it:
+  <code>uvx casefile</code>
+  <a href="https://github.com/cpwillis/casefile" rel="noreferrer noopener">source</a>
+</div>
+{% endif %}
 {% block content %}{% endblock %}
-<script src="/static/htmx.min.js" defer></script>
-<script src="/static/casefile.js" defer></script>
+{# htmx only where there is a server to swap against; casefile.js everywhere, because the copy
+   buttons and the link filter are rendered in both. #}
+{% if not demo %}<script src="/static/htmx.min.js" defer></script>{% endif %}
+<script src="{{ assets }}/casefile.js" defer></script>
 </body>
 </html>

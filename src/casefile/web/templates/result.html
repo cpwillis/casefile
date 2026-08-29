@@ -1,11 +1,13 @@
 {% extends "base.html" %}
-{% block title %}{{ raw }} · casefile{% endblock %}
+{% block title %}{{ raw }} · casefile{% if demo %} demo{% endif %}{% endblock %}
 {% block content %}
 {% if not sections %}
 <main class="intro" id="pane"><p>Nothing recognised in <code>{{ raw }}</code>.</p></main>
 {% else %}
 <h1 class="visually-hidden">casefile results for {{ raw }}</h1>
-<p class="summary muted">{{ sections | length }} reading{{ "s" if sections | length != 1 }} · {{ sections | map(attribute="links") | map("length") | sum }} links · <a href="/cases">saved cases</a></p>
+<p class="summary muted">{{ sections | length }} reading{{ "s" if sections | length != 1 }}
+ · {{ sections | map(attribute="links") | map("length") | sum }} links{% if not demo %}
+ · <a href="/cases">saved cases</a>{% endif %}</p>
 <div class="layout">
   <nav class="rail" aria-label="Readings and sources">
     {% for section in sections %}
@@ -14,7 +16,12 @@
       <a class="rail-links" href="#links-{{ section.type }}">{{ section.links | length }} links</a>
     </div>
     {% endfor %}
+    {% if demo %}
+    <p class="rail-tally muted">other examples</p>
+    {% for t in targets %}<p class="rail-links"><a href="{{ t.href }}">{{ t.query }}</a></p>{% endfor %}
+    {% else %}
     <p class="rail-tally muted">{{ sections | length }} reading{{ 's' if sections | length != 1 }}</p>
+    {% endif %}
   </nav>
 
   <main class="pane" id="pane">
@@ -30,7 +37,17 @@
       <div class="panels">
         {% for p in section.panels %}
         {% set panel_url = '/panel/' ~ p.id ~ '?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type %}
-        {% if p.on_demand %}
+        {% set prerendered = section.results.get(p.id) %}
+        {% if prerendered %}
+        {# the demo path: the panel is already resolved, so render it exactly as a live swap would #}
+        {% with result = prerendered %}{% include "panel.html" %}{% endwith %}
+        {% elif demo %}
+        <div class="panel" data-state="on-demand">
+          <div class="panel-head"><span class="panel-id">{{ p.id }}</span>
+            <span class="panel-state">not in this demo</span></div>
+          <p class="muted panel-cost">Run casefile locally to query this source.</p>
+        </div>
+        {% elif p.on_demand %}
         <div class="panel" data-state="on-demand">
           <div class="panel-head"><span class="panel-id">{{ p.id }}</span>
             <span class="panel-state">on demand</span></div>

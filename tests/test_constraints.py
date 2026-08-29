@@ -17,11 +17,18 @@ def test_app_has_no_startup_hooks():
     assert type(app.router.lifespan_context).__name__ == "_DefaultLifespan"
 
 
-def test_cli_and_web_render_the_same_readings():
-    """The demo is a prerender of the web app, so the two must never diverge."""
+def test_the_web_page_renders_every_reading_detect_found():
+    """Detection and the page must agree: a reading with no section is a silently dropped lead."""
     text = TestClient(app, base_url="http://127.0.0.1").get("/q", params={"v": "example.com"}).text
     for candidate in detect("example.com"):
         assert f'id="type-{candidate.type.value}"' in text
+
+
+def test_the_demo_has_no_templates_of_its_own():
+    """It renders through the real ones with demo=True. A demo_*.html file is the fork coming back."""
+    templates = Path(__file__).resolve().parents[1] / "src" / "casefile" / "web" / "templates"
+    forks = sorted(p.name for p in templates.glob("demo_*.html"))
+    assert forks == [], f"demo templates have reappeared: {forks}"
 
 
 def test_async_client_is_constructed_in_one_place():

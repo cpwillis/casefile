@@ -39,6 +39,29 @@ def _panels_for(entity_type) -> list:
     return [registered_fetcher(source_id) for source_id in fetchers_for(entity_type)]
 
 
+def sections_for(raw: str, results: dict | None = None) -> list[dict]:
+    """The result page's data shape, one entry per reading of the input.
+
+    `results` prefills panels for the static demo build. Live it is empty and every panel
+    self-loads. Sharing this with the demo is what stops the two pages drifting: the link
+    filtering, the ordering and the panel set are decided once, here.
+    """
+    sections = []
+    for candidate in detect(raw):
+        sections.append(
+            {
+                "type": candidate.type.value,
+                "value": candidate.value,
+                "panels": _panels_for(candidate.type),
+                "results": results or {},
+                # a source with a fetcher is shown as a panel, so listing it again as a link
+                # would be the same source twice
+                "links": [link for link in links_for(candidate) if registered_fetcher(link.id) is None],
+            }
+        )
+    return sections
+
+
 async def index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "index.html", {"cases": list_cases()[:8]})
 
@@ -47,17 +70,7 @@ async def result(request: Request) -> HTMLResponse:
     raw = request.query_params.get("v", "").strip()
     if not raw:
         return templates.TemplateResponse(request, "index.html")
-    sections = []
-    for candidate in detect(raw):
-        sections.append(
-            {
-                "type": candidate.type.value,
-                "value": candidate.value,
-                "panels": _panels_for(candidate.type),
-                "links": [link for link in links_for(candidate) if registered_fetcher(link.id) is None],
-            }
-        )
-    return templates.TemplateResponse(request, "result.html", {"raw": raw, "sections": sections})
+    return templates.TemplateResponse(request, "result.html", {"raw": raw, "sections": sections_for(raw)})
 
 
 async def panel(request: Request) -> HTMLResponse:
