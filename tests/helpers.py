@@ -19,11 +19,11 @@ def mock_client(handler) -> httpx.AsyncClient:
 def stub_result(*findings, state=State.OK, detail=None):
     """A run_cached replacement returning one fixed result for whatever it is asked about.
 
-    `use_cache` is accepted and ignored so the same stub serves the web route (which never
-    passes it) and the CLI (which does).
+    The cache keywords are accepted and ignored so one stub serves every caller: the CLI passes
+    use_cache, the panel route passes refresh.
     """
 
-    async def fake(source_id, value, entity_type, client=None, *, use_cache=True):
+    async def fake(source_id, value, entity_type, client=None, *, use_cache=True, refresh=False):
         return SourceResult(source_id, state, tuple(findings), detail)
 
     return fake

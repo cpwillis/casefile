@@ -33,3 +33,33 @@ document.addEventListener("click", (event) => {
     setTimeout(() => { button.textContent = original; }, 1200);
   });
 });
+
+// htmx swaps nothing when a request never completes, so a panel whose request was blocked or
+// dropped just sits there looking idle, which is indistinguishable from a dead button. Content
+// blockers are the usual cause: they match on URL patterns and a local tool's paths are not
+// exempt. Say what happened instead of looking broken.
+function panelFailed(event, reason) {
+  const panel = event.detail.elt.closest(".panel");
+  if (!panel) return;
+  panel.dataset.state = "error";
+  const state = panel.querySelector(".panel-state");
+  if (state) {
+    state.textContent = "failed";
+    state.className = "panel-state state-error";
+  }
+  if (!panel.querySelector(".panel-detail")) {
+    const note = document.createElement("p");
+    note.className = "panel-detail";
+    note.textContent = reason;
+    panel.appendChild(note);
+  }
+}
+
+document.addEventListener("htmx:sendError", (event) =>
+  panelFailed(
+    event,
+    "this request never reached casefile. If the server is still running, a content blocker or " +
+      "browser extension is the usual cause: allow 127.0.0.1, or check its request log to see what it matched.",
+  ),
+);
+document.addEventListener("htmx:timeout", (event) => panelFailed(event, "this request timed out."));

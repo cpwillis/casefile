@@ -1,8 +1,20 @@
 <div class="panel" data-state="{{ result.state }}">
   <div class="panel-head">
     <span class="panel-id">{{ result.source_id }}</span>
-    <span class="panel-state state-{{ result.state }}">{{ result.state | replace('_', ' ') }}</span>
+    <span class="panel-actions">
+      {# only where there is a live backend and a real target behind it: not the demo, not a refusal #}
+      {% if t and v %}
+      <button class="panel-refresh" type="button"
+              title="Run this source again, ignoring the stored answer"
+              aria-label="Refresh {{ result.source_id }}"
+              hx-get="/panel/{{ result.source_id }}?v={{ v | urlencode }}&t={{ t }}&refresh=1"
+              hx-target="closest .panel" hx-swap="outerHTML"
+              hx-disabled-elt="this" hx-indicator="closest .panel">refresh</button>
+      {% endif %}
+      <span class="panel-state state-{{ result.state }}">{{ result.state | replace('_', ' ') }}</span>
+    </span>
   </div>
+  <p class="panel-running muted">running…</p>
   {% if result.state == "ok" %}
   <ul class="findings">
     {% for f in result.findings %}

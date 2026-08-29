@@ -1,6 +1,8 @@
-:root { --fg: #1a1a1a; --bg: #fdfdfc; --muted: #6b6b6b; --line: #e0dedb; --accent: #2d5f8a; }
+:root { --fg: #1a1a1a; --bg: #fdfdfc; --muted: #6b6b6b; --line: #e0dedb; --accent: #2d5f8a;
+        --ok: #1b5e20; --bad: #a4111c; --warn: #8a5200; --star: #a97400; }
 @media (prefers-color-scheme: dark) {
-  :root { --fg: #e8e6e3; --bg: #1c1c1a; --muted: #9a9895; --line: #34332f; --accent: #7fb3d9; }
+  :root { --fg: #e8e6e3; --bg: #1c1c1a; --muted: #9a9895; --line: #34332f; --accent: #7fb3d9;
+          --ok: #7ac47f; --bad: #ff8a80; --warn: #e0a33e; --star: #e8b53a; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; color: var(--fg); background: var(--bg); }
@@ -39,27 +41,39 @@ a { color: var(--accent); }
 .panel-head { display: flex; justify-content: space-between; align-items: baseline; }
 .panel-id { font-weight: 600; }
 .panel-state { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-.state-ok { color: #2e7d32; }
+.state-ok { color: var(--ok); }
 .state-empty { color: var(--muted); }
-.state-error, .state-timeout, .state-rate_limited { color: #c1121f; }
-.state-needs_key { color: #b26a00; }
+.state-error, .state-timeout, .state-rate_limited { color: var(--bad); }
+.state-needs_key { color: var(--warn); }
 .findings { list-style: none; padding: 0; margin: 6px 0 0; }
-.findings li { display: flex; gap: 8px; }
+.findings li { display: flex; gap: 8px; align-items: baseline; }
+.findings li > :not(.f-label) { min-width: 0; overflow-wrap: anywhere; }
 .f-label { color: var(--muted); min-width: 90px; }
-.panel-detail { color: #c1121f; margin: 6px 0 0; font-size: 13px; }
+.panel-detail { color: var(--bad); margin: 6px 0 0; font-size: 13px; overflow-wrap: anywhere; }
 
 .attribution { font-size: 11px; margin: 8px 0 0; }
 
 .panel-run { padding: 6px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); cursor: pointer; }
 .panel-cost { font-size: 12px; margin: 6px 0 0; }
 .star { background: none; border: 0; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px 0 0; color: var(--muted); }
-.star.starred { color: #d99a00; }
+.star.starred { color: var(--star); }
 .star:hover { color: var(--accent); }
 .case-list { list-style: none; padding: 0; }
 .case-list li { display: flex; gap: 10px; align-items: baseline; padding: 3px 0; }
 .recent-heading { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin-top: 28px; }
-.summary { font-size: 13px; margin: 0 0 12px; }
+.summary { font-size: 13px; max-width: 1200px; margin: 0 auto; padding: 12px 16px 0; }
 .copy { background: none; border: 0; cursor: pointer; color: var(--muted); font-size: 12px; padding: 0 4px; }
 .copy:hover { color: var(--accent); }
 .demo-banner { background: var(--bg); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 10px 16px; text-align: center; }
 .demo-banner code { background: rgba(128,128,128,.15); padding: 1px 6px; border-radius: 3px; }
+
+.panel-actions { display: flex; gap: 10px; align-items: baseline; }
+.panel-refresh { background: none; border: 0; cursor: pointer; color: var(--muted); font-size: 12px; padding: 0; }
+.panel-refresh:hover { color: var(--accent); }
+.panel-refresh[disabled] { cursor: progress; opacity: .5; }
+/* htmx puts .htmx-request on whatever hx-indicator points at, for exactly as long as the
+   request is in flight. Without this the only feedback on a 30-to-60 second check was none. */
+.panel-running { display: none; font-size: 12px; margin: 6px 0 0; }
+.panel.htmx-request .panel-running { display: block; }
+.panel.htmx-request .panel-run, .panel.htmx-request .findings { opacity: .5; }
+.panel-run[disabled] { cursor: progress; opacity: .6; }

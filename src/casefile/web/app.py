@@ -17,7 +17,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers at import
-from casefile.cache import run_cached
+from casefile.cache import cached_result, run_cached
 from casefile.cases import CaseStoreError, Star, delete_case, is_starred, list_cases, load_case, star, unstar
 from casefile.catalog import links_for
 from casefile.detect import detect
@@ -42,18 +42,28 @@ templates.env.globals["is_starred"] = lambda t, v, sid, f: is_starred(
 def sections_for(raw: str, results: dict | None = None) -> list[dict]:
     """The result page's data shape, one entry per reading of the input.
 
-    `results` prefills panels for the static demo build. Live it is empty and every panel
-    self-loads. Sharing this with the demo is what stops the two pages drifting: the link
-    filtering, the ordering and the panel set are decided once, here.
+    `results` prefills panels for the static demo build. Live, anything already in the cache is
+    prefilled the same way, so reopening a search you have already run paints with the page
+    instead of round-tripping, and only genuinely unknown sources self-load. That is also what
+    keeps an on-demand result on the page across reloads: consent is for the egress, and a cache
+    hit spends none.
+
+    Sharing this with the demo is what stops the two pages drifting: the link filtering, the
+    ordering and the panel set are decided once, here.
     """
     sections = []
     for candidate in detect(raw):
+        panels = fetchers_for(candidate.type)
+        if results is None:
+            known = {r.id: hit for r in panels if (hit := cached_result(r.id, candidate.type, candidate.value))}
+        else:
+            known = results
         sections.append(
             {
                 "type": candidate.type.value,
                 "value": candidate.value,
-                "panels": fetchers_for(candidate.type),
-                "results": results or {},
+                "panels": panels,
+                "results": known,
                 "links": links_for(candidate, exclude=fetched_ids()),
             }
         )
@@ -90,8 +100,11 @@ async def panel(request: Request) -> HTMLResponse:
     rec = registered_fetcher(source_id)
     if rec is not None and entity_type not in rec.accepts:
         return _dead_panel(request, source_id, f"{source_id} does not accept {entity_type}")
+    # refresh=1 is the panel's own re-run control: ignore what is stored, but replace it, so the
+    # answer you just asked for is the one the next page load shows.
+    refresh = request.query_params.get("refresh") == "1"
     async with build_client() as client:
-        result = await run_cached(source_id, value, entity_type, client)
+        result = await run_cached(source_id, value, entity_type, client, refresh=refresh)
     return templates.TemplateResponse(request, "panel.html", {"result": result, "t": entity_type.value, "v": value})
 
 
