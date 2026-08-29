@@ -12,8 +12,6 @@ from itertools import groupby
 
 from casefile.cases import Case
 
-FORMATS = ("md", "json", "html")
-
 _SAFE_SCHEMES = ("https://", "http://")
 
 _HTML_CSS = """
@@ -43,8 +41,13 @@ def _md(text: str) -> str:
     return text.replace("\r", " ").replace("\n", " ")
 
 
-def _safe_url(url: str | None) -> str | None:
-    """Findings come from third parties, so a url is only a link if its scheme is one we allow."""
+def safe_url(url: str | None) -> str | None:
+    """Findings come from third parties, so a url is only a link if its scheme is one we allow.
+
+    Public and registered as a Jinja filter, because the web templates used to re-express this
+    inline and got it subtly wrong: their version omitted the casefold, so HTTPS://x rendered as
+    plain text in the app while linking in an export.
+    """
     if url and url.lower().startswith(_SAFE_SCHEMES):
         return url
     return None
@@ -64,7 +67,7 @@ def _to_markdown(case: Case) -> str:
     for source_id, stars in _by_source(case):
         lines += ["", f"## {_md(source_id)}", ""]
         for s in stars:
-            url = _safe_url(s.url)
+            url = safe_url(s.url)
             rendered = f"[{_md(s.value)}]({url})" if url else _md(s.value)
             lines.append(f"- **{_md(s.label)}**: {rendered}")
     lines += ["", "---", "", "Exported by casefile. Only starred findings are included."]
@@ -98,7 +101,7 @@ def _to_html(case: Case) -> str:
     for source_id, stars in _by_source(case):
         parts.append(f"<h2>{escape(source_id)}</h2><ul>")
         for s in stars:
-            url = _safe_url(s.url)
+            url = safe_url(s.url)
             value = (
                 f'<a href="{escape(url)}" rel="noreferrer noopener">{escape(s.value)}</a>' if url else escape(s.value)
             )
@@ -109,12 +112,23 @@ def _to_html(case: Case) -> str:
     return "\n".join(parts) + "\n"
 
 
-_RENDERERS = {"md": _to_markdown, "json": _to_json, "html": _to_html}
+# The one place a format is declared: renderer and media type together, so the download route
+# cannot know about a format the renderer does not have, or type it differently.
+_RENDERERS = {
+    "md": (_to_markdown, "text/markdown; charset=utf-8"),
+    "json": (_to_json, "application/json"),
+    "html": (_to_html, "text/html; charset=utf-8"),
+}
+FORMATS = tuple(_RENDERERS)
+
+
+def media_type(fmt: str) -> str:
+    return _RENDERERS[fmt][1]
 
 
 def export_case(case: Case, fmt: str) -> str:
     try:
-        render = _RENDERERS[fmt]
+        render = _RENDERERS[fmt][0]
     except KeyError:
         raise ValueError(f"unknown export format {fmt!r}, expected one of {', '.join(FORMATS)}") from None
     return render(case)

@@ -8,7 +8,7 @@
     {% for f in result.findings %}
     <li>{% if t and v %}{% with sid = result.source_id, starred = is_starred(t, v, result.source_id, f) %}
       {% include "star_button.html" %}{% endwith %}{% endif %}<span class="f-label">{{ f.label }}</span>
-      {% if f.url and f.url.startswith(('http://', 'https://')) %}<a href="{{ f.url }}" rel="noreferrer noopener" target="_blank">{{ f.value }}</a>
+      {% if f.url | safe_url %}<a href="{{ f.url | safe_url }}" rel="noreferrer noopener" target="_blank">{{ f.value }}</a>
       {% else %}<span class="f-value">{{ f.value }}</span>{% endif %}
       <button class="copy" type="button" data-copy="{{ f.value }}"
               title="Copy this value" aria-label="Copy this value">copy</button>

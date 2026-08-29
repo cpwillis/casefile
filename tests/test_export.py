@@ -23,11 +23,22 @@ def test_every_format_is_reachable():
     assert set(FORMATS) == {"md", "json", "html"}
 
 
-def test_the_web_layer_knows_a_media_type_for_every_format():
-    """FORMATS is the one list; a format the download route cannot type would 500 on click."""
-    from casefile.web.app import _MEDIA
+@pytest.mark.parametrize("fmt", ["md", "json", "html"])
+def test_every_format_has_both_a_renderer_and_a_media_type(fmt):
+    """One table declares both, so the download route cannot know a format the renderer lacks."""
+    from casefile.export import media_type
 
-    assert set(_MEDIA) == set(FORMATS)
+    assert export_case(CASE, fmt)
+    assert media_type(fmt)
+
+
+def test_an_uppercase_scheme_is_treated_the_same_everywhere():
+    """The templates used to re-express this rule without the casefold, so HTTPS:// linked in an
+    export and rendered as plain text in the app. One shared filter now decides."""
+    from casefile.export import safe_url
+
+    assert safe_url("HTTPS://EXAMPLE.COM/x") == "HTTPS://EXAMPLE.COM/x"
+    assert safe_url("JavaScript:alert(1)") is None
 
 
 @pytest.mark.parametrize("fmt", ["md", "json", "html"])

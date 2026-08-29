@@ -18,8 +18,8 @@
   <ul class="findings">
     {% for s in case.stars %}
     <li><span class="f-label">{{ s.source_id }} · {{ s.label }}</span>
-      {% if s.url and s.url.startswith(('http://', 'https://')) %}
-      <a href="{{ s.url }}" rel="noreferrer noopener" target="_blank">{{ s.value }}</a>
+      {% if s.url | safe_url %}
+      <a href="{{ s.url | safe_url }}" rel="noreferrer noopener" target="_blank">{{ s.value }}</a>
       {% else %}<span class="f-value">{{ s.value }}</span>{% endif %}
     </li>
     {% endfor %}

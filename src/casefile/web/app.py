@@ -21,7 +21,7 @@ from casefile.cache import run_cached
 from casefile.cases import CaseStoreError, Star, delete_case, is_starred, list_cases, load_case, star, unstar
 from casefile.catalog import links_for
 from casefile.detect import detect
-from casefile.export import FORMATS, export_case
+from casefile.export import FORMATS, export_case, media_type, safe_url
 from casefile.fetchers import SourceResult, State, fetched_ids, fetchers_for, registered_fetcher
 from casefile.fetchers.http import build_client
 from casefile.types import EntityType
@@ -31,6 +31,8 @@ templates = Jinja2Templates(directory=HERE / "templates")
 # Exposed to templates so a finding row can render its own star state without a second query
 # layer. Kept to one read-only helper rather than handing templates the whole store.
 templates.env.globals["export_formats"] = FORMATS
+# One scheme allowlist for findings, shared with export rather than re-expressed per template.
+templates.env.filters["safe_url"] = safe_url
 templates.env.globals["is_starred"] = lambda t, v, sid, f: is_starred(
     EntityType(t), v, Star(sid, f.label, f.value, f.url)
 )
@@ -92,9 +94,6 @@ async def panel(request: Request) -> HTMLResponse:
     async with build_client() as client:
         result = await run_cached(source_id, value, entity_type, client)
     return templates.TemplateResponse(request, "panel.html", {"result": result, "t": entity_type.value, "v": value})
-
-
-_MEDIA = {"md": "text/markdown; charset=utf-8", "json": "application/json", "html": "text/html; charset=utf-8"}
 
 
 def _same_origin(request: Request) -> bool:
@@ -199,7 +198,7 @@ async def case_export(request: Request) -> Response:
     body = export_case(case, fmt)
     return Response(
         body,
-        media_type=_MEDIA[fmt],
+        media_type=media_type(fmt),
         headers={"content-disposition": f'attachment; filename="{_filename_for(case, fmt)}"'},
     )
 
