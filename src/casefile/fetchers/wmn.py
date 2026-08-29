@@ -124,5 +124,7 @@ async def whatsmyname(value: str, entity_type: EntityType, client: httpx.AsyncCl
         raise RuntimeError(f"all {unreachable} site checks failed, so nothing was actually checked")
     findings = sorted((r for r in results if isinstance(r, Finding)), key=lambda f: f.label.lower())
     if unreachable:
-        findings.insert(0, Finding(label="note", value=f"{unreachable} of {len(sites)} sites could not be reached"))
+        findings.insert(
+            0, Finding(label="note", value=f"{unreachable} of {len(sites)} sites could not be reached", note=True)
+        )
     return findings

@@ -4,7 +4,8 @@
 {% block content %}
 {% if not sections %}
 <main class="intro" id="pane">
-  <p>Nothing recognised in <code>{{ raw }}</code>.</p>
+  <h1>Nothing recognised</h1>
+  <p>casefile could not read <code>{{ raw }}</code> as any identifier it knows.</p>
   <p class="muted">casefile matches on shape, so it needs something with a recognisable one. Try a
     domain, an IP, an email address, a username, a phone number in international form, a file hash,
     a CVE id, a bitcoin address or a transaction hash.</p>
@@ -16,6 +17,9 @@
 <p class="summary muted">{{ sections | length }} reading{{ "s" if sections | length != 1 }}
  · {{ sections | map(attribute="links") | map("length") | sum }} links{% if not demo %}
  · <a href="/cases">saved cases</a>{% endif %}</p>
+{% if not demo %}
+<div class="page-save">{% with section = sections | first %}{% include "save_control.html" %}{% endwith %}</div>
+{% endif %}
 <div class="layout">
   <nav class="rail" aria-label="Results and readings">
     <div class="rail-block">
@@ -51,7 +55,6 @@
       <h3 class="reading">{{ section.type }} <span class="muted">{{ section.value }}</span>
         {% if section.speculative %}<span class="tag">a guess</span>
         {% elif loop.first %}<span class="tag">most likely</span>{% endif %}</h3>
-      {% if not demo %}{% with section = section %}{% include "save_control.html" %}{% endwith %}{% endif %}
       <div class="panels">
         {% for p in section.panels %}
         {% set panel_url = '/panel/' ~ p.id ~ '?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type %}
@@ -110,8 +113,6 @@
         <span class="muted">{{ section.value }}</span>
         <span class="muted">· {{ section.links | length }}</span></h3>
       {% endif %}
-      {% if not demo and section not in sourced %}
-      {% with section = section %}{% include "save_control.html" %}{% endwith %}{% endif %}
       <label class="visually-hidden" for="filter-{{ section.type }}">Filter {{ section.type }} links</label>
       <input class="filter" id="filter-{{ section.type }}" type="search" placeholder="filter links…"
              data-filters="links-{{ section.type }}-list">

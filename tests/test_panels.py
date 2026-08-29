@@ -161,3 +161,30 @@ def test_a_panel_can_be_focused_after_its_own_swap(monkeypatch):
     text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
     assert 'tabindex="-1"' in text
     assert 'id="star-' in text  # the same derived id the result page renders
+
+
+def test_casefiles_own_notes_are_not_starrable_or_pivotable(monkeypatch):
+    """A note is the tool's remark about the lookup, not something a source reported. Starring it
+    would put casefile's own commentary into an exported case as third-party evidence."""
+    monkeypatch.setattr(
+        "casefile.web.app.run_cached",
+        stub_result(
+            Finding("note", "NXDOMAIN: this name does not exist in DNS", note=True), Finding("A", "192.0.2.10")
+        ),
+    )
+    text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
+    assert 'class="own-note"' in text
+    assert text.count('class="star') == 1, "the note got a star button"
+    assert text.count('class="copy"') == 1
+    assert text.count('class="pivot"') == 1
+
+
+def test_a_value_is_never_shown_in_a_different_case_than_it_is_stored(monkeypatch):
+    """.reading uppercased the identifier as well as the type label, so a case-sensitive handle
+    was displayed as a different string than the one saved."""
+    from pathlib import Path
+
+    css = (Path(__file__).resolve().parents[1] / "src/casefile/web/static/casefile.css").read_text()
+    assert ".reading .muted" in css and "text-transform: none" in css
+    text = client.get("/q", params={"v": "Acme-Example"}).text
+    assert "Acme-Example" in text and "ACME-EXAMPLE" not in text

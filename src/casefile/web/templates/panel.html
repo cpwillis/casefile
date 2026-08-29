@@ -32,16 +32,17 @@
   {% endif %}
   <ul class="findings" id="{{ findings_id }}">
     {% for f in result.findings %}
-    <li>{% if t and v %}{% with sid = result.source_id, starred = (result.source_id, f.label, f.value) in starred_keys %}
+    <li{% if f.note %} class="own-note"{% endif %}>{% if t and v and not f.note %}
+      {% with sid = result.source_id, starred = (result.source_id, f.label, f.value) in starred_keys %}
       {% include "star_button.html" %}{% endwith %}{% endif %}<span class="f-label">{{ f.label }}</span>
       {% if f.url | safe_url %}<a href="{{ f.url | safe_url }}" rel="noreferrer noopener" target="_blank">{{ f.value }}</a>
       {% else %}<span class="f-value">{{ f.value }}</span>{% endif %}
-      {% if is_pivotable(f.value) %}
+      {% if is_pivotable(f.value) and not f.note %}
       <a class="pivot" href="/q?v={{ f.value | urlencode }}"
          title="Search casefile for this value" aria-label="Search casefile for {{ f.value }}">search</a>
       {% endif %}
-      <button class="copy" type="button" data-copy="{{ f.value }}"
-              title="Copy this value" aria-label="Copy this value">copy</button>
+      {% if not f.note %}<button class="copy" type="button" data-copy="{{ f.value }}"
+              title="Copy this value" aria-label="Copy this value">copy</button>{% endif %}
     </li>
     {% endfor %}
   </ul>

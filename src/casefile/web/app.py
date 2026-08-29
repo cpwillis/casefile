@@ -291,6 +291,9 @@ async def save_route(request: Request) -> Response:
             # show no sign of that, so go where the consequence is visible.
             if held_by and len(held_by.targets) == 1:
                 return RedirectResponse("/cases", status_code=303)
+            # Posted from a case page: go back to the case, not to a search for what you discarded.
+            if back := form.get("back"):
+                return RedirectResponse(f"/case/{quote(back)}", status_code=303)
         else:
             save_target(entity_type, value, case_id=form.get("case_id") or None, name=form.get("name", ""))
     except CaseStoreError as exc:
@@ -346,7 +349,10 @@ async def case_export(request: Request) -> Response:
 async def case_delete(request: Request) -> Response:
     if not _same_origin(request):
         return PlainTextResponse("cross-site request refused", status_code=403)
-    delete_case(request.path_params["case_id"])
+    if not delete_case(request.path_params["case_id"]):
+        # Reporting a delete that never happened is the same class of lie as a source that
+        # reports "nothing found" for a lookup it never made.
+        return templates.TemplateResponse(request, "cases.html", {"cases": list_cases(), "missing": True})
     return RedirectResponse("/cases", status_code=303)
 
 

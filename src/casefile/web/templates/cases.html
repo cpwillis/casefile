@@ -14,6 +14,9 @@
          auto-named after its single identifier would otherwise print that identifier twice. #}
       {% set others = c.targets | rejectattr("value", "equalto", c.name) | map(attribute="value") | list %}
       {% if others %}<span class="muted">with {{ others | join(", ") }}</span>{% endif %}
+      {# Two cases can legitimately share a name: a username and a company can be the same word
+         and different subjects. The reading is what tells them apart on the dashboard. #}
+      <span class="muted">{{ c.targets | map(attribute="entity_type") | unique | join(", ") }}</span>
       <span class="muted">· {{ c.star_count }} saved</span>
     </li>
     {% endfor %}

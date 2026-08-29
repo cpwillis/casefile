@@ -28,6 +28,9 @@ a { color: var(--accent); }
 .region > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
                border-bottom: 1px solid var(--line); padding-bottom: 6px; margin: 0 0 4px; }
 .region-note { font-size: 12px; margin: 0 0 16px; }
+/* Only the type name is a label. The identifier beside it is data, and uppercasing it showed
+   Acme-Example as ACME-EXAMPLE, which is a different string for a case-sensitive handle. */
+.reading .muted, .type-section h2 .muted { text-transform: none; letter-spacing: 0; }
 .reading { text-transform: uppercase; letter-spacing: .04em; font-size: 14px; scroll-margin-top: 16px;
            margin: 22px 0 8px; }
 .tag { font-size: 11px; border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px; color: var(--muted); text-transform: none; letter-spacing: 0; }
@@ -135,3 +138,6 @@ h4.panel-id { font-size: 15px; margin: 0; }
 .links li { break-inside: avoid; }
 .filter-status { font-size: 12px; margin-left: 8px; }
 .panel:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.own-note { font-style: italic; color: var(--muted); }
+.own-note .f-label { font-style: normal; }
+.page-save { max-width: 1200px; margin: 0 auto; padding: 0 16px 10px; }

@@ -48,7 +48,7 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
             label = _DNS_TYPES.get(row.get("type"), str(row.get("type")))
             findings.append(Finding(label=label, value=row.get("data", "")))
     if absent == len(types):
-        return [Finding(label="note", value="NXDOMAIN: this name does not exist in DNS")]
+        return [Finding(label="note", value="NXDOMAIN: this name does not exist in DNS", note=True)]
     return findings
 
 
@@ -134,7 +134,7 @@ async def crtsh(value: str, entity_type: EntityType, client: httpx.AsyncClient) 
         # Said out loud, never a silent slice: "247 subdomains" that quietly became 500 is the
         # same confident-wrong-answer class as an unqueried source rendering as empty.
         note = f"{len(names)} names found, showing the first {len(shown)} in order"
-        findings.insert(0, Finding(label="note", value=note))
+        findings.insert(0, Finding(label="note", value=note, note=True))
     return findings
 
 
@@ -152,7 +152,7 @@ async def internetdb(value: str, entity_type: EntityType, client: httpx.AsyncCli
     if not address.is_global:
         # Skipped, not empty. Verified: 10.0.0.1 answers 200 with junk, so asking is worse than
         # useless, but rendering that as "responded, nothing found" claims an answer we never got.
-        return [Finding(label="note", value="not a public address, so InternetDB was not queried")]
+        return [Finding(label="note", value="not a public address, so InternetDB was not queried", note=True)]
     resp = await http.get(
         client,
         f"https://internetdb.shodan.io/{quote(value, safe='')}",
@@ -333,6 +333,7 @@ async def phone_meta(value: str, entity_type: EntityType, client) -> list[Findin
                 Finding(
                     label="note",
                     value="no country code: prefix with + and the country code for region, carrier and timezone",
+                    note=True,
                 )
             ]
         return []
@@ -508,7 +509,7 @@ async def mempool_address(value: str, entity_type: EntityType, client: httpx.Asy
         # Every valid address exists implicitly, so there is no such thing as "not found" here.
         # Saying "no on-chain activity" is the truthful reading; "nothing found" would imply the
         # address is unknown rather than simply unused.
-        return [Finding(label="note", value="valid address with no on-chain activity")]
+        return [Finding(label="note", value="valid address with no on-chain activity", note=True)]
     findings = [
         Finding(label="balance", value=_sats(received - sent)),
         Finding(label="total received", value=_sats(received)),

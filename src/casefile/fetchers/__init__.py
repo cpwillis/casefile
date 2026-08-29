@@ -31,6 +31,10 @@ class Finding:
     label: str
     value: str
     url: str | None = None
+    # casefile's own remark about the lookup ("this name does not exist", "showing the first
+    # 500"), not something a source reported. It is not starrable and not a pivot: an exported
+    # case must not carry the tool's commentary as though a third party had said it.
+    note: bool = False
 
 
 @dataclass(frozen=True)

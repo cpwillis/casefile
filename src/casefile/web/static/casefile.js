@@ -92,3 +92,18 @@ document.addEventListener("input", (event) => {
   }
   status.textContent = input.value.trim() === "" ? "" : shown ? `${shown} of ${list.children.length}` : "nothing matches";
 });
+
+// A rail link can point at a heading inside a folded group. Open the group first, or the click
+// scrolls to a collapsed summary and looks like it did nothing.
+function revealHashTarget() {
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (!id) return;
+  const target = document.getElementById(id);
+  if (!target) return;
+  for (let el = target; el; el = el.parentElement) {
+    if (el.tagName === "DETAILS") el.open = true;
+  }
+  target.scrollIntoView();
+}
+window.addEventListener("hashchange", revealHashTarget);
+document.addEventListener("DOMContentLoaded", revealHashTarget);

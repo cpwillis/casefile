@@ -368,3 +368,45 @@ def test_the_dashboard_does_not_print_a_case_name_twice():
     client.post("/save", data=SAVE, headers=SAME)
     text = client.get("/cases").text
     assert text.count("acme-example") == 1
+
+
+def test_one_save_control_per_page_not_one_per_reading():
+    """Per reading, saving example.com four ways made four dashboard rows all called
+    "example.com" with nothing to tell them apart."""
+    assert client.get("/q", params={"v": "example.com"}).text.count("Save this identifier") == 1
+
+
+def test_the_dashboard_distinguishes_cases_that_share_a_name():
+    """A username and a company can be the same word and different subjects, so the reading is
+    what tells the rows apart."""
+    for t in ("username", "company"):
+        client.post("/save", data={"t": t, "v": "smith"}, headers=SAME)
+    text = client.get("/cases").text
+    assert "username" in text and "company" in text
+
+
+def test_removing_an_identifier_from_a_case_page_returns_to_that_case():
+    client.post("/save", data=SAVE, headers=SAME)
+    cid = _saved_case_id()
+    client.post("/save", data={"t": "domain", "v": "second.example", "case_id": cid}, headers=SAME)
+    resp = client.post(
+        "/save",
+        data={"t": "domain", "v": "second.example", "action": "remove", "back": cid},
+        headers=SAME,
+        follow_redirects=False,
+    )
+    assert resp.headers["location"] == f"/case/{cid}", "you were sent to a search for what you discarded"
+
+
+def test_deleting_a_case_that_does_not_exist_says_so():
+    """Reporting a delete that never happened is the same class of lie as a source reporting
+    "nothing found" for a lookup it never made."""
+    resp = client.post("/case/never-existed/delete", headers=SAME, follow_redirects=False)
+    assert resp.status_code == 200
+    assert "no longer exists" in resp.text
+
+
+def test_the_unrecognised_page_has_a_heading_and_a_way_out():
+    text = client.get("/q", params={"v": "!!!"}).text
+    assert "<h1>Nothing recognised</h1>" in text
+    assert 'href="/cases"' in text
