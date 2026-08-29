@@ -42,7 +42,7 @@
       <h3 class="reading">{{ section.type }} <span class="muted">{{ section.value }}</span>
         {% if loop.first %}<span class="tag">most likely</span>{% endif %}</h3>
       {% if not demo %}{% with section = section %}{% include "save_control.html" %}{% endwith %}{% endif %}
-      <div class="panels">
+      <div class="panels" aria-live="polite" aria-label="{{ section.type }} sources">
         {% for p in section.panels %}
         {% set panel_url = '/panel/' ~ p.id ~ '?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type %}
         {% set prerendered = section.results.get(p.id) %}

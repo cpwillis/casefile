@@ -25,13 +25,21 @@ could be and shows every relevant public source, links first.
 
 Nothing is configured, nothing is uploaded, and no account is involved. Ctrl-C stops it.
 
-Add `--no-browser` over SSH or on a headless box, and `--port` if 8765 is taken.
+Add `--no-browser` on a headless box, and `--port` if 8765 is taken.
+
+casefile binds `127.0.0.1` and has no flag to bind anything else, on purpose. To reach it on a
+remote machine, forward the port rather than exposing it:
+
+```bash
+ssh -L 8765:127.0.0.1:8765 you@box   # then open http://127.0.0.1:8765 locally
+```
 
 ### Saving what you find
 
-Star a finding and casefile keeps it. Stars are grouped into a case per target, so reopening the
-app shows what you were working on rather than an empty box. Export a case as Markdown, JSON or a
-self-contained HTML file.
+Star a finding and casefile keeps it, or use **Save this search** to keep a lead before anything
+on it is worth starring. A case holds as many identifiers as you put in it, so reopening the app
+shows the investigation you were working on rather than an empty box. Export a case as Markdown,
+JSON or a self-contained HTML file.
 
 ```bash
 casefile --cases                          # list saved cases

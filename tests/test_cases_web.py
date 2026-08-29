@@ -278,3 +278,38 @@ def test_a_finding_that_is_itself_an_identifier_offers_a_pivot():
     client.post("/star", data=STAR, headers=SAME)
     text = client.get(f"/case/{_saved_case_id()}").text
     assert 'class="pivot" href="/q?v=192.0.2.10"' in text
+
+
+def test_the_star_button_id_matches_across_both_render_paths():
+    """htmx restores focus after an outerHTML swap only when the element carried an id, and only
+    if the replacement carries the same one. The button is rendered from two places: inside a
+    panel, and on its own by /star. A mismatch loses focus exactly as having no id did."""
+    import re
+
+    from helpers import stub_result
+
+    import casefile.web.app as appmod
+    from casefile.fetchers import Finding
+
+    original = appmod.run_cached
+    appmod.run_cached = stub_result(Finding("A", "192.0.2.10"))
+    try:
+        panel = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
+    finally:
+        appmod.run_cached = original
+    in_panel = re.search(r'<button id="(star-[0-9a-f]+)"', panel).group(1)
+
+    swapped = client.post("/star", data=STAR, headers=SAME).text
+    on_its_own = re.search(r'<button id="(star-[0-9a-f]+)"', swapped).group(1)
+    assert in_panel == on_its_own, "the swap replaces the button with a differently-identified one"
+
+
+def test_the_star_buttons_accessible_name_does_not_change_with_its_state():
+    """aria-pressed carries the state. A name that flips too makes a screen reader announce
+    "Remove from your saved case, pressed", which reads as contradictory."""
+    saved = client.post("/star", data=STAR, headers=SAME).text
+    unsaved = client.post("/star", data=dict(STAR, action="unstar"), headers=SAME).text
+    for text in (saved, unsaved):
+        assert 'aria-label="Save this finding"' in text
+    assert 'aria-pressed="true"' in saved
+    assert 'aria-pressed="false"' in unsaved

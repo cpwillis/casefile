@@ -1,5 +1,6 @@
 """Starlette app. Binds loopback only; this is a local tool, not a service."""
 
+import hashlib
 import re
 import threading
 import webbrowser
@@ -49,6 +50,11 @@ templates.env.globals["export_formats"] = FORMATS
 templates.env.globals["is_pivotable"] = is_pivotable
 # Every timestamp the store keeps was invisible in the UI while the exports carried them.
 templates.env.filters["when"] = lambda ts: when(ts) if ts else "unknown"
+# htmx restores focus after an outerHTML swap only if the element that had it carried an id, so
+# without this every star sent focus to <body> and a keyboard user re-tabbed from the top.
+templates.env.filters["dom_id"] = lambda parts: (
+    "star-" + hashlib.blake2s("\x00".join(parts).encode("utf-8", "surrogatepass"), digest_size=8).hexdigest()
+)
 templates.env.globals["wmn"] = {"id": wmn.SOURCE_ID, "credit": wmn.CREDIT, "url": wmn.CREDIT_URL}
 # One scheme allowlist for findings, shared with export rather than re-expressed per template.
 templates.env.filters["safe_url"] = safe_url
