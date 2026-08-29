@@ -9,10 +9,11 @@ from pathlib import Path
 
 import casefile.fetchers.sources  # noqa: F401 -- registers fetchers
 from casefile import __version__
-from casefile.cache import run_cached
+from casefile.cache import clear_cache, run_cached
+from casefile.cases import forget_all, list_cases, load_case
 from casefile.catalog import links_for
 from casefile.detect import detect
-from casefile.export import FORMATS
+from casefile.export import FORMATS, export_case
 from casefile.fetchers import fetchers_for, registered_fetcher
 from casefile.fetchers.http import build_client
 
@@ -27,10 +28,6 @@ async def _fetch_all(candidates, use_cache: bool = True, deep: bool = False):
             got = await asyncio.gather(*(run_cached(sid, c.value, c.type, client, use_cache=use_cache) for sid in ids))
             results[(c.type, c.value)] = got
         return results
-
-
-def _links(candidate):
-    return [{"id": link.id, "name": link.name, "url": link.url, "notes": link.notes} for link in links_for(candidate)]
 
 
 def _sanitize(text: str, keep: str = "") -> str:
@@ -52,9 +49,14 @@ def _render_text(raw, candidates, results):
             detail = f" {_sanitize(r.detail)}" if r.detail else ""
             lines.append(f"    [{r.state}]{detail} {r.source_id}")
             for f in r.findings:
-                lines.append(f"      {_sanitize(f.label)}: {_sanitize(f.value)}")
-        for link in _links(c):
-            lines.append(f"    {link['name']:<28} {link['url']}")
+                # the url is often the whole result (a WhatsMyName hit's value is the site
+                # category; the profile link is the finding), so text mode must not drop it
+                url = f"  {_sanitize(f.url)}" if f.url else ""
+                lines.append(f"      {_sanitize(f.label)}: {_sanitize(f.value)}{url}")
+        # notes are deliberately omitted here and carried by --json, the web and every export:
+        # 46 of 49 domain sources have one, and inline they push lines past 200 characters
+        for link in links_for(c):
+            lines.append(f"    {link.name:<28} {link.url}")
     return "\n".join(lines)
 
 
@@ -67,7 +69,7 @@ def _render_json(raw, candidates, results):
                     "type": c.type.value,
                     "value": c.value,
                     "sources": [asdict(r) for r in results.get((c.type, c.value), [])],
-                    "links": _links(c),
+                    "links": [asdict(link) for link in links_for(c)],
                 }
                 for c in candidates
             ],
@@ -118,20 +120,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.clear_cache:
-        from casefile.cache import clear_cache
-
         print(f"cleared {clear_cache()} cached responses")
         return 0
 
     if args.forget_cases:
-        from casefile.cases import forget_all
-
         print(f"forgot {forget_all()} saved cases")
         return 0
 
     if args.cases:
-        from casefile.cases import list_cases
-
         saved = list_cases()
         if not saved:
             print("no saved cases yet", file=sys.stderr)
@@ -141,9 +137,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.export:
-        from casefile.cases import load_case
-        from casefile.export import export_case
-
         case = load_case(args.export)
         if case is None:
             print(f"no such case {args.export!r}", file=sys.stderr)
@@ -154,6 +147,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.value is None:
+        # the one import worth deferring: starlette and uvicorn cost ~64ms that `casefile
+        # <target>` should not pay
         from casefile.web.app import serve
 
         return serve(port=args.port, open_browser=not args.no_browser)

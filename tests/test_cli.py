@@ -134,3 +134,17 @@ def test_deep_flag_includes_on_demand_sources(monkeypatch, capsys):
     monkeypatch.setattr(climod, "run_cached", fake)
     assert main(["octocat", "--json", "--deep"]) == 0
     assert "whatsmyname" in seen
+
+
+def test_text_output_keeps_a_finding_url(monkeypatch, capsys):
+    """For a WhatsMyName hit the value is the site category and the url is the actual result,
+    so a text renderer that drops urls reports a hit you cannot follow."""
+    import casefile.cli as climod
+    from casefile.fetchers import Finding, SourceResult, State
+
+    async def fake(source_id, value, entity_type, client, *, use_cache=True):
+        return SourceResult(source_id, State.OK, (Finding("GitHub", "coding", url="https://github.example/x"),))
+
+    monkeypatch.setattr(climod, "run_cached", fake)
+    assert main(["octocat"]) == 0
+    assert "https://github.example/x" in capsys.readouterr().out
