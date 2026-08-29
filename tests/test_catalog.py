@@ -4,26 +4,24 @@ from casefile.catalog import CatalogError, Source, build_url, load_catalog, sour
 from casefile.types import EntityType
 
 
-def test_loads_the_real_catalog():
+def test_the_shipped_catalogue_obeys_every_rule():
+    """One pass over the real catalogue, asserting everything a contributed entry must satisfy.
+
+    The emptiness guard comes first on purpose: these were four separate `for s in catalog`
+    loops, and a loader regression that returned nothing left all four green.
+    """
     catalog = load_catalog()
-    assert catalog
-    assert all(isinstance(s, Source) for s in catalog)
-
-
-def test_source_ids_are_unique_across_files():
-    ids = [s.id for s in load_catalog()]
+    assert catalog, "the catalogue loaded empty, so nothing below is being checked"
+    ids = [s.id for s in catalog]
     assert len(ids) == len(set(ids)), f"duplicate ids: {sorted({i for i in ids if ids.count(i) > 1})}"
-
-
-def test_every_url_carries_the_value_placeholder():
-    for source in load_catalog():
+    for source in catalog:
+        assert isinstance(source, Source)
         assert "{value}" in source.url, f"{source.id} has no {{value}} in its url"
-
-
-def test_every_url_is_https():
-    """Blocks a contributed entry shipping javascript: or data: as a clickable link."""
-    for source in load_catalog():
+        # blocks a contributed entry shipping javascript: or data: as a clickable link
         assert source.url.startswith("https://"), f"{source.id} url is not https"
+        # _parse_source builds these through EntityType(), so an unknown one cannot load at all
+        assert set(source.accepts) <= set(EntityType), f"{source.id} accepts an unknown type"
+        assert source.accepts, f"{source.id} accepts nothing"
 
 
 def test_non_https_scheme_is_rejected(tmp_path):
@@ -32,13 +30,6 @@ def test_non_https_scheme_is_rejected(tmp_path):
     )
     with pytest.raises(CatalogError, match="https"):
         load_catalog(tmp_path)
-
-
-def test_every_accepts_entry_is_a_known_type():
-    known = set(EntityType)
-    for source in load_catalog():
-        assert set(source.accepts) <= known, f"{source.id} accepts an unknown type"
-        assert source.accepts, f"{source.id} accepts nothing"
 
 
 def test_sources_for_filters_by_type():

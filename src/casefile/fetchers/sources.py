@@ -75,19 +75,15 @@ async def internetdb(value: str, entity_type: EntityType, client: httpx.AsyncCli
     if resp.status_code == 404:
         return []
     data = resp.json()
-    findings: list[Finding] = []
-    for port in data.get("ports", []):
-        findings.append(Finding(label="port", value=str(port)))
-    for host in data.get("hostnames", []):
-        findings.append(Finding(label="hostname", value=host))
-    for cpe in data.get("cpes", []):
-        findings.append(Finding(label="cpe", value=cpe))
-    for tag in data.get("tags", []):
-        findings.append(Finding(label="tag", value=tag))
-    for vuln in data.get("vulns", []):
-        findings.append(Finding(label="vuln", value=vuln, url=f"https://nvd.nist.gov/vuln/detail/{vuln}"))
+    findings = [Finding(label=label, value=str(item)) for key, label in _INTERNETDB_LISTS for item in data.get(key, [])]
+    findings += [
+        Finding(label="vuln", value=str(v), url=f"https://nvd.nist.gov/vuln/detail/{v}") for v in data.get("vulns", [])
+    ]
     return findings
 
+
+# (json key, label) for the plain list fields. vulns is separate: it is the only one with a url.
+_INTERNETDB_LISTS = (("ports", "port"), ("hostnames", "hostname"), ("cpes", "cpe"), ("tags", "tag"))
 
 _GITHUB_FIELDS = ("name", "company", "location", "bio", "blog", "public_repos", "created_at")
 
@@ -164,10 +160,17 @@ async def hashlookup(value: str, entity_type: EntityType, client: httpx.AsyncCli
         findings.append(Finding(label="known file", value=str(name)))
     if size := data.get("FileSize"):
         findings.append(Finding(label="size", value=f"{size} bytes"))
-    product = (data.get("ProductCode") or {}).get("ProductName")
-    if product:
+    if product := (data.get("ProductCode") or {}).get("ProductName"):
         findings.append(Finding(label="product", value=str(product)))
     return findings
+
+
+_BAZAAR_FIELDS = (
+    ("file_name", "file"),
+    ("signature", "signature"),
+    ("file_type", "type"),
+    ("first_seen", "first seen"),
+)
 
 
 @fetcher(id="malwarebazaar", accepts=[EntityType.HASH])
@@ -190,16 +193,8 @@ async def malwarebazaar(value: str, entity_type: EntityType, client: httpx.Async
         return []  # hash_not_found and friends mean looked-and-found-nothing
     findings: list[Finding] = []
     for row in payload.get("data", []):
-        if name := row.get("file_name"):
-            findings.append(Finding(label="file", value=str(name)))
-        if sig := row.get("signature"):
-            findings.append(Finding(label="signature", value=str(sig)))
-        if ftype := row.get("file_type"):
-            findings.append(Finding(label="type", value=str(ftype)))
-        if seen := row.get("first_seen"):
-            findings.append(Finding(label="first seen", value=str(seen)))
-        for tag in row.get("tags") or []:
-            findings.append(Finding(label="tag", value=str(tag)))
+        findings += [Finding(label=label, value=str(v)) for key, label in _BAZAAR_FIELDS if (v := row.get(key))]
+        findings += [Finding(label="tag", value=str(t)) for t in row.get("tags") or []]
     return findings
 
 
