@@ -70,6 +70,11 @@ def registered_fetcher(source_id: str) -> Registered | None:
     return _REGISTRY.get(source_id)
 
 
+def fetched_ids() -> frozenset[str]:
+    """Every source id that has a fetcher, for callers deciding what to render as a link."""
+    return frozenset(_REGISTRY)
+
+
 def fetchers_for(entity_type: EntityType) -> tuple[str, ...]:
     return tuple(r.id for r in _REGISTRY.values() if entity_type in r.accepts)
 

@@ -21,7 +21,6 @@ class Source:
     name: str
     accepts: tuple[EntityType, ...]
     url: str
-    tags: tuple[str, ...] = ()
     notes: str | None = None
     provenance: str | None = None
 
@@ -34,7 +33,6 @@ def _parse_source(raw: dict, origin: Path) -> Source:
             name=raw["name"],
             accepts=accepts,
             url=raw["url"],
-            tags=tuple(raw.get("tags", ())),
             notes=raw.get("notes"),
             provenance=raw.get("provenance"),
         )
@@ -76,3 +74,28 @@ def sources_for(catalog: tuple[Source, ...], entity_type: EntityType) -> tuple[S
 
 def build_url(source: Source, value: str) -> str:
     return source.url.replace(PLACEHOLDER, quote(value, safe=""))
+
+
+@dataclass(frozen=True)
+class Link:
+    """One catalogue source with its url already built for a specific value."""
+
+    id: str
+    name: str
+    url: str
+    notes: str | None = None
+
+
+def links_for(candidate, exclude: frozenset[str] = frozenset()) -> tuple[Link, ...]:
+    """Every catalogue link for a candidate, minus `exclude`.
+
+    `exclude` carries the ids a caller renders some other way. The web page passes the ids that
+    have a fetcher, because a source shown as a panel listed again as a link is the same source
+    twice. It lives here rather than in the caller so every surface can apply the same rule.
+    """
+    catalog = load_catalog()
+    return tuple(
+        Link(s.id, s.name, build_url(s, candidate.value), s.notes)
+        for s in sources_for(catalog, candidate.type)
+        if s.id not in exclude
+    )

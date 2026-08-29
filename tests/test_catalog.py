@@ -45,8 +45,8 @@ def test_build_url_percent_encodes_the_value():
 
 def test_a_real_catalogue_entry_builds_its_real_url():
     """The shipped catalogue, not a synthetic Source: a bad template here reaches users."""
+    from casefile.catalog import links_for
     from casefile.detect import detect
-    from casefile.report import links_for
 
     (candidate,) = [c for c in detect("example.com") if c.type is EntityType.DOMAIN]
     crtsh = next(link for link in links_for(candidate) if link.id == "crtsh")

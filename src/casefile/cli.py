@@ -10,11 +10,11 @@ from pathlib import Path
 import casefile.fetchers.sources  # noqa: F401 -- registers fetchers
 from casefile import __version__
 from casefile.cache import run_cached
+from casefile.catalog import links_for
 from casefile.detect import detect
 from casefile.export import FORMATS
 from casefile.fetchers import fetchers_for, registered_fetcher
 from casefile.fetchers.http import build_client
-from casefile.report import links_for
 
 REPO = "https://github.com/cpwillis/casefile"
 

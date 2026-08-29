@@ -19,11 +19,11 @@ from starlette.templating import Jinja2Templates
 import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers at import
 from casefile.cache import run_cached
 from casefile.cases import CaseStoreError, Star, delete_case, is_starred, list_cases, load_case, star, unstar
+from casefile.catalog import links_for
 from casefile.detect import detect
 from casefile.export import FORMATS, export_case
-from casefile.fetchers import SourceResult, State, fetchers_for, registered_fetcher
+from casefile.fetchers import SourceResult, State, fetched_ids, fetchers_for, registered_fetcher
 from casefile.fetchers.http import build_client
-from casefile.report import links_for
 from casefile.types import EntityType
 
 HERE = Path(__file__).resolve().parent
@@ -57,9 +57,7 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
                 "value": candidate.value,
                 "panels": _panels_for(candidate.type),
                 "results": results or {},
-                # a source with a fetcher is shown as a panel, so listing it again as a link
-                # would be the same source twice
-                "links": [link for link in links_for(candidate) if registered_fetcher(link.id) is None],
+                "links": links_for(candidate, exclude=fetched_ids()),
             }
         )
     return sections
