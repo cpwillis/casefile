@@ -52,6 +52,16 @@ def test_build_url_percent_encodes_the_value():
     assert build_url(source, "Acme & Co/Ltd") == "https://e.test/?q=Acme%20%26%20Co%2FLtd"
 
 
+def test_a_real_catalogue_entry_builds_its_real_url():
+    """The shipped catalogue, not a synthetic Source: a bad template here reaches users."""
+    from casefile.detect import detect
+    from casefile.report import links_for
+
+    (candidate,) = [c for c in detect("example.com") if c.type is EntityType.DOMAIN]
+    crtsh = next(link for link in links_for(candidate) if link.id == "crtsh")
+    assert crtsh.url == "https://crt.sh/?q=example.com"
+
+
 def test_malformed_entry_raises_with_the_file_named(tmp_path):
     (tmp_path / "bad.toml").write_bytes(b'[[source]]\nid = "x"\n')
     with pytest.raises(CatalogError, match="bad.toml"):

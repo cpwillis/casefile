@@ -123,9 +123,10 @@ def test_values_are_normalised_per_candidate():
     assert domain.value == "example.com"
 
 
-def test_empty_and_whitespace_yield_nothing():
+def test_empty_whitespace_and_punctuation_yield_nothing():
     assert detect("") == ()
     assert detect("   ") == ()
+    assert detect("!!!") == ()
 
 
 def test_no_duplicate_types():
