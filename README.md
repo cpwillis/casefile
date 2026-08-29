@@ -35,8 +35,9 @@ self-contained HTML file.
 
 ```bash
 casefile --cases                          # list saved cases
-casefile --export domain:example.com      # markdown to stdout
-casefile --export domain:example.com --format json
+casefile --cases                          # list them, with their case ids
+casefile --export <case-id>               # markdown to stdout
+casefile --export <case-id> --format json
 casefile --forget-cases                   # delete them all
 ```
 
@@ -46,8 +47,9 @@ different in kind, so they are purged by different commands:
 - **The response cache** is keyed on the identifier you searched, so for 24 hours it is in effect
   a local log of what you looked up, written automatically whether or not you star anything.
   `casefile --clear-cache` removes it.
-- **Saved cases** hold only the findings you explicitly starred, and are kept until you delete
-  them. `casefile --forget-cases` removes them all, or delete one from its page.
+- **Saved cases** hold the identifiers you saved and the findings you starred against them, and
+  are kept until you delete them. `casefile --forget-cases` removes them all, or delete one from
+  its page.
 
 A privacy purge must never destroy the work you deliberately saved, which is why clearing the
 cache leaves your cases alone.
@@ -111,13 +113,43 @@ v1.0.0. `EntityType` has 21 members; 20 of them have a detector (`plate` does no
 251-slot link catalogue. Live fetching comes from eight keyless sources (dns, rdap, crtsh,
 internetdb, github, wikidata and hashlookup over the network, plus phone_meta offline) and the
 WhatsMyName username checker, which queries several hundred sites from your IP and is opt-in
-(the browser button, or `--deep` on the CLI) rather than run automatically.
+(the browser button, or `--deep` on the CLI) rather than run automatically. The link lists carry
+the same kind of opt-in check: **Check which of these exist** probes each link once and marks the
+ones that are definitely not there. Only 404 and 410 count as missing; bot protection, redirects
+and timeouts are reported as telling you nothing, because a checker that guessed would invent
+cleared leads.
 
-Responses are cached for up to 24 hours under `${XDG_CACHE_HOME:-~/.cache}/casefile/`, and
-rows older than 24 hours are pruned on the next cache access regardless of whether they are
-ever queried again. `casefile --clear-cache` deletes the cache file outright and purges
-everything immediately; `--no-cache` bypasses the cache for a single run. Both are privacy
+Answers are cached for up to 24 hours under `${XDG_CACHE_HOME:-~/.cache}/casefile/`, and rows
+older than that are pruned on the next cache access whether or not they are ever queried again.
+Failures are cached too, but for five minutes rather than a day: long enough that reloading a
+page does not re-hammer a source that just returned a 502, short enough that an outage clears
+itself. Reopening a search you have already run paints from the cache with the page, so only
+genuinely unknown sources go out to the network. Every panel carries a **refresh** control that
+ignores the stored answer and replaces it. `casefile --clear-cache` deletes the cache file
+outright; `--no-cache` bypasses it for a single run without writing anything. Both are privacy
 controls as much as debugging ones.
+
+## Cases
+
+A case is an investigation, not a single identifier. `acme-example` the username and
+`acme.example` the domain are the same subject to you and nothing alike to a detector, so a
+case holds as many identifiers as you put in it and shows up once on the dashboard.
+
+- **Save this search** on any reading keeps it, whether or not anything on the page is yet worth
+  starring. Starring a finding also starts a case, so the quick path stays one click.
+- Already have a case? The same control adds the search to it instead. An identifier lives in at
+  most one case, so joining moves it, findings included.
+- A case is named after the first identifier saved into it and can be renamed on its page.
+- Removing an identifier takes its findings with it. Removing the last one closes the case;
+  un-starring the last finding does not, because that is a change of mind about one row.
+
+## Content blockers
+
+Panels load over `fetch`, so a content blocker that matches the request URL can stop one without
+the page noticing. casefile now says so: a blocked panel reads **failed** with an explanation
+rather than sitting on "loading…". If you see that, allow `127.0.0.1` in your blocker, or check
+its request log to see which filter matched. The long-running WhatsMyName check also shows a
+"running…" line while it works, so a slow check no longer looks like a dead button.
 
 One source needs a key: MalwareBazaar requires a free `ABUSECH_AUTH_KEY` (see `.env.example`).
 Without it that panel reads "needs a key" and everything else works normally.
