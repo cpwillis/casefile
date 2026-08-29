@@ -1,6 +1,7 @@
 import json
 
 import pytest
+from helpers import stub_result
 
 from casefile.cli import main
 from casefile.fetchers import Finding, SourceResult, State
@@ -122,3 +123,20 @@ def test_text_output_keeps_a_finding_url(monkeypatch, capsys):
     monkeypatch.setattr("casefile.cli.run_cached", fake)
     assert main(["octocat"]) == 0
     assert "https://github.example/x" in capsys.readouterr().out
+
+
+def test_a_fetched_source_is_not_also_listed_as_a_link(monkeypatch, capsys):
+    """A source is shown once: as its result if it ran, otherwise as a link. The web page has
+    always done this; the CLI used to print crt.sh as both."""
+    monkeypatch.setattr("casefile.cli.run_cached", stub_result(Finding("A", "1")))
+    assert main(["example.com", "--json"]) == 0
+    domain = next(c for c in json.loads(capsys.readouterr().out)["candidates"] if c["type"] == "domain")
+    assert "crtsh" in {s["source_id"] for s in domain["sources"]}
+    assert not any(link["id"] == "crtsh" for link in domain["links"])
+
+
+def test_no_fetch_keeps_every_link_including_the_fetchable_ones(capsys):
+    """Nothing ran, so nothing else represents those sources and the links must all survive."""
+    assert main(["example.com", "--json", "--no-fetch"]) == 0
+    domain = next(c for c in json.loads(capsys.readouterr().out)["candidates"] if c["type"] == "domain")
+    assert any(link["id"] == "crtsh" for link in domain["links"])

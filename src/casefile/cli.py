@@ -40,6 +40,16 @@ def _sanitize(text: str, keep: str = "") -> str:
     return "".join(ch for ch in text if ch.isprintable() or ch in keep)
 
 
+def _shown_links(candidate, results):
+    """Links for a candidate, minus the sources already printed as results above them.
+
+    Keyed on what actually ran, not on what has a fetcher: --no-fetch prints every link, and an
+    on-demand source skipped without --deep keeps its link, because nothing else represents it.
+    """
+    fetched = {r.source_id for r in results.get((candidate.type, candidate.value), [])}
+    return links_for(candidate, exclude=frozenset(fetched))
+
+
 def _render_text(raw, candidates, results):
     lines = [raw]
     for i, c in enumerate(candidates):
@@ -55,7 +65,7 @@ def _render_text(raw, candidates, results):
                 lines.append(f"      {_sanitize(f.label)}: {_sanitize(f.value)}{url}")
         # notes are deliberately omitted here and carried by --json, the web and every export:
         # 46 of 49 domain sources have one, and inline they push lines past 200 characters
-        for link in links_for(c):
+        for link in _shown_links(c, results):
             lines.append(f"    {link.name:<28} {link.url}")
     return "\n".join(lines)
 
@@ -69,7 +79,7 @@ def _render_json(raw, candidates, results):
                     "type": c.type.value,
                     "value": c.value,
                     "sources": [asdict(r) for r in results.get((c.type, c.value), [])],
-                    "links": [asdict(link) for link in links_for(c)],
+                    "links": [asdict(link) for link in _shown_links(c, results)],
                 }
                 for c in candidates
             ],
