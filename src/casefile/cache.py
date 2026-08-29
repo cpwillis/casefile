@@ -6,11 +6,11 @@ control as much as a debugging one.
 
 import json
 import os
-import sqlite3
 import time
 from dataclasses import asdict
 from pathlib import Path
 
+from casefile import store
 from casefile.fetchers import Finding, SourceResult, State, run_fetcher
 
 CACHEABLE = (State.OK, State.EMPTY)
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS responses (
     fetched_at  REAL NOT NULL,
     payload     TEXT NOT NULL,
     PRIMARY KEY (source_id, entity_type, value)
-)
+);
 """
 
 
@@ -32,13 +32,8 @@ def cache_path() -> Path:
     return Path(base) / "casefile" / "cache.db"
 
 
-def _connect() -> sqlite3.Connection:
-    path = cache_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
-    conn.execute(_SCHEMA)
-    conn.execute("DELETE FROM responses WHERE fetched_at < ?", (time.time() - RETENTION_SECONDS,))
-    return conn
+def _connect():
+    return store.connect(cache_path(), _SCHEMA)
 
 
 def _load(source_id: str, entity_type, value: str, ttl: float) -> SourceResult | None:
@@ -62,6 +57,9 @@ def _load(source_id: str, entity_type, value: str, ttl: float) -> SourceResult |
 
 def _store(result: SourceResult, entity_type, value: str) -> None:
     with _connect() as conn:
+        # Expiry runs here rather than on every open: _load already refuses anything past its
+        # ttl, so the sweep is housekeeping, and housekeeping should not make a read a write.
+        conn.execute("DELETE FROM responses WHERE fetched_at < ?", (time.time() - RETENTION_SECONDS,))
         conn.execute(
             "INSERT OR REPLACE INTO responses (source_id, entity_type, value, fetched_at, payload) "
             "VALUES (?, ?, ?, ?, ?)",
@@ -70,27 +68,11 @@ def _store(result: SourceResult, entity_type, value: str) -> None:
 
 
 def clear_cache() -> int:
-    """Delete every cached response by removing the database file. Returns rows removed.
-
-    Unlinking rather than running DELETE matters: sqlite frees pages without zeroing them, so
-    after a DELETE the search terms and third-party payloads stayed byte-readable in the file.
-    This is documented as a privacy control, so it has to actually remove the data.
-    """
-    path = cache_path()
-    if not path.exists():
-        return 0
-    try:
-        with _connect() as conn:
-            count = int(conn.execute("SELECT COUNT(*) FROM responses").fetchone()[0])
-    except sqlite3.Error:
-        count = 0
-    path.unlink(missing_ok=True)
-    for suffix in ("-journal", "-wal", "-shm"):
-        path.with_name(path.name + suffix).unlink(missing_ok=True)
-    return count
+    """Delete every cached response by removing the database file. Returns rows removed."""
+    return store.purge(cache_path(), "responses")
 
 
-async def run_cached(source_id, value, entity_type, client, *, ttl: float = 86400, use_cache: bool = True):
+async def run_cached(source_id, value, entity_type, client, *, ttl: float = RETENTION_SECONDS, use_cache: bool = True):
     """run_fetcher with a SQLite read-through cache. Only ok and empty are stored.
 
     Cache failures are contained: a broken or unwritable cache degrades to an uncached lookup

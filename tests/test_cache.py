@@ -119,7 +119,11 @@ async def test_clear_cache_actually_removes_the_data_from_disk():
 
 
 async def test_stale_rows_are_pruned_from_disk_not_just_ignored():
-    """The README promises 24 hour retention, which means removal, not just invalidation."""
+    """The README promises 24 hour retention, which means removal, not just invalidation.
+
+    The sweep runs on the write path, so a later store is what collects an expired row. Reads
+    stay reads: _load already refuses anything past its ttl without touching the file.
+    """
     import time as _time
 
     from casefile.cache import _connect, _store
@@ -128,9 +132,10 @@ async def test_stale_rows_are_pruned_from_disk_not_just_ignored():
     _store(SourceResult("cache-stale", State.OK), EntityType.DOMAIN, "old.example")
     with _connect() as conn:
         conn.execute("UPDATE responses SET fetched_at = ?", (_time.time() - 200000,))
-    with _connect() as conn:  # the prune runs on connect
-        remaining = conn.execute("SELECT COUNT(*) FROM responses").fetchone()[0]
-    assert remaining == 0
+    _store(SourceResult("cache-fresh", State.OK), EntityType.DOMAIN, "new.example")
+    with _connect() as conn:
+        rows = [r[0] for r in conn.execute("SELECT source_id FROM responses")]
+    assert rows == ["cache-fresh"], f"stale row survived: {rows}"
 
 
 async def test_a_corrupt_cache_degrades_to_an_uncached_lookup():
