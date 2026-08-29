@@ -18,14 +18,6 @@ notes = "GUI search resolves domains, IPs, file hashes and URL-encoded URLs."
 provenance = "awesome-osint"
 
 [[source]]
-id = "google-safe-browsing"
-name = "Google Safe Browsing Transparency Report"
-accepts = ["url", "domain"]
-url = "https://transparencyreport.google.com/safe-browsing/search?url={value}"
-notes = "Current unsafe-site status for a URL or host."
-provenance = "Google Transparency Report"
-
-[[source]]
 id = "sucuri-sitecheck"
 name = "Sucuri SiteCheck"
 accepts = ["url", "domain"]
@@ -40,14 +32,6 @@ accepts = ["url", "domain"]
 url = "https://safeweb.norton.com/report/show?url={value}"
 notes = "Reputation report for a site or URL."
 provenance = "well-known URL reputation service"
-
-[[source]]
-id = "urlvoid"
-name = "URLVoid"
-accepts = ["domain"]
-url = "https://www.urlvoid.com/scan/{value}/"
-notes = "Multi-engine host reputation aggregator; host-based, not full-URL."
-provenance = "awesome-osint"
 
 [[source]]
 id = "archive-today"
@@ -120,4 +104,3 @@ accepts = ["phone"]
 url = "https://nuwber.com/search?phone={value}"
 notes = "US people-search reverse phone lookup."
 provenance = "public people/phone directory"
-

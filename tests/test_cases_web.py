@@ -313,3 +313,58 @@ def test_the_star_buttons_accessible_name_does_not_change_with_its_state():
         assert 'aria-label="Save this finding"' in text
     assert 'aria-pressed="true"' in saved
     assert 'aria-pressed="false"' in unsaved
+
+
+def test_removing_the_last_identifier_warns_and_lands_where_the_loss_is_visible():
+    """One unguarded click used to destroy a named case and every finding in it, then drop you on
+    a search page showing no sign anything had happened."""
+    client.post("/save", data=SAVE, headers=SAME)
+    cid = _saved_case_id()
+    client.post(f"/case/{cid}/rename", data={"name": "Tuesday intrusion"}, headers=SAME)
+    client.post("/star", data={**STAR, "t": "username", "v": "acme-example"}, headers=SAME)
+
+    page = client.get("/q", params={"v": "acme-example"}).text
+    assert "onsubmit" in page and "confirm(" in page, "the result-page remove has no confirmation"
+    assert "the case and its" in page, "the confirm does not say the case itself will be deleted"
+
+    resp = client.post("/save", data=dict(SAVE, action="remove"), headers=SAME, follow_redirects=False)
+    assert resp.headers["location"] == "/cases", "you were sent back to a search page, not to the loss"
+    assert list_cases() == ()
+
+
+def test_a_case_name_is_bounded():
+    """Unbounded, a name reached the "add to" select on every result page and stretched the
+    layout past four thousand pixels."""
+    from casefile.cases import CaseStoreError, rename_case
+
+    client.post("/save", data=SAVE, headers=SAME)
+    cid = _saved_case_id()
+    with pytest.raises(CaseStoreError, match="at most"):
+        rename_case(cid, "A" * 600)
+    resp = client.post(f"/case/{cid}/rename", data={"name": "A" * 600}, headers=SAME)
+    assert resp.status_code == 400
+    assert "text/html" in resp.headers["content-type"], "a failed rename returned a bare text page"
+    assert list_cases()[0].name == "acme-example"
+
+
+def test_a_long_name_cannot_stretch_the_result_page():
+    client.post("/save", data=SAVE, headers=SAME)
+    cid = _saved_case_id()
+    client.post(f"/case/{cid}/rename", data={"name": "N" * 120}, headers=SAME)
+    text = client.get("/q", params={"v": "example.com"}).text
+    assert "N" * 120 not in text, "the full name reached the select untruncated"
+
+
+def test_a_blank_identifier_is_refused():
+    from casefile.cases import CaseStoreError, save_target
+    from casefile.types import EntityType
+
+    with pytest.raises(CaseStoreError):
+        save_target(EntityType.USERNAME, "   ")
+
+
+def test_the_dashboard_does_not_print_a_case_name_twice():
+    """A case auto-named after its only identifier used to render "example.com example.com"."""
+    client.post("/save", data=SAVE, headers=SAME)
+    text = client.get("/cases").text
+    assert text.count("acme-example") == 1

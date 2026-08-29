@@ -75,7 +75,7 @@ def _by_target(case: Case):
 def _summary(case: Case) -> str:
     return (
         f"{len(case.targets)} identifier{'s' if len(case.targets) != 1 else ''}"
-        f" · {case.star_count} saved · last updated {when(case.updated_at)}"
+        f" · {case.star_count} saved · case last edited {when(case.updated_at)}"
     )
 
 
@@ -91,7 +91,10 @@ def _to_markdown(case: Case) -> str:
             for s in stars:
                 url = safe_url(s.url)
                 rendered = f"[{_md(s.value)}]({url})" if url else _md(s.value)
-                lines.append(f"- **{_md(s.label)}**: {rendered}")
+                # When it was captured, not just what: an undated observation is not evidence,
+                # and a case routinely holds rows captured weeks apart.
+                seen = f" _(saved {_md(when(s.starred_at))})_" if s.starred_at else ""
+                lines.append(f"- **{_md(s.label)}**: {rendered}{seen}")
     lines += ["", "---", "", "Exported by casefile. Only starred findings are included."]
     if _credit(case):
         lines += ["", f"{_md(CREDIT)} {CREDIT_URL}"]
@@ -115,6 +118,7 @@ def _to_json(case: Case) -> str:
                     "label": s.label,
                     "value": s.value,
                     "url": s.url,
+                    "starred_at": s.starred_at,
                 }
                 for s in case.stars
             ],
@@ -153,7 +157,8 @@ def _to_html(case: Case) -> str:
                     if url
                     else escape(s.value)
                 )
-                parts.append(f'<li><span class="label">{escape(s.label)}</span><span>{value}</span></li>')
+                seen = f'<span class="meta"> saved {escape(when(s.starred_at))}</span>' if s.starred_at else ""
+                parts.append(f'<li><span class="label">{escape(s.label)}</span><span>{value}{seen}</span></li>')
             parts.append("</ul>")
     parts.append('<p class="meta">Exported by casefile. Only starred findings are included.</p>')
     if _credit(case):

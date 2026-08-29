@@ -143,3 +143,21 @@ def test_the_findings_filter_targets_its_own_list(monkeypatch):
     text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
     target = re.search(r'data-filters="([^"]+)"', text).group(1)
     assert f'<ul class="findings" id="{target}"' in text
+
+
+def test_a_panel_is_named_and_carries_its_caveat(monkeypatch):
+    """A source id is not a name, and polarity is not self-evident: a hit in a known-good corpus
+    and a hit in a malware corpus look identical and mean opposite things."""
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(Finding("known good file", "x")))
+    text = client.get("/panel/hashlookup", params={"v": "d" * 32, "t": "hash"}).text
+    assert "CIRCL hashlookup" in text
+    assert "known-GOOD" in text
+
+
+def test_a_panel_can_be_focused_after_its_own_swap(monkeypatch):
+    """refresh and Run destroy the button that triggered them, so htmx has nothing to re-focus.
+    The panel carries the id and the tabindex instead."""
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(Finding("A", "192.0.2.10")))
+    text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
+    assert 'tabindex="-1"' in text
+    assert 'id="star-' in text  # the same derived id the result page renders

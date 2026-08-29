@@ -11,11 +11,11 @@ document.addEventListener("input", (event) => {
   }
 });
 
-// "/" focuses the search box, unless you are already typing in a field.
+// "/" focuses the search box, unless you are already typing in or choosing from a control.
 document.addEventListener("keydown", (event) => {
   if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
   const tag = (event.target.tagName || "").toLowerCase();
-  if (tag === "input" || tag === "textarea" || event.target.isContentEditable) return;
+  if (tag === "input" || tag === "textarea" || tag === "select" || event.target.isContentEditable) return;
   const box = document.getElementById("target");
   if (!box) return;
   event.preventDefault();
@@ -63,3 +63,28 @@ document.addEventListener("htmx:sendError", (event) =>
   ),
 );
 document.addEventListener("htmx:timeout", (event) => panelFailed(event, "this request timed out."));
+
+// A panel replaces itself, so the button you pressed no longer exists for htmx to re-focus. Move
+// focus to the panel instead, which is the thing you were acting on and now carries the answer.
+document.addEventListener("htmx:afterSwap", (event) => {
+  const panel = event.detail.target?.closest?.(".panel") || event.detail.target;
+  if (panel?.classList?.contains("panel") && panel.id) panel.focus({preventScroll: true});
+});
+
+// Filtering silently hid rows with no count and no empty state, which reads as "nothing matched"
+// and "everything matched" identically.
+document.addEventListener("input", (event) => {
+  const input = event.target.closest(".filter");
+  if (!input) return;
+  const list = document.getElementById(input.dataset.filters);
+  if (!list) return;
+  const shown = [...list.children].filter((li) => !li.hidden).length;
+  let status = input.parentElement.querySelector(".filter-status");
+  if (!status) {
+    status = document.createElement("span");
+    status.className = "filter-status muted";
+    status.setAttribute("role", "status");
+    input.insertAdjacentElement("afterend", status);
+  }
+  status.textContent = input.value.trim() === "" ? "" : shown ? `${shown} of ${list.children.length}` : "nothing matches";
+});

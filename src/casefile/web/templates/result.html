@@ -52,7 +52,7 @@
         {% if section.speculative %}<span class="tag">a guess</span>
         {% elif loop.first %}<span class="tag">most likely</span>{% endif %}</h3>
       {% if not demo %}{% with section = section %}{% include "save_control.html" %}{% endwith %}{% endif %}
-      <div class="panels" aria-live="polite" aria-label="{{ section.type }} sources">
+      <div class="panels">
         {% for p in section.panels %}
         {% set panel_url = '/panel/' ~ p.id ~ '?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type %}
         {% set prerendered = section.results.get(p.id) %}
@@ -64,13 +64,13 @@
         {% include "panel.html" %}{% endwith %}
         {% elif demo %}
         <div class="panel" data-state="on-demand">
-          <div class="panel-head"><span class="panel-id">{{ p.id }}</span>
+          <div class="panel-head"><h4 class="panel-id">{{ source_name(p.id) }}</h4>
             <span class="panel-state">not in this demo</span></div>
           <p class="muted panel-cost">Run casefile locally to query this source.</p>
         </div>
         {% elif p.on_demand %}
-        <div class="panel" data-state="on-demand">
-          <div class="panel-head"><span class="panel-id">{{ p.id }}</span>
+        <div class="panel" data-state="on-demand" id="{{ [section.type, section.value, p.id] | dom_id }}" tabindex="-1">
+          <div class="panel-head"><h4 class="panel-id">{{ source_name(p.id) }}</h4>
             <span class="panel-state">on demand</span></div>
           <button class="panel-run" type="button" hx-get="{{ panel_url }}"
                   hx-target="closest .panel" hx-swap="outerHTML"
@@ -81,9 +81,10 @@
           {% if p.cost_note %}<p class="muted panel-cost">{{ p.cost_note }}</p>{% endif %}
         </div>
         {% else %}
-        <div class="panel" data-state="loading"
+        <div class="panel" data-state="loading" aria-live="polite" tabindex="-1"
+             id="{{ [section.type, section.value, p.id] | dom_id }}"
              hx-get="{{ panel_url }}" hx-trigger="load" hx-swap="outerHTML" hx-indicator="this">
-          <div class="panel-head"><span class="panel-id">{{ p.id }}</span>
+          <div class="panel-head"><h4 class="panel-id">{{ source_name(p.id) }}</h4>
             <span class="panel-state">loading…</span></div>
         </div>
         {% endif %}
@@ -101,7 +102,7 @@
       {# Folded, not dropped. Anything is a plausible person or company name, so on a domain
          search these are guesses competing for the same space as the reading that is not. #}
       <details class="speculative">
-        <summary id="links-{{ section.type }}"><span class="reading">{{ section.type }}</span>
+        <summary id="links-{{ section.type }}"><h3 class="reading">{{ section.type }}</h3>
           <span class="muted">{{ section.value }} · {{ section.links | length }} links, a guess from the shape
             of the input</span></summary>
       {% else %}

@@ -98,20 +98,3 @@ accepts = ["tail_number"]
 url = "https://registry.faa.gov/aircraftinquiry/Search/NNumberResult?nNumberTxt={value}"
 notes = "US N-numbers only; leading N accepted."
 provenance = "FAA public aircraft registry"
-
-[[source]]
-id = "adsbexchange-icao"
-name = "ADS-B Exchange (hex)"
-accepts = ["icao24"]
-url = "https://globe.adsbexchange.com/?icao={value}"
-notes = "verified 2026-08-29. Replaces planespotters-hex, whose /hex/ route does not exist"
-provenance = "verified live 2026-08-29"
-
-[[source]]
-id = "adsbexchange-reg"
-name = "ADS-B Exchange (registration)"
-accepts = ["tail_number"]
-url = "https://globe.adsbexchange.com/?reg={value}"
-notes = "verified 2026-08-29"
-provenance = "verified live 2026-08-29"
-

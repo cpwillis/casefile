@@ -117,7 +117,7 @@ what the tool does. It cannot look anything up. Run it locally for that.
 ## Status
 
 v1.1.0. `EntityType` has 22 members; 21 of them have a detector (`plate` does not yet), plus a
-link catalogue of 198 sources covering 255 type-slots. Live fetching comes from twelve keyless sources (dns, rdap, crtsh,
+link catalogue of 192 sources covering 246 type-slots. Live fetching comes from twelve keyless sources (dns, rdap, crtsh,
 internetdb, github, wikidata, hashlookup, nvd-cve, mempool-space-tx, mempool-space-btc and
 blockscout-tx over the network, plus phone_meta offline) and the WhatsMyName username checker, which queries several hundred sites from your IP and is opt-in
 (the browser button, or `--deep` on the CLI) rather than run automatically. The link lists carry

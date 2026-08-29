@@ -1,6 +1,7 @@
-<div class="panel" data-state="{{ result.state }}">
+<div class="panel" data-state="{{ result.state }}"
+     {% if t and v %}id="{{ [t, v, result.source_id] | dom_id }}" tabindex="-1"{% endif %}>
   <div class="panel-head">
-    <span class="panel-id">{{ source_name(result.source_id) }}</span>
+    <h4 class="panel-id">{{ source_name(result.source_id) }}</h4>
     {% if result.fetched_at %}<span class="panel-age muted"
       title="the stored answer, kept for up to 24 hours">{{ result.fetched_at | when }}</span>{% endif %}
     <span class="panel-actions">

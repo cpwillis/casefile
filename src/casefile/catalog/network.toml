@@ -58,14 +58,6 @@ notes = "ASN detail; value is the bare AS number."
 provenance = "awesome-osint"
 
 [[source]]
-id = "pulsedive"
-name = "Pulsedive"
-accepts = ["ip", "domain", "url"]
-url = "https://pulsedive.com/indicator/?ioc={value}"
-notes = "Threat indicator summary; ioc works for ip, domain, url."
-provenance = "awesome-osint"
-
-[[source]]
 id = "xforce-ip"
 name = "IBM X-Force Exchange"
 accepts = ["ip"]
@@ -256,4 +248,3 @@ accepts = ["domain", "ip"]
 url = "https://www.whois.com/whois/{value}"
 notes = "verified 2026-08-29"
 provenance = "verified live 2026-08-29"
-

@@ -53,6 +53,7 @@ def load_catalog(directory: Path | None = None) -> tuple[Source, ...]:
     directory = directory or Path(__file__).resolve().parent / "catalog"
     sources: list[Source] = []
     seen: dict[str, Path] = {}
+    by_url: dict[tuple, str] = {}
     for path in sorted(directory.glob("*.toml")):
         with path.open("rb") as handle:
             try:
@@ -63,6 +64,13 @@ def load_catalog(directory: Path | None = None) -> tuple[Source, ...]:
             source = _parse_source(raw, path)
             if source.id in seen:
                 raise CatalogError(f"{path.name}: duplicate id {source.id}, already in {seen[source.id].name}")
+            # Two ids pointing at one URL for the same type render as two rows going to one page,
+            # which reads as a difference that is not there and costs a second visit.
+            for entity_type in source.accepts:
+                key = (entity_type, source.url)
+                if key in by_url:
+                    raise CatalogError(f"{path.name}: {source.id} duplicates {by_url[key]} for {entity_type}: same url")
+                by_url[key] = source.id
             seen[source.id] = path
             sources.append(source)
     return tuple(sources)

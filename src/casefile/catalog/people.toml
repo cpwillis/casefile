@@ -18,14 +18,6 @@ notes = "Validity and source-of-discovery for a single email."
 provenance = "awesome-osint"
 
 [[source]]
-id = "hunter-domain-search"
-name = "Hunter Domain Search"
-accepts = ["domain"]
-url = "https://hunter.io/search/{value}"
-notes = "Known email addresses and patterns for a domain."
-provenance = "awesome-osint"
-
-[[source]]
 id = "epieos-email"
 name = "Epieos"
 accepts = ["email"]
@@ -168,4 +160,3 @@ accepts = ["person", "company"]
 url = "https://www.wikidata.org/w/index.php?search={value}"
 notes = "MediaWiki search results page; a link fallback for the wikidata fetcher."
 provenance = "verified 2026-08-28"
-
