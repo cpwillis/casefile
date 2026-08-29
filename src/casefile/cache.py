@@ -69,6 +69,9 @@ def _load(source_id: str, entity_type, value: str, ttl: float | None = None) -> 
         findings=findings,
         detail=data.get("detail"),
         elapsed_ms=data.get("elapsed_ms", 0),
+        # From the row, not the payload: this is when the answer was obtained, which is the one
+        # piece of provenance a panel cannot do without.
+        fetched_at=row[0],
     )
 
 

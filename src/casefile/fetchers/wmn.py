@@ -101,6 +101,8 @@ async def _check_one(site: Site, username: str, client: httpx.AsyncClient) -> Fi
 @fetcher(
     id="whatsmyname",
     accepts=[EntityType.USERNAME],
+    name="WhatsMyName username sweep",
+    note="Presence of a profile page, not proof the same person owns it.",
     on_demand=True,
     cost_note="queries several hundred sites from your IP and takes 30 to 60 seconds",
 )

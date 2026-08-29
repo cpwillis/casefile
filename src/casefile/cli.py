@@ -97,8 +97,8 @@ def _render_text(raw, candidates, results):
         lines.append("")
         lines.append(f"  {c.type.value.upper():<14} {c.value:<40} {'most likely' if i == 0 else ''}")
         for r in results.get((c.type, c.value), []):
-            detail = f" {_sanitize(r.detail)}" if r.detail else ""
-            lines.append(f"    [{r.state}]{detail} {r.source_id}")
+            detail = f": {_sanitize(r.detail)}" if r.detail else ""
+            lines.append(f"    [{r.state}] {r.source_id}{detail}")
             for f in r.findings:
                 # the url is often the whole result (a WhatsMyName hit's value is the site
                 # category; the profile link is the finding), so text mode must not drop it
@@ -133,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="casefile",
         description="One input box, every relevant OSINT pivot. Runs locally.",
-        epilog=f"Exactly one target per run, by design. {REPO}",
+        epilog=f"Exactly one identifier per run, by design. {REPO}",
     )
     parser.add_argument("value", nargs="?", help="the identifier to look up")
     parser.add_argument("--json", action="store_true", help="emit JSON instead of text")
@@ -146,7 +146,11 @@ def main(argv: list[str] | None = None) -> int:
         help="also run on-demand sources: all of them, or only the ones named. These are the "
         "sources whose egress is large enough to need consent, so they are off by default.",
     )
-    parser.add_argument("--check-links", action="store_true", help="probe each catalogue link and report which exist")
+    parser.add_argument(
+        "--check-links",
+        action="store_true",
+        help="probe each catalogue link and flag the ones that are definitely gone",
+    )
     parser.add_argument("--clear-cache", action="store_true", help="purge the response cache and exit")
     parser.add_argument("--cases", action="store_true", help="list your saved cases and exit")
     parser.add_argument("--build-demo", metavar="DIR", help="render the static demo into DIR and exit")
@@ -183,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cases:
         saved = list_cases()
         if not saved:
-            print("no saved cases yet", file=sys.stderr)
+            print("no saved cases yet: save an identifier in the browser, or star a finding", file=sys.stderr)
             return 1
         for c in saved:
             targets = ", ".join(t.value for t in c.targets)

@@ -95,7 +95,7 @@ def test_the_link_list_offers_the_check_but_never_runs_it_on_page_load(monkeypat
 
     monkeypatch.setattr(appmod, "check_links", explode)
     text = web.get("/q", params={"v": "example.com"}).text
-    assert "Check which of these exist" in text
+    assert "Check for dead links" in text
     assert 'hx-get="/links?v=example.com&amp;t=domain"' in text
 
 

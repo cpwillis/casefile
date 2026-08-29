@@ -37,7 +37,16 @@ from casefile.cases import (
 from casefile.catalog import links_for
 from casefile.detect import FREE_FORM, detect, is_pivotable
 from casefile.export import FORMATS, export_case, media_type, safe_url, when
-from casefile.fetchers import SourceResult, State, fetched_ids, fetchers_for, registered_fetcher, wmn
+from casefile.fetchers import (
+    SourceResult,
+    State,
+    fetched_ids,
+    fetchers_for,
+    registered_fetcher,
+    source_name,
+    source_note,
+    wmn,
+)
 from casefile.fetchers.http import build_client
 from casefile.linkcheck import check_links, tally
 from casefile.types import Candidate, EntityType
@@ -48,6 +57,8 @@ templates.env.globals["export_formats"] = FORMATS
 # The set of starred findings for the target a panel is about, looked up once per panel rather
 # than once per row. Empty by default so the demo, which has no store behind it, renders fine.
 templates.env.globals["starred_keys"] = frozenset()
+templates.env.globals["source_name"] = source_name
+templates.env.globals["source_note"] = source_note
 # A finding that is itself an identifier is the next query, so the page offers it as one.
 templates.env.globals["is_pivotable"] = is_pivotable
 # Every timestamp the store keeps was invisible in the UI while the exports carried them.
@@ -274,12 +285,24 @@ async def save_route(request: Request) -> Response:
         return PlainTextResponse("missing target", status_code=400)
     try:
         if form.get("action") == "remove":
+            held_by = case_for_target(entity_type, value)
             remove_target(entity_type, value)
+            # Removing the last identifier destroys the case. Landing back on a search page would
+            # show no sign of that, so go where the consequence is visible.
+            if held_by and len(held_by.targets) == 1:
+                return RedirectResponse("/cases", status_code=303)
         else:
             save_target(entity_type, value, case_id=form.get("case_id") or None, name=form.get("name", ""))
     except CaseStoreError as exc:
-        return PlainTextResponse(f"could not save: {exc}", status_code=200)
+        return _mutation_error(request, f"could not save: {exc}")
     return RedirectResponse(f"/q?v={quote(value)}", status_code=303)
+
+
+def _mutation_error(request: Request, message: str) -> Response:
+    """A failed write is still a page, not a bare text/plain dead end with no way back."""
+    return templates.TemplateResponse(
+        request, "cases.html", {"cases": list_cases(), "problem": message}, status_code=400
+    )
 
 
 async def case_rename(request: Request) -> Response:
@@ -290,7 +313,7 @@ async def case_rename(request: Request) -> Response:
     try:
         rename_case(case_id, form.get("name", ""))
     except CaseStoreError as exc:
-        return PlainTextResponse(f"could not rename: {exc}", status_code=400)
+        return _mutation_error(request, f"could not rename: {exc}")
     return RedirectResponse(f"/case/{quote(case_id)}", status_code=303)
 
 

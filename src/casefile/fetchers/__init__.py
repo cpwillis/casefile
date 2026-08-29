@@ -40,6 +40,7 @@ class SourceResult:
     findings: tuple[Finding, ...] = ()
     detail: str | None = None  # error reason, or a note on the state
     elapsed_ms: int = 0
+    fetched_at: float = 0.0  # set when rehydrated from the cache, so a panel can say how old it is
 
 
 @dataclass(frozen=True)
@@ -49,21 +50,52 @@ class Registered:
     func: Callable
     on_demand: bool = False
     cost_note: str | None = None
+    # What the panel is called, and what a reader has to know to read its result correctly.
+    # `note` exists because polarity is not self-evident: a hit in a known-good corpus and a hit
+    # in a malware corpus look identical on screen and mean opposite things.
+    name: str = ""
+    note: str | None = None
 
 
 _REGISTRY: dict[str, Registered] = {}
 
 
-def fetcher(id: str, accepts: list[EntityType], *, on_demand: bool = False, cost_note: str | None = None):
+def fetcher(
+    id: str,
+    accepts: list[EntityType],
+    *,
+    on_demand: bool = False,
+    cost_note: str | None = None,
+    name: str = "",
+    note: str | None = None,
+):
     """Register a fetcher. on_demand marks one whose egress is large enough to need consent."""
 
     def register(func: Callable) -> Callable:
         if id in _REGISTRY:
             raise ValueError(f"duplicate fetcher id {id}")
-        _REGISTRY[id] = Registered(id=id, accepts=tuple(accepts), func=func, on_demand=on_demand, cost_note=cost_note)
+        _REGISTRY[id] = Registered(
+            id=id,
+            accepts=tuple(accepts),
+            func=func,
+            on_demand=on_demand,
+            cost_note=cost_note,
+            name=name or id,
+            note=note,
+        )
         return func
 
     return register
+
+
+def source_name(source_id: str) -> str:
+    rec = _REGISTRY.get(source_id)
+    return rec.name if rec else source_id
+
+
+def source_note(source_id: str) -> str | None:
+    rec = _REGISTRY.get(source_id)
+    return rec.note if rec else None
 
 
 def registered_fetcher(source_id: str) -> Registered | None:

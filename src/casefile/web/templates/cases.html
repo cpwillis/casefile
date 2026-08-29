@@ -3,19 +3,23 @@
 {% block content %}
 <main class="intro wide" id="pane">
   <h1>Saved cases</h1>
+  {% if problem %}<p class="problem">{{ problem }}</p>{% endif %}
   {% if missing %}<p class="muted">That case no longer exists.</p>{% endif %}
   {% if cases %}
   <ul class="case-list">
     {% for c in cases %}
     <li>
       <a href="/case/{{ c.id | urlencode }}">{{ c.name }}</a>
-      <span class="muted">{{ c.targets | map(attribute="value") | join(", ") }}</span>
+      {# Only list the identifiers when they add something the name does not already say: a case
+         auto-named after its single identifier would otherwise print that identifier twice. #}
+      {% set others = c.targets | rejectattr("value", "equalto", c.name) | map(attribute="value") | list %}
+      {% if others %}<span class="muted">with {{ others | join(", ") }}</span>{% endif %}
       <span class="muted">· {{ c.star_count }} saved</span>
     </li>
     {% endfor %}
   </ul>
   {% else %}
-  <p class="muted">Nothing saved yet. Search for something and use <strong>Save this search</strong>,
+  <p class="muted">Nothing saved yet. Search for an identifier and use <strong>Save this identifier</strong>,
     or star a finding, and it will appear here.</p>
   {% endif %}
 </main>

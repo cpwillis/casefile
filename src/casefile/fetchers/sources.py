@@ -18,7 +18,12 @@ _DNS_TYPES = {1: "A", 28: "AAAA", 15: "MX", 16: "TXT", 2: "NS"}
 _DNS_RCODES = {1: "FORMERR", 2: "SERVFAIL", 4: "NOTIMP", 5: "REFUSED", 9: "NOTAUTH"}
 
 
-@fetcher(id="dns", accepts=[EntityType.DOMAIN, EntityType.EMAIL])
+@fetcher(
+    id="dns",
+    accepts=[EntityType.DOMAIN, EntityType.EMAIL],
+    name="DNS (Cloudflare)",
+    note="Live DNS as Cloudflare's resolver sees it now, not historical records.",
+)
 async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     name = value.split("@")[-1] if entity_type is EntityType.EMAIL else value
     findings: list[Finding] = []
@@ -62,7 +67,12 @@ def _vcard_name(entity: dict) -> str | None:
     return None
 
 
-@fetcher(id="rdap", accepts=[EntityType.DOMAIN, EntityType.IP, EntityType.ASN])
+@fetcher(
+    id="rdap",
+    accepts=[EntityType.DOMAIN, EntityType.IP, EntityType.ASN],
+    name="RDAP registration",
+    note="Registry data. Most registrars redact registrant contact details, so absence here is not evidence.",
+)
 async def rdap(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     kind = {EntityType.DOMAIN: "domain", EntityType.IP: "ip", EntityType.ASN: "autnum"}[entity_type]
     key = value[2:] if entity_type is EntityType.ASN else value  # rdap wants a bare AS number
@@ -104,7 +114,12 @@ async def rdap(value: str, entity_type: EntityType, client: httpx.AsyncClient) -
 _CRTSH_LIMIT = 500
 
 
-@fetcher(id="crtsh", accepts=[EntityType.DOMAIN])
+@fetcher(
+    id="crtsh",
+    accepts=[EntityType.DOMAIN],
+    name="crt.sh certificates",
+    note="Names seen in public certificate transparency logs. A name here need not still resolve.",
+)
 async def crtsh(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     resp = await http.get(client, "https://crt.sh/", "crt.sh", params={"q": value, "output": "json"})
     names: set[str] = set()
@@ -123,7 +138,12 @@ async def crtsh(value: str, entity_type: EntityType, client: httpx.AsyncClient) 
     return findings
 
 
-@fetcher(id="internetdb", accepts=[EntityType.IP])
+@fetcher(
+    id="internetdb",
+    accepts=[EntityType.IP],
+    name="Shodan InternetDB",
+    note="Shodan's last scan of this address, which may be days old and is not a live port check.",
+)
 async def internetdb(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     """Keyless Shodan InternetDB. A 200 always carries the full object; 404 is the only miss."""
     address = ipaddress.ip_address(value)
@@ -155,7 +175,11 @@ _INTERNETDB_LISTS = (("ports", "port"), ("hostnames", "hostname"), ("cpes", "cpe
 _GITHUB_FIELDS = ("name", "company", "location", "bio", "blog", "public_repos", "created_at")
 
 
-@fetcher(id="github", accepts=[EntityType.USERNAME])
+@fetcher(
+    id="github",
+    accepts=[EntityType.USERNAME],
+    name="GitHub profile",
+)
 async def github(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     resp = await http.get(
         client,
@@ -175,7 +199,12 @@ async def github(value: str, entity_type: EntityType, client: httpx.AsyncClient)
     return findings
 
 
-@fetcher(id="wikidata", accepts=[EntityType.PERSON, EntityType.COMPANY])
+@fetcher(
+    id="wikidata",
+    accepts=[EntityType.PERSON, EntityType.COMPANY],
+    name="Wikidata name search",
+    note="A full-text search for the name. Matches are not filtered by whether they are people or organisations.",
+)
 async def wikidata(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     resp = await http.get(
         client,
@@ -206,7 +235,12 @@ async def wikidata(value: str, entity_type: EntityType, client: httpx.AsyncClien
 _HASHLOOKUP_PATHS = {32: "md5", 40: "sha1", 64: "sha256"}
 
 
-@fetcher(id="hashlookup", accepts=[EntityType.HASH])
+@fetcher(
+    id="hashlookup",
+    accepts=[EntityType.HASH],
+    name="CIRCL hashlookup",
+    note="A known-GOOD corpus (NSRL). A hit means the file is a recognised legitimate one, not a malicious one.",
+)
 async def hashlookup(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     """CIRCL hashlookup: known-GOOD (NSRL) data, so a hit means a recognised legitimate file."""
     kind = _HASHLOOKUP_PATHS.get(len(value))
@@ -224,7 +258,7 @@ async def hashlookup(value: str, entity_type: EntityType, client: httpx.AsyncCli
     data = resp.json()
     findings: list[Finding] = []
     if name := data.get("FileName"):
-        findings.append(Finding(label="known file", value=str(name)))
+        findings.append(Finding(label="known good file", value=str(name)))
     if size := data.get("FileSize"):
         findings.append(Finding(label="size", value=f"{size} bytes"))
     if product := (data.get("ProductCode") or {}).get("ProductName"):
@@ -240,7 +274,12 @@ _BAZAAR_FIELDS = (
 )
 
 
-@fetcher(id="malwarebazaar", accepts=[EntityType.HASH])
+@fetcher(
+    id="malwarebazaar",
+    accepts=[EntityType.HASH],
+    name="MalwareBazaar",
+    note="A known-BAD corpus. A hit means the sample was submitted as malware.",
+)
 async def malwarebazaar(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     """abuse.ch requires an Auth-Key as of 2024, so this is a needs_key source by necessity."""
     key = get_key("ABUSECH_AUTH_KEY")
@@ -274,7 +313,14 @@ _PHONE_TYPES = {
 }
 
 
-@fetcher(id="phone_meta", accepts=[EntityType.PHONE])
+@fetcher(
+    id="phone_meta",
+    accepts=[EntityType.PHONE],
+    name="Phone number metadata",
+    note="Offline metadata from libphonenumber. It says the number is well formed for its region, "
+    "not that it is allocated or in service, and the carrier is the one the block was issued to, "
+    "which number portability makes unreliable.",
+)
 async def phone_meta(value: str, entity_type: EntityType, client) -> list[Finding]:
     """Offline. libphonenumber metadata only; makes no network request at all."""
     try:
@@ -290,13 +336,13 @@ async def phone_meta(value: str, entity_type: EntityType, client) -> list[Findin
                 )
             ]
         return []
-    findings = [Finding(label="valid", value="yes" if phonenumbers.is_valid_number(parsed) else "no")]
+    findings = [Finding(label="well formed", value="yes" if phonenumbers.is_valid_number(parsed) else "no")]
     if region := phonenumbers.region_code_for_number(parsed):
         findings.append(Finding(label="region", value=region))
     if location := geocoder.description_for_number(parsed, "en"):
         findings.append(Finding(label="location", value=location))
     if name := carrier.name_for_number(parsed, "en"):  # empty for most landlines
-        findings.append(Finding(label="carrier", value=name))
+        findings.append(Finding(label="carrier at issue", value=name))
     for zone in timezone.time_zones_for_number(parsed):
         findings.append(Finding(label="timezone", value=zone))
     if label := _PHONE_TYPES.get(phonenumbers.number_type(parsed)):
@@ -316,7 +362,11 @@ from casefile.fetchers import wmn  # noqa: E402,F401 -- registers the whatsmynam
 _CVSS_KEYS = ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2")
 
 
-@fetcher(id="nvd-cve", accepts=[EntityType.CVE])
+@fetcher(
+    id="nvd-cve",
+    accepts=[EntityType.CVE],
+    name="NVD vulnerability record",
+)
 async def nvd_cve(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     """NVD's keyless CVE API. Rate limited to 5 requests per 30s without a key, so one call only."""
     resp = await http.get(
@@ -369,7 +419,12 @@ def _sats(value: int) -> str:
     return f"{value:,} sats ({value / 1e8:.8f} BTC)"
 
 
-@fetcher(id="mempool-space-tx", accepts=[EntityType.TX_HASH])
+@fetcher(
+    id="mempool-space-tx",
+    accepts=[EntityType.TX_HASH],
+    name="Bitcoin transaction",
+    note="Bitcoin only. An Ethereum hash reads as nothing found here; see the Ethereum panel.",
+)
 async def mempool_tx(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     """Bitcoin transaction via the keyless Esplora API. A hash that is not Bitcoin's reads empty."""
     resp = await http.get(
@@ -400,7 +455,12 @@ async def mempool_tx(value: str, entity_type: EntityType, client: httpx.AsyncCli
     return findings
 
 
-@fetcher(id="blockscout-tx", accepts=[EntityType.TX_HASH])
+@fetcher(
+    id="blockscout-tx",
+    accepts=[EntityType.TX_HASH],
+    name="Ethereum transaction",
+    note="Ethereum only. A Bitcoin hash reads as nothing found here; see the Bitcoin panel.",
+)
 async def blockscout_tx(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     """Ethereum transaction via Blockscout. Paired with the Bitcoin one because a bare 64-hex
     hash does not say which chain it belongs to, so both are asked and the misses read empty."""
@@ -427,7 +487,11 @@ async def blockscout_tx(value: str, entity_type: EntityType, client: httpx.Async
     return findings
 
 
-@fetcher(id="mempool-space-btc", accepts=[EntityType.BTC_ADDRESS])
+@fetcher(
+    id="mempool-space-btc",
+    accepts=[EntityType.BTC_ADDRESS],
+    name="Bitcoin address",
+)
 async def mempool_address(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     """Bitcoin address activity via the keyless Esplora API."""
     resp = await http.get(

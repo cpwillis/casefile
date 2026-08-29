@@ -21,7 +21,7 @@ press ctrl-c to stop
 
 From there you work in the browser. Paste a domain, an IP, an email, a username, a company
 name, a phone number, a hash, a vessel or an aircraft identifier. casefile works out what it
-could be and shows every relevant public source, links first.
+could be, shows what it could fetch first, then the links you open yourself.
 
 Nothing is configured, nothing is uploaded, and no account is involved. Ctrl-C stops it.
 
@@ -36,13 +36,12 @@ ssh -L 8765:127.0.0.1:8765 you@box   # then open http://127.0.0.1:8765 locally
 
 ### Saving what you find
 
-Star a finding and casefile keeps it, or use **Save this search** to keep a lead before anything
+Star a finding and casefile keeps it, or use **Save this identifier** to keep a lead before anything
 on it is worth starring. A case holds as many identifiers as you put in it, so reopening the app
 shows the investigation you were working on rather than an empty box. Export a case as Markdown,
 JSON or a self-contained HTML file.
 
 ```bash
-casefile --cases                          # list saved cases
 casefile --cases                          # list them, with their case ids
 casefile --export <case-id>               # markdown to stdout
 casefile --export <case-id> --format json
@@ -118,7 +117,7 @@ what the tool does. It cannot look anything up. Run it locally for that.
 ## Status
 
 v1.1.0. `EntityType` has 22 members; 21 of them have a detector (`plate` does not yet), plus a
-255-slot link catalogue. Live fetching comes from twelve keyless sources (dns, rdap, crtsh,
+link catalogue of 198 sources covering 255 type-slots. Live fetching comes from twelve keyless sources (dns, rdap, crtsh,
 internetdb, github, wikidata, hashlookup, nvd-cve, mempool-space-tx, mempool-space-btc and
 blockscout-tx over the network, plus phone_meta offline) and the WhatsMyName username checker, which queries several hundred sites from your IP and is opt-in
 (the browser button, or `--deep` on the CLI) rather than run automatically. The link lists carry
@@ -143,7 +142,7 @@ A case is an investigation, not a single identifier. `acme-example` the username
 `acme.example` the domain are the same subject to you and nothing alike to a detector, so a
 case holds as many identifiers as you put in it and shows up once on the dashboard.
 
-- **Save this search** on any reading keeps it, whether or not anything on the page is yet worth
+- **Save this identifier** on any reading keeps it, whether or not anything on the page is yet worth
   starring. Starring a finding also starts a case, so the quick path stays one click.
 - Already have a case? The same control adds the search to it instead. An identifier lives in at
   most one case, so joining moves it, findings included.

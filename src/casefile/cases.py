@@ -200,12 +200,16 @@ def case_for_target(entity_type: EntityType, value: str) -> Case | None:
 
 
 def save_target(entity_type: EntityType, value: str, case_id: str | None = None, name: str = "") -> str:
+    """Put an identifier in a case, creating the case when `case_id` is None. Returns the case id."""
     """Put an identifier in a case, creating the case when `case_id` is None. Returns the case id.
 
     This is what both "save this search" and "add this search to that case" call. Saving a target
     that is already saved moves it, findings and all, so joining two searches is one call rather
     than a remove and an add that could half-fail between them.
     """
+
+    if not value.strip():
+        raise CaseStoreError("an identifier cannot be blank")
 
     def query(conn):
         now = time.time()
@@ -249,12 +253,20 @@ def remove_target(entity_type: EntityType, value: str) -> None:
     _write(query)
 
 
+NAME_LIMIT = 120
+
+
 def rename_case(case_id: str, name: str) -> None:
-    if not name.strip():
+    """A name is a label, not a document. Unbounded, it reached the "add to" select on every
+    result page and stretched the layout past four thousand pixels."""
+    name = name.strip()
+    if not name:
         raise CaseStoreError("a case needs a name")
+    if len(name) > NAME_LIMIT:
+        raise CaseStoreError(f"a case name is at most {NAME_LIMIT} characters, that one is {len(name)}")
     _write(
         lambda conn: conn.execute(
-            "UPDATE cases SET name = ?, updated_at = ? WHERE id = ?", (name.strip(), time.time(), case_id)
+            "UPDATE cases SET name = ?, updated_at = ? WHERE id = ?", (name, time.time(), case_id)
         )
     )
 

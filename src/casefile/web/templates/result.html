@@ -3,7 +3,13 @@
 {% block title %}{{ raw }} · casefile{% if demo %} demo{% endif %}{% endblock %}
 {% block content %}
 {% if not sections %}
-<main class="intro" id="pane"><p>Nothing recognised in <code>{{ raw }}</code>.</p></main>
+<main class="intro" id="pane">
+  <p>Nothing recognised in <code>{{ raw }}</code>.</p>
+  <p class="muted">casefile matches on shape, so it needs something with a recognisable one. Try a
+    domain, an IP, an email address, a username, a phone number in international form, a file hash,
+    a CVE id, a bitcoin address or a transaction hash.</p>
+  <p class="muted"><a href="/">Start again</a> · <a href="/cases">Saved cases</a></p>
+</main>
 {% else %}
 {% set sourced = sections | selectattr("panels") | list %}
 <h1 class="visually-hidden">casefile results for {{ raw }}</h1>
@@ -12,12 +18,10 @@
  · <a href="/cases">saved cases</a>{% endif %}</p>
 <div class="layout">
   <nav class="rail" aria-label="Results and readings">
-    {% if sourced %}
     <div class="rail-block">
       <a class="rail-type" href="#results">Results</a>
       <span class="rail-links">{{ sourced | map(attribute="panels") | map("length") | sum }} sources</span>
     </div>
-    {% endif %}
     {% for section in sections %}
     <div class="rail-block">
       <a class="rail-type{{ ' speculative-type' if section.speculative }}"
@@ -36,12 +40,17 @@
   <main class="pane" id="pane">
     {# Results first, links after: reading order follows effort. Everything casefile already went
        and got, then everything you have to go and look at yourself. #}
-    {% if sourced %}
     <section class="region" id="results">
       <h2>Results</h2>
+      {% if not sourced %}
+      <p class="region-note muted">casefile has no source it can query for
+        {{ sections | map(attribute="type") | unique | join(" or ") }} yet, so everything for this
+        one is in Links below.</p>
+      {% endif %}
       {% for section in sourced %}
       <h3 class="reading">{{ section.type }} <span class="muted">{{ section.value }}</span>
-        {% if loop.first %}<span class="tag">most likely</span>{% endif %}</h3>
+        {% if section.speculative %}<span class="tag">a guess</span>
+        {% elif loop.first %}<span class="tag">most likely</span>{% endif %}</h3>
       {% if not demo %}{% with section = section %}{% include "save_control.html" %}{% endwith %}{% endif %}
       <div class="panels" aria-live="polite" aria-label="{{ section.type }} sources">
         {% for p in section.panels %}
@@ -82,7 +91,6 @@
       </div>
       {% endfor %}
     </section>
-    {% endif %}
 
     <section class="region" id="links">
       <h2>Links</h2>

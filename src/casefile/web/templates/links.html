@@ -4,15 +4,16 @@
   {% if verdicts %}
   <p class="muted linkset-tally">
     {% for name, count in tally.items() %}{{ count }} {{ name }}{% if not loop.last %} · {% endif %}{% endfor %}
-    · nothing here was opened, only asked whether it exists
   </p>
+  <p class="muted linkset-tally">Only 404 and 410 prove a page is gone. Blocked, redirected and
+    unreachable tell you nothing either way, and nothing here was opened.</p>
   {% elif not demo %}
   {% set check_url = '/links?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type %}
   <button class="panel-run" type="button"
           hx-get="{{ check_url }}"
           hx-target="closest .linkset" hx-swap="outerHTML"
           hx-disabled-elt="this" hx-indicator="closest .linkset">
-    Check which of these exist
+    Check for dead links
   </button>
   <p class="panel-running muted">checking {{ section.links | length }} links, one request each…</p>
   <p class="muted panel-cost">sends one request per link from your IP, and does not open any of them</p>

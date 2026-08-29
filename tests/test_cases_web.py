@@ -195,13 +195,13 @@ def test_a_saved_search_says_so_on_the_result_page():
     client.post("/save", data=SAVE, headers=SAME)
     text = client.get("/q", params={"v": "acme-example"}).text
     assert "Saved to" in text
-    assert "Save this search" not in text.split("Saved to")[0][-400:]
+    assert "Save this identifier" not in text.split("Saved to")[0][-400:]
 
 
 def test_an_unsaved_search_offers_to_save_and_to_join():
     client.post("/save", data=SAVE, headers=SAME)
     text = client.get("/q", params={"v": "example.com"}).text
-    assert "Save this search" in text
+    assert "Save this identifier" in text
     assert "acme-example" in text, "no way to join this search onto an existing case"
 
 

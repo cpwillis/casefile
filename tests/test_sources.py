@@ -301,7 +301,7 @@ async def test_hashlookup_reports_a_known_file():
     async with mock_client(handler) as client:
         findings = await hashlookup("d41d8cd98f00b204e9800998ecf8427e", EntityType.HASH, client)
     labels = {f.label: f.value for f in findings}
-    assert labels["known file"] == "requires.txt"
+    assert labels["known good file"] == "requires.txt"
     assert labels["product"] == "Photoshop"
 
 
@@ -399,7 +399,7 @@ async def test_phone_meta_reports_region_and_formats():
     assert labels["location"] == "Australia"
     assert labels["E.164"] == "+61255500000"
     assert labels["international"] == "+61 2 5550 0000"
-    assert labels["valid"] == "yes"
+    assert labels["well formed"] == "yes"
 
 
 async def test_phone_meta_makes_no_network_call():

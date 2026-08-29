@@ -1,6 +1,8 @@
 <div class="panel" data-state="{{ result.state }}">
   <div class="panel-head">
-    <span class="panel-id">{{ result.source_id }}</span>
+    <span class="panel-id">{{ source_name(result.source_id) }}</span>
+    {% if result.fetched_at %}<span class="panel-age muted"
+      title="the stored answer, kept for up to 24 hours">{{ result.fetched_at | when }}</span>{% endif %}
     <span class="panel-actions">
       {# only where there is a live backend and a real target behind it: not the demo, not a refusal #}
       {% if t and v %}
@@ -15,6 +17,9 @@
     </span>
   </div>
   <p class="panel-running muted">running…</p>
+  {% if source_note(result.source_id) %}
+  <p class="panel-note muted">{{ source_note(result.source_id) }}</p>
+  {% endif %}
   {% if result.state == "ok" %}
   {# The volume lives here, not in the link lists: crtsh returns up to 500 subdomains and a
      WhatsMyName run returns hundreds of hits. Reuses the same delegated handler as the links. #}
@@ -40,7 +45,7 @@
     {% endfor %}
   </ul>
   {% elif result.state == "empty" %}
-  <p class="muted">responded, nothing found</p>
+  <p class="muted">{{ source_name(result.source_id) }} answered and had nothing for this</p>
   {% elif result.state == "needs_key" %}
   <p class="muted">needs a key: {{ result.detail }}</p>
   {% else %}
