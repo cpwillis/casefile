@@ -20,8 +20,9 @@
     {% endif %}
     {% for section in sections %}
     <div class="rail-block">
-      <a class="rail-type" href="#links-{{ section.type }}">{{ section.type }}</a>
-      <span class="rail-links">{{ section.links | length }} links</span>
+      <a class="rail-type{{ ' speculative-type' if section.speculative }}"
+         href="#links-{{ section.type }}">{{ section.type }}</a>
+      <span class="rail-links">{{ section.links | length }} links{{ ", a guess" if section.speculative }}</span>
     </div>
     {% endfor %}
     {% if demo %}
@@ -88,15 +89,25 @@
       <p class="region-note muted">Nothing here has been fetched. These are the places worth
         looking, picked by what the input could be.</p>
       {% for section in sections %}
+      {% if section.speculative %}
+      {# Folded, not dropped. Anything is a plausible person or company name, so on a domain
+         search these are guesses competing for the same space as the reading that is not. #}
+      <details class="speculative">
+        <summary id="links-{{ section.type }}"><span class="reading">{{ section.type }}</span>
+          <span class="muted">{{ section.value }} · {{ section.links | length }} links, a guess from the shape
+            of the input</span></summary>
+      {% else %}
       <h3 class="reading" id="links-{{ section.type }}">{{ section.type }}
         <span class="muted">{{ section.value }}</span>
         <span class="muted">· {{ section.links | length }}</span></h3>
+      {% endif %}
       {% if not demo and section not in sourced %}
       {% with section = section %}{% include "save_control.html" %}{% endwith %}{% endif %}
       <label class="visually-hidden" for="filter-{{ section.type }}">Filter {{ section.type }} links</label>
       <input class="filter" id="filter-{{ section.type }}" type="search" placeholder="filter links…"
              data-filters="links-{{ section.type }}-list">
       {% include "links.html" %}
+      {% if section.speculative %}</details>{% endif %}
       {% endfor %}
     </section>
   </main>

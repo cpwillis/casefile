@@ -270,7 +270,7 @@ TIER3: tuple[tuple[EntityType, Detector], ...] = (
 # The free-form readings. Almost any string is a plausible person or company name, so a value
 # whose only readings are these is not worth offering as a pivot: the arrow would be on every
 # row and would mean nothing.
-_FREE_FORM = frozenset({EntityType.USERNAME, EntityType.PERSON, EntityType.COMPANY})
+FREE_FORM = frozenset({EntityType.USERNAME, EntityType.PERSON, EntityType.COMPANY})
 
 
 def is_pivotable(value: str) -> bool:
@@ -279,7 +279,7 @@ def is_pivotable(value: str) -> bool:
     This is what turns a result into a lead: a discovered IP, nameserver, subdomain or CVE is
     the next query, and until now every one of them was a dead end on the page.
     """
-    return any(c.type not in _FREE_FORM for c in detect(value))
+    return any(c.type not in FREE_FORM for c in detect(value))
 
 
 def detect(raw: str) -> tuple[Candidate, ...]:

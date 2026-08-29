@@ -35,7 +35,7 @@ from casefile.cases import (
     unstar,
 )
 from casefile.catalog import links_for
-from casefile.detect import detect, is_pivotable
+from casefile.detect import FREE_FORM, detect, is_pivotable
 from casefile.export import FORMATS, export_case, media_type, safe_url, when
 from casefile.fetchers import SourceResult, State, fetched_ids, fetchers_for, registered_fetcher, wmn
 from casefile.fetchers.http import build_client
@@ -74,8 +74,13 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
     Sharing this with the demo is what stops the two pages drifting: the link filtering, the
     ordering and the panel set are decided once, here.
     """
+    candidates = detect(raw)
+    # A free-form reading is only speculative when something structured is also on offer. For a
+    # bare word there is nothing but free-form readings, and demoting all of them would leave the
+    # page with nothing on it.
+    structured = any(c.type not in FREE_FORM for c in candidates)
     sections = []
-    for candidate in detect(raw):
+    for candidate in candidates:
         panels = fetchers_for(candidate.type)
         if results is None:
             known = {r.id: hit for r in panels if (hit := cached_result(r.id, candidate.type, candidate.value))}
@@ -90,6 +95,7 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
                 "links": links_for(candidate, exclude=fetched_ids()),
                 "case": None if results is not None else case_for_target(candidate.type, candidate.value),
                 "starred": frozenset() if results is not None else starred_keys(candidate.type, candidate.value),
+                "speculative": structured and candidate.type in FREE_FORM,
             }
         )
     return sections

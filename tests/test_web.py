@@ -120,3 +120,20 @@ def test_htmx_loads_only_on_the_page_that_swaps():
         text = client.get(path).text
         assert "htmx.min.js" not in text, f"{path} loads htmx"
         assert "hx-" not in text, f"{path} grew an hx- attribute and now needs htmx"
+
+
+def test_free_form_readings_are_folded_when_a_structured_one_exists():
+    """On example.com, 35 of 86 links were person and company guesses competing for the same
+    space as the domain, which is the reading that is not a guess."""
+    text = client.get("/q", params={"v": "example.com"}).text
+    assert '<details class="speculative">' in text
+    assert text.count('<details class="speculative">') == 3  # username, person, company
+    # folded, not dropped: the links are still in the document
+    assert "aleph.occrp.org" in text or text.count('class="links"') == 4
+
+
+def test_free_form_readings_stay_at_full_weight_when_they_are_all_there_is():
+    """A bare word has nothing but free-form readings. Demoting all of them would leave the page
+    with nothing on it."""
+    text = client.get("/q", params={"v": "octocat"}).text
+    assert '<details class="speculative">' not in text

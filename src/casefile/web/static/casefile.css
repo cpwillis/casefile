@@ -109,3 +109,9 @@ form.inline { display: inline; }
 .pivot:hover { color: var(--accent); text-decoration: underline; }
 .star-when { font-size: 11px; }
 .findings-filter { max-width: 240px; font-size: 12px; margin: 6px 0 4px; }
+
+.speculative { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 10px; }
+.speculative > summary { cursor: pointer; list-style-position: outside; }
+.speculative > summary .reading { margin: 0; }
+.speculative[open] > summary { margin-bottom: 10px; }
+.rail-type.speculative-type { font-weight: 400; opacity: .75; }
