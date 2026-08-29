@@ -24,7 +24,7 @@ def test_the_web_page_renders_every_reading_detect_found():
     """Detection and the page must agree: a reading with no section is a silently dropped lead."""
     text = client.get("/q", params={"v": "example.com"}).text
     for candidate in detect("example.com"):
-        assert f'id="type-{candidate.type.value}"' in text
+        assert f'id="links-{candidate.type.value}"' in text
 
 
 def test_the_demo_has_no_templates_of_its_own():

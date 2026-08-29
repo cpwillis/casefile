@@ -24,8 +24,12 @@ a { color: var(--accent); }
 .rail-type { display: block; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
 .rail-links { display: block; color: var(--muted); }
 .rail-tally { border-top: 1px solid var(--line); padding-top: 10px; }
-.type-section { margin-bottom: 40px; scroll-margin-top: 16px; }
-.type-section h2 { text-transform: uppercase; letter-spacing: .04em; font-size: 15px; }
+.region { margin-bottom: 44px; scroll-margin-top: 16px; }
+.region > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+               border-bottom: 1px solid var(--line); padding-bottom: 6px; margin: 0 0 4px; }
+.region-note { font-size: 12px; margin: 0 0 16px; }
+.reading { text-transform: uppercase; letter-spacing: .04em; font-size: 14px; scroll-margin-top: 16px;
+           margin: 22px 0 8px; }
 .tag { font-size: 11px; border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px; color: var(--muted); text-transform: none; letter-spacing: 0; }
 .filter { width: 100%; max-width: 320px; padding: 6px 8px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); }
 .links { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 16px; }

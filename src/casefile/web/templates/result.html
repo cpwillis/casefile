@@ -5,16 +5,23 @@
 {% if not sections %}
 <main class="intro" id="pane"><p>Nothing recognised in <code>{{ raw }}</code>.</p></main>
 {% else %}
+{% set sourced = sections | selectattr("panels") | list %}
 <h1 class="visually-hidden">casefile results for {{ raw }}</h1>
 <p class="summary muted">{{ sections | length }} reading{{ "s" if sections | length != 1 }}
  · {{ sections | map(attribute="links") | map("length") | sum }} links{% if not demo %}
  · <a href="/cases">saved cases</a>{% endif %}</p>
 <div class="layout">
-  <nav class="rail" aria-label="Readings and sources">
+  <nav class="rail" aria-label="Results and readings">
+    {% if sourced %}
+    <div class="rail-block">
+      <a class="rail-type" href="#results">Results</a>
+      <span class="rail-links">{{ sourced | map(attribute="panels") | map("length") | sum }} sources</span>
+    </div>
+    {% endif %}
     {% for section in sections %}
     <div class="rail-block">
-      <a class="rail-type" href="#type-{{ section.type }}">{{ section.type }}</a>
-      <a class="rail-links" href="#links-{{ section.type }}">{{ section.links | length }} links</a>
+      <a class="rail-type" href="#links-{{ section.type }}">{{ section.type }}</a>
+      <span class="rail-links">{{ section.links | length }} links</span>
     </div>
     {% endfor %}
     {% if demo %}
@@ -26,15 +33,14 @@
   </nav>
 
   <main class="pane" id="pane">
-    {% for section in sections %}
-    <section class="type-section" id="type-{{ section.type }}">
-      <h2>{{ section.type }}
-        <span class="muted">{{ section.value }}</span>
-        {% if loop.first %}<span class="tag">most likely</span>{% endif %}
-      </h2>
-
-      {% if section.panels %}
-      <h3>Sources</h3>
+    {# Results first, links after: reading order follows effort. Everything casefile already went
+       and got, then everything you have to go and look at yourself. #}
+    {% if sourced %}
+    <section class="region" id="results">
+      <h2>Results</h2>
+      {% for section in sourced %}
+      <h3 class="reading">{{ section.type }} <span class="muted">{{ section.value }}</span>
+        {% if loop.first %}<span class="tag">most likely</span>{% endif %}</h3>
       <div class="panels">
         {% for p in section.panels %}
         {% set panel_url = '/panel/' ~ p.id ~ '?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type %}
@@ -71,9 +77,18 @@
         {% endif %}
         {% endfor %}
       </div>
-      {% endif %}
+      {% endfor %}
+    </section>
+    {% endif %}
 
-      <h3 id="links-{{ section.type }}">Links ({{ section.links | length }})</h3>
+    <section class="region" id="links">
+      <h2>Links</h2>
+      <p class="region-note muted">Nothing here has been fetched. These are the places worth
+        looking, picked by what the input could be.</p>
+      {% for section in sections %}
+      <h3 class="reading" id="links-{{ section.type }}">{{ section.type }}
+        <span class="muted">{{ section.value }}</span>
+        <span class="muted">· {{ section.links | length }}</span></h3>
       <label class="visually-hidden" for="filter-{{ section.type }}">Filter {{ section.type }} links</label>
       <input class="filter" id="filter-{{ section.type }}" type="search" placeholder="filter links…"
              data-filters="links-{{ section.type }}-list">
@@ -86,8 +101,8 @@
         <li class="muted">no sources for this type yet</li>
         {% endfor %}
       </ul>
+      {% endfor %}
     </section>
-    {% endfor %}
   </main>
 </div>
 {% endif %}

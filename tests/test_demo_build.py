@@ -99,4 +99,4 @@ def test_demo_data_carries_no_real_personal_data():
 def test_every_demo_target_produces_at_least_one_section(built):
     for target in load_targets():
         page = (built / f"{_slug(target.query)}.html").read_text()
-        assert 'class="type-section"' in page, f"{target.query} rendered no readings"
+        assert 'class="reading"' in page, f"{target.query} rendered no readings"

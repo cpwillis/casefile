@@ -44,8 +44,8 @@ def test_result_page_renders_rail_and_pane():
     response = client.get("/q", params={"v": "example.com"})
     assert response.status_code == 200
     assert 'class="rail"' in response.text
-    assert 'id="type-domain"' in response.text
-    assert 'href="#type-domain"' in response.text
+    assert 'id="links-domain"' in response.text
+    assert 'href="#links-domain"' in response.text
 
 
 def test_result_page_lists_links_with_encoded_values():
@@ -53,9 +53,20 @@ def test_result_page_lists_links_with_encoded_values():
     assert "Acme%20%26%20Co" in text
 
 
-def test_domain_section_precedes_company_section():
+def test_domain_reading_precedes_company_reading():
     text = client.get("/q", params={"v": "example.com"}).text
-    assert text.index('id="type-domain"') < text.index('id="type-company"')
+    assert text.index('id="links-domain"') < text.index('id="links-company"')
+
+
+def test_everything_fetched_comes_before_everything_you_must_click():
+    """Reading order follows effort: results casefile already has, then links you go and open.
+
+    Grouping by entity type first put a domain's 49 unvisited links above a username's actual
+    findings, so the answers were below the homework.
+    """
+    text = client.get("/q", params={"v": "example.com"}).text
+    assert text.index('id="results"') < text.index('id="links"')
+    assert text.index('class="panels"') < text.index('class="links"')
 
 
 def test_blank_query_falls_back_to_index():
