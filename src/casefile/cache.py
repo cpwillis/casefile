@@ -49,7 +49,7 @@ def _ttl_for(state: str) -> float:
     return RETENTION_SECONDS if state in ANSWERED else FAILURE_RETENTION
 
 
-def _load(source_id: str, entity_type, value: str, ttl: float | None = None) -> SourceResult | None:
+def _load(source_id: str, entity_type, value: str) -> SourceResult | None:
     if not cache_path().exists():
         return None  # a miss must not bring the store into being; only storing a response does
     with _connect() as conn:
@@ -60,7 +60,7 @@ def _load(source_id: str, entity_type, value: str, ttl: float | None = None) -> 
     if row is None:
         return None
     data = json.loads(row[1])
-    if time.time() - row[0] > (_ttl_for(data["state"]) if ttl is None else ttl):
+    if time.time() - row[0] > _ttl_for(data["state"]):
         return None
     findings = tuple(Finding(**f) for f in data.get("findings", []))
     return SourceResult(
@@ -102,9 +102,7 @@ def cached_result(source_id, entity_type, value) -> SourceResult | None:
         return None
 
 
-async def run_cached(
-    source_id, value, entity_type, client, *, ttl: float | None = None, use_cache: bool = True, refresh: bool = False
-):
+async def run_cached(source_id, value, entity_type, client, *, use_cache: bool = True, refresh: bool = False):
     """run_fetcher with a SQLite read-through cache. Every outcome is stored, with a retention
     that depends on it: see FAILURE_RETENTION.
 
@@ -117,13 +115,8 @@ async def run_cached(
     Cache failures are contained: a broken or unwritable cache degrades to an uncached lookup
     rather than failing the request, because a 500 leaves the panel loading forever.
     """
-    if use_cache and not refresh:
-        try:
-            hit = _load(source_id, entity_type, value, ttl)
-        except Exception:  # noqa: BLE001 -- a broken cache must never break a lookup
-            hit = None
-        if hit is not None:
-            return hit
+    if use_cache and not refresh and (hit := cached_result(source_id, entity_type, value)) is not None:
+        return hit
     result = await run_fetcher(source_id, value, entity_type, client)
     if use_cache:
         try:  # noqa: SIM105 -- explicit try/except reads clearer here than contextlib.suppress

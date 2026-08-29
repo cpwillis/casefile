@@ -6,9 +6,21 @@ document.addEventListener("input", (event) => {
   const list = document.getElementById(input.dataset.filters);
   if (!list) return;
   const needle = input.value.trim().toLowerCase();
+  let shown = 0;
   for (const item of list.children) {
     item.hidden = needle !== "" && !item.textContent.toLowerCase().includes(needle);
+    if (!item.hidden) shown++;
   }
+  // Counted in the same pass that hides them. Two listeners meant the count was right only
+  // because they happened to fire in registration order.
+  let status = input.parentElement.querySelector(".filter-status");
+  if (!status) {
+    status = document.createElement("span");
+    status.className = "filter-status muted";
+    status.setAttribute("role", "status");
+    input.insertAdjacentElement("afterend", status);
+  }
+  status.textContent = needle === "" ? "" : shown ? `${shown} of ${list.children.length}` : "nothing matches";
 });
 
 // "/" focuses the search box, unless you are already typing in or choosing from a control.
@@ -75,23 +87,7 @@ document.addEventListener("htmx:afterSwap", (event) => {
   if (panel && panel.classList.contains("panel")) panel.focus({ preventScroll: true });
 });
 
-// Filtering silently hid rows with no count and no empty state, which reads as "nothing matched"
-// and "everything matched" identically.
-document.addEventListener("input", (event) => {
-  const input = event.target.closest(".filter");
-  if (!input) return;
-  const list = document.getElementById(input.dataset.filters);
-  if (!list) return;
-  const shown = [...list.children].filter((li) => !li.hidden).length;
-  let status = input.parentElement.querySelector(".filter-status");
-  if (!status) {
-    status = document.createElement("span");
-    status.className = "filter-status muted";
-    status.setAttribute("role", "status");
-    input.insertAdjacentElement("afterend", status);
-  }
-  status.textContent = input.value.trim() === "" ? "" : shown ? `${shown} of ${list.children.length}` : "nothing matches";
-});
+
 
 // A rail link can point at a heading inside a folded group. Open the group first, or the click
 // scrolls to a collapsed summary and looks like it did nothing.

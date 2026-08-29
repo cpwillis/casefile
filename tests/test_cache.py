@@ -38,7 +38,7 @@ async def test_no_cache_bypasses_the_cache():
     assert calls == 2
 
 
-async def test_expired_entries_are_re_fetched():
+async def test_expired_entries_are_re_fetched(monkeypatch):
     calls = 0
 
     @fetcher(id="cache-ttl", accepts=[EntityType.DOMAIN])
@@ -47,8 +47,10 @@ async def test_expired_entries_are_re_fetched():
         calls += 1
         return [Finding(label="A", value="1")]
 
-    await run_cached("cache-ttl", "example.com", EntityType.DOMAIN, None, ttl=0)
-    await run_cached("cache-ttl", "example.com", EntityType.DOMAIN, None, ttl=0)
+    monkeypatch.setattr("casefile.cache.RETENTION_SECONDS", 0)
+    monkeypatch.setattr("casefile.cache.FAILURE_RETENTION", 0)
+    await run_cached("cache-ttl", "example.com", EntityType.DOMAIN, None)
+    await run_cached("cache-ttl", "example.com", EntityType.DOMAIN, None)
     assert calls == 2
 
 
@@ -74,7 +76,7 @@ async def test_a_failure_is_held_briefly_rather_than_for_the_full_day():
     assert FAILURE_RETENTION < RETENTION_SECONDS / 100
 
 
-async def test_a_stale_failure_is_retried_once_its_short_clock_runs_out():
+async def test_a_stale_failure_is_retried_once_its_short_clock_runs_out(monkeypatch):
     calls = 0
 
     @fetcher(id="cache-error-stale", accepts=[EntityType.DOMAIN])
@@ -84,7 +86,8 @@ async def test_a_stale_failure_is_retried_once_its_short_clock_runs_out():
         raise ValueError("boom")
 
     await run_cached("cache-error-stale", "example.com", EntityType.DOMAIN, None)
-    await run_cached("cache-error-stale", "example.com", EntityType.DOMAIN, None, ttl=0)
+    monkeypatch.setattr("casefile.cache.FAILURE_RETENTION", 0)
+    await run_cached("cache-error-stale", "example.com", EntityType.DOMAIN, None)
     assert calls == 2
 
 
@@ -187,7 +190,7 @@ async def test_stale_rows_are_pruned_from_disk_not_just_ignored():
     _store(SourceResult("cache-stale", State.OK), EntityType.DOMAIN, "old.example")
     with _connect() as conn:
         conn.execute("UPDATE responses SET fetched_at = ?", (_time.time() - 200000,))
-    _load("cache-stale", EntityType.DOMAIN, "old.example", ttl=RETENTION_SECONDS)
+    _load("cache-stale", EntityType.DOMAIN, "old.example")
     with _connect() as conn:
         rows = [r[0] for r in conn.execute("SELECT source_id FROM responses")]
     assert rows == [], f"stale row survived a read: {rows}"

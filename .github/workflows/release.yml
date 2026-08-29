@@ -30,9 +30,7 @@ jobs:
       - name: install and run the checks
         run: |
           uv sync --all-extras --dev
-          uv run ruff check
-          uv run ruff format --check
-          uv run pytest -q
+          make check
 
       - name: build the sdist and wheel
         run: uv build

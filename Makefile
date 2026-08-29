@@ -1,7 +1,7 @@
 .PHONY: check test live fmt lint demo
 check: lint test
 test:
-	uv run pytest
+	uv run pytest -q
 live:
 	uv run pytest -m live -v
 lint:
