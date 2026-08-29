@@ -66,14 +66,6 @@ notes = "PGP key index by email/user id."
 provenance = "public SKS-style keyserver"
 
 [[source]]
-id = "psbdmp-search"
-name = "psbdmp Paste Dump"
-accepts = ["email", "domain"]
-url = "https://psbdmp.ws/search/{value}"
-notes = "Archived pastebin dumps mentioning the value."
-provenance = "awesome-osint"
-
-[[source]]
 id = "truepeoplesearch-name"
 name = "TruePeopleSearch"
 accepts = ["person"]
@@ -132,7 +124,7 @@ provenance = "major social network"
 [[source]]
 id = "github-user"
 name = "GitHub Profile"
-accepts = ["person", "company", "username"]
+accepts = ["username"]
 url = "https://github.com/{value}"
 notes = "Direct username/org profile; also works as a plain username lookup."
 provenance = "awesome-osint"
@@ -156,7 +148,7 @@ provenance = "major social network"
 [[source]]
 id = "keybase-user"
 name = "Keybase"
-accepts = ["person"]
+accepts = ["username"]
 url = "https://keybase.io/{value}"
 notes = "Username to linked identities and PGP keys."
 provenance = "awesome-osint"
@@ -164,18 +156,10 @@ provenance = "awesome-osint"
 [[source]]
 id = "gravatar-profile"
 name = "Gravatar Profile"
-accepts = ["person"]
+accepts = ["username"]
 url = "https://gravatar.com/{value}"
 notes = "Public profile by Gravatar username."
 provenance = "awesome-osint"
-
-[[source]]
-id = "peekyou-username"
-name = "PeekYou"
-accepts = ["person"]
-url = "https://www.peekyou.com/{value}"
-notes = "Username-based people aggregation."
-provenance = "known people/username-search service"
 
 [[source]]
 id = "wikidata-search"

@@ -29,7 +29,7 @@ provenance = "awesome-osint"
 id = "dnslytics-domain"
 name = "DNSlytics"
 accepts = ["domain"]
-url = "https://dnslytics.com/domain/{value}"
+url = "https://search.dnslytics.com/domain/{value}"
 notes = "DNS, reverse IP/NS, ASN, related domains, hosting history."
 provenance = "awesome-osint"
 
@@ -192,4 +192,19 @@ accepts = ["domain"]
 url = "https://lookup.icann.org/en/lookup?q={value}"
 notes = "Official ICANN registration data lookup tool; replaces the old whois.icann.org. Verified live."
 provenance = "verified 2026-08-28"
+
+[[source]]
+id = "nslookup-io-domain"
+name = "nslookup.io DNS records"
+accepts = ["domain"]
+url = "https://www.nslookup.io/domains/{value}/dns-records/"
+provenance = "verified live 2026-08-29"
+
+
+[[source]]
+id = "nslookup-io-ip"
+name = "nslookup.io IP"
+accepts = ["ip"]
+url = "https://www.nslookup.io/ip/{value}/"
+provenance = "verified live 2026-08-29"
 

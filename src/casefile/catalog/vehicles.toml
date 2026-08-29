@@ -65,11 +65,3 @@ url = "https://www.macvendorlookup.com/api/v2/{value}"
 notes = "Returns vendor name and registered address JSON; MAC in path. Verified live (Cisco)."
 provenance = "Well-known MAC vendor lookup"
 
-[[source]]
-id = "aruljohn-mac"
-name = "aruljohn MAC Lookup"
-accepts = ["mac"]
-url = "https://aruljohn.com/mac/{value}"
-notes = "Vendor and OUI block range; MAC in path (accepts with or without separators). Verified live (Cisco)."
-provenance = "Well-known MAC/OUI lookup"
-

@@ -65,3 +65,11 @@ url = "https://www.shipspotting.com/gallery/search.php?search_mmsi={value}"
 notes = "Same gallery search keyed on the MMSI field. Publicly viewable."
 provenance = "ship photo database, maritime OSINT"
 
+[[source]]
+id = "vesselfinder-search"
+name = "VesselFinder"
+accepts = ["imo", "mmsi"]
+url = "https://www.vesselfinder.com/vessels?name={value}"
+notes = "verified 2026-08-29"
+provenance = "verified live 2026-08-29"
+

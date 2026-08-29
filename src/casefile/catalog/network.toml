@@ -53,7 +53,7 @@ provenance = "awesome-osint"
 id = "ipinfo-asn"
 name = "IPinfo ASN"
 accepts = ["asn"]
-url = "https://ipinfo.io/AS{value}"
+url = "https://ipinfo.io/{value}"
 notes = "ASN detail; value is the bare AS number."
 provenance = "awesome-osint"
 
@@ -157,16 +157,8 @@ provenance = "awesome-osint"
 id = "dnslytics-ip"
 name = "DNSlytics IP"
 accepts = ["ip"]
-url = "https://dnslytics.com/ip/{value}"
+url = "https://search.dnslytics.com/ip/{value}"
 notes = "Reverse IP, ASN, geo, neighbouring domains."
-provenance = "awesome-osint"
-
-[[source]]
-id = "dnslytics-asn"
-name = "DNSlytics ASN"
-accepts = ["asn"]
-url = "https://dnslytics.com/asn/AS{value}"
-notes = "ASN prefixes and hosted domains; value is bare AS number."
 provenance = "awesome-osint"
 
 [[source]]
@@ -189,25 +181,9 @@ provenance = "BGP toolkit / looking glass"
 id = "bgp-he-asn"
 name = "Hurricane Electric BGP (ASN)"
 accepts = ["asn"]
-url = "https://bgp.he.net/AS{value}"
+url = "https://bgp.he.net/{value}"
 notes = "Prefixes, peers, graph; value is bare AS number."
 provenance = "BGP toolkit / looking glass"
-
-[[source]]
-id = "bgpview-ip"
-name = "BGPView IP"
-accepts = ["ip"]
-url = "https://bgpview.io/ip/{value}"
-notes = "Prefix and origin ASN for the IP."
-provenance = "BGP / routing data"
-
-[[source]]
-id = "bgpview-asn"
-name = "BGPView ASN"
-accepts = ["asn"]
-url = "https://bgpview.io/asn/{value}"
-notes = "Prefixes, peers, upstreams; bare AS number."
-provenance = "BGP / routing data"
 
 [[source]]
 id = "bgptools-asn"
@@ -221,7 +197,7 @@ provenance = "BGP / routing data"
 id = "peeringdb-asn"
 name = "PeeringDB"
 accepts = ["asn"]
-url = "https://www.peeringdb.com/asn/{value}"
+url = "https://www.peeringdb.com/search?q={value}"
 notes = "Peering facilities, IX presence, contacts; bare AS number."
 provenance = "peering / interconnection registry"
 
@@ -261,7 +237,7 @@ provenance = "verified 2026-08-28 (abuse.ch)"
 id = "ripestat-asn"
 name = "RIPEstat (ASN)"
 accepts = ["asn"]
-url = "https://stat.ripe.net/AS{value}"
+url = "https://stat.ripe.net/resource/{value}"
 notes = "RIPE NCC's data aggregation widget; routing, geolocation and abuse-contact widgets for the AS. Verified live."
 provenance = "verified 2026-08-28 (RIPE NCC)"
 
@@ -272,4 +248,12 @@ accepts = ["ip"]
 url = "https://stat.ripe.net/{value}"
 notes = "Same RIPEstat widget set, keyed on the address directly. Verified live."
 provenance = "verified 2026-08-28 (RIPE NCC)"
+
+[[source]]
+id = "whoiscom-lookup"
+name = "Whois.com"
+accepts = ["domain", "ip"]
+url = "https://www.whois.com/whois/{value}"
+notes = "verified 2026-08-29"
+provenance = "verified live 2026-08-29"
 
