@@ -85,7 +85,7 @@ def clear_cache() -> int:
     except sqlite3.Error:
         count = 0
     path.unlink(missing_ok=True)
-    for suffix in ("-wal", "-shm"):
+    for suffix in ("-journal", "-wal", "-shm"):
         path.with_name(path.name + suffix).unlink(missing_ok=True)
     return count
 

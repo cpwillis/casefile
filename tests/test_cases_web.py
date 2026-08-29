@@ -3,7 +3,7 @@ from starlette.testclient import TestClient
 
 from casefile.web.app import app
 
-client = TestClient(app)
+client = TestClient(app, base_url="http://127.0.0.1")
 SAME = {"sec-fetch-site": "same-origin"}
 STAR = {"t": "domain", "v": "example.com", "source_id": "dns", "label": "A", "value": "192.0.2.10", "url": ""}
 
@@ -36,9 +36,57 @@ def test_starring_then_unstarring_round_trips():
     assert "★" in first.text  # filled star
     assert len(list_cases()) == 1
 
-    second = client.post("/star", data=STAR, headers=SAME)
+    # The button declares intent rather than toggling, so a stale tab cannot un-save silently.
+    second = client.post("/star", data=dict(STAR, action="unstar"), headers=SAME)
     assert "☆" in second.text  # hollow again
     assert list_cases() == ()
+
+
+def test_a_stale_tab_cannot_unsave_by_re_saving():
+    """Two tabs on the same page: clicking save twice must not cascade the case away."""
+    from casefile.cases import list_cases
+
+    client.post("/star", data=STAR, headers=SAME)
+    client.post("/star", data=STAR, headers=SAME)  # a stale tab repeating "save"
+    assert len(list_cases()) == 1
+
+
+def test_deleting_a_case_removes_it():
+    from casefile.cases import list_cases
+
+    client.post("/star", data=STAR, headers=SAME)
+    resp = client.post("/case/domain:example.com/delete", headers=SAME, follow_redirects=False)
+    assert resp.status_code == 303
+    assert list_cases() == ()
+
+
+def test_deleting_a_case_refuses_cross_site():
+    client.post("/star", data=STAR, headers=SAME)
+    assert client.post("/case/domain:example.com/delete", headers={"sec-fetch-site": "cross-site"}).status_code == 403
+
+
+def test_a_foreign_host_is_refused_even_when_same_origin():
+    """Sec-Fetch-Site alone does not survive DNS rebinding, so Host is pinned too."""
+    resp = client.post("/star", data=STAR, headers={**SAME, "host": "evil.example"})
+    assert resp.status_code == 403
+    assert client.get("/cases", headers={"host": "evil.example"}).status_code == 403
+
+
+def test_export_filename_survives_a_unicode_target():
+    """case.value is third-party influenced and reaches a response header.
+
+    A raw unicode value used to raise UnicodeEncodeError in the header encoder, 500ing every
+    export of an ordinary internationalised email address.
+    """
+    client.post("/star", data=dict(STAR, t="email", v="a@\u65e5\u672c\u8a9e.example"), headers=SAME)
+    from casefile.cases import list_cases
+
+    (case,) = list_cases()
+    resp = client.get(f"/case/{case.id}/export.md")
+    assert resp.status_code == 200
+    disposition = resp.headers["content-disposition"]
+    disposition.encode("latin-1")  # raises if non-latin-1 leaked into the header
+    assert "\r" not in disposition and "\n" not in disposition and disposition.count('"') == 2
 
 
 def test_star_rejects_an_unknown_entity_type():

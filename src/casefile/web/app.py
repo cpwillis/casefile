@@ -1,5 +1,6 @@
 """Starlette app. Binds loopback only; this is a local tool, not a service."""
 
+import re
 import threading
 import webbrowser
 from pathlib import Path
@@ -8,14 +9,14 @@ from urllib.parse import parse_qs
 import uvicorn
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, PlainTextResponse, Response
+from starlette.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers at import
 from casefile.cache import run_cached
-from casefile.cases import Star, is_starred, list_cases, load_case, star, unstar
+from casefile.cases import CaseStoreError, Star, delete_case, is_starred, list_cases, load_case, star, unstar
 from casefile.detect import detect
 from casefile.export import FORMATS, export_case
 from casefile.fetchers import SourceResult, State, fetchers_for, has_fetcher, registered_fetcher
@@ -91,6 +92,16 @@ async def panel(request: Request) -> HTMLResponse:
 _MEDIA = {"md": "text/markdown; charset=utf-8", "json": "application/json", "html": "text/html; charset=utf-8"}
 
 
+_ALLOWED_HOSTS = ("127.0.0.1", "localhost", "::1")
+
+
+def _local_host(request: Request) -> bool:
+    """Sec-Fetch-Site alone does not survive DNS rebinding: a rebound name is same-origin to the
+    browser. Pinning Host means a foreign name cannot reach these routes at all."""
+    host = (request.headers.get("host") or "").rsplit(":", 1)[0].strip("[]")
+    return host in _ALLOWED_HOSTS
+
+
 def _same_origin(request: Request) -> bool:
     """Mutations demand same-origin, which is stricter than the read-only panel guard.
 
@@ -98,7 +109,21 @@ def _same_origin(request: Request) -> bool:
     this app's own page, and every browser that can reach it sends the header. A page you visit
     while casefile is running must not be able to write to your cases.
     """
-    return request.headers.get("sec-fetch-site") == "same-origin"
+    return _local_host(request) and request.headers.get("sec-fetch-site") == "same-origin"
+
+
+_UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _filename_for(case, fmt: str) -> str:
+    """A latin-1-safe, quote-free, newline-free download name.
+
+    case.value is third-party-influenced text. A raw unicode value raises UnicodeEncodeError in
+    the header encoder, a CRLF injects a header, and a quote corrupts the filename, so it is
+    reduced to a conservative ASCII slug rather than escaped.
+    """
+    slug = _UNSAFE_FILENAME.sub("-", f"{case.entity_type}-{case.value}").strip("-")
+    return f"{slug[:80] or 'case'}.{fmt}"
 
 
 async def star_route(request: Request) -> Response:
@@ -122,10 +147,23 @@ async def star_route(request: Request) -> Response:
     )
     if not value or not finding.source_id:
         return PlainTextResponse("missing target or source", status_code=400)
-    if is_starred(entity_type, value, finding):
-        unstar(entity_type, value, finding)
-    else:
-        star(entity_type, value, finding)
+    # The button states its intent rather than toggling server state. A second tab showing a
+    # stale page would otherwise un-save rows it never saved, cascading the case away silently.
+    action = form.get("action", "star")
+    try:
+        if action == "unstar":
+            unstar(entity_type, value, finding)
+        else:
+            star(entity_type, value, finding)
+    except CaseStoreError as exc:
+        # Show the failure on the button rather than 500ing. htmx does not swap 5xx, so a
+        # silent non-save would look identical to a successful one.
+        return templates.TemplateResponse(
+            request,
+            "star_button.html",
+            {"t": entity_type.value, "v": value, "sid": finding.source_id, "f": finding,
+             "starred": False, "error": str(exc)},
+        )
     return templates.TemplateResponse(
         request,
         "star_button.html",
@@ -139,11 +177,15 @@ async def star_route(request: Request) -> Response:
     )
 
 
-async def cases(request: Request) -> HTMLResponse:
+async def cases(request: Request) -> Response:
+    if not _local_host(request):
+        return PlainTextResponse("forbidden host", status_code=403)
     return templates.TemplateResponse(request, "cases.html", {"cases": list_cases()})
 
 
 async def case_detail(request: Request) -> Response:
+    if not _local_host(request):
+        return PlainTextResponse("forbidden host", status_code=403)
     case = load_case(request.path_params["case_id"])
     if case is None:
         return templates.TemplateResponse(request, "cases.html", {"cases": list_cases(), "missing": True})
@@ -151,6 +193,8 @@ async def case_detail(request: Request) -> Response:
 
 
 async def case_export(request: Request) -> Response:
+    if not _local_host(request):
+        return PlainTextResponse("forbidden host", status_code=403)
     fmt = request.path_params["fmt"]
     if fmt not in FORMATS:
         return PlainTextResponse(f"unknown format {fmt}", status_code=404)
@@ -158,12 +202,18 @@ async def case_export(request: Request) -> Response:
     if case is None:
         return PlainTextResponse("no such case", status_code=404)
     body = export_case(case, fmt)
-    filename = f"{case.entity_type}-{case.value}".replace("/", "-")
     return Response(
         body,
         media_type=_MEDIA[fmt],
-        headers={"content-disposition": f'attachment; filename="{filename}.{fmt}"'},
+        headers={"content-disposition": f'attachment; filename="{_filename_for(case, fmt)}"'},
     )
+
+
+async def case_delete(request: Request) -> Response:
+    if not _same_origin(request):
+        return PlainTextResponse("cross-site request refused", status_code=403)
+    delete_case(request.path_params["case_id"])
+    return RedirectResponse("/cases", status_code=303)
 
 
 app = Starlette(
@@ -175,6 +225,7 @@ app = Starlette(
         Route("/cases", cases),
         Route("/case/{case_id}", case_detail),
         Route("/case/{case_id}/export.{fmt}", case_export),
+        Route("/case/{case_id}/delete", case_delete, methods=["POST"]),
         Mount("/static", StaticFiles(directory=HERE / "static"), name="static"),
     ]
 )

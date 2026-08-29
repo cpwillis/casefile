@@ -14,7 +14,9 @@ from casefile.detect import detect
 from casefile.fetchers import Finding, SourceResult, fetchers_for
 from casefile.report import links_for
 
-DEMO_DATA = Path(__file__).resolve().parents[2] / "demo_data" / "demo.json"
+# Inside the package, not at the repo root: --build-demo is advertised in --help to every
+# installed user, and a repo-relative path crashes on any wheel install.
+DEMO_DATA = Path(__file__).resolve().parent / "demo_data" / "demo.json"
 
 
 @dataclass(frozen=True)

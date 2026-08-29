@@ -535,8 +535,12 @@ These are architectural, not just words in a README:
 - **No bulk input.** One target per query. No `--input-file`, no target lists, no batch
   mode. Mass enumeration is the difference between an investigative tool and a harvesting
   tool, and the cheapest way to not build the second one is to never accept a list.
-- **No query log and no telemetry, ever.** casefile records nothing about what you searched
-  unless you explicitly star it. Two things reach disk: a 24-hour response cache
+- **No telemetry, ever, and nothing leaves the machine.** Two things reach disk and they are
+  different in kind. The response cache is keyed on the identifier you looked up, so for 24
+  hours it is in effect a local query log, written automatically (`--clear-cache`). Saved
+  cases hold only what you explicitly starred, and are kept until you delete them
+  (`--forget-cases`). Saying casefile "records nothing unless you star it" would be false:
+  the cache records every search regardless. Two things reach disk: a 24-hour response cache
   (`--clear-cache`), and the cases you deliberately saved (`--forget-cases`). Nothing is sent
   anywhere. The distinction is deliberate versus automatic: a tool that quietly logged every
   search would be a risk on a shared machine, whereas one that keeps the few things you starred

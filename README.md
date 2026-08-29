@@ -40,9 +40,17 @@ casefile --export domain:example.com --format json
 casefile --forget-cases                   # delete them all
 ```
 
-Only what you star is kept, and only ever on this machine. Two things reach disk and they are
-purged separately on purpose: the 24-hour response cache (`--clear-cache`) and your saved cases
-(`--forget-cases`). A privacy purge must never destroy the work you deliberately saved.
+Everything stays on this machine; nothing is ever uploaded. Two things reach disk, and they are
+different in kind, so they are purged by different commands:
+
+- **The response cache** is keyed on the identifier you searched, so for 24 hours it is in effect
+  a local log of what you looked up, written automatically whether or not you star anything.
+  `casefile --clear-cache` removes it.
+- **Saved cases** hold only the findings you explicitly starred, and are kept until you delete
+  them. `casefile --forget-cases` removes them all, or delete one from its page.
+
+A privacy purge must never destroy the work you deliberately saved, which is why clearing the
+cache leaves your cases alone.
 
 ### What leaves your machine
 

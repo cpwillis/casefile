@@ -19,7 +19,7 @@ def test_app_has_no_startup_hooks():
 
 def test_cli_and_web_render_the_same_readings():
     """The demo is a prerender of the web app, so the two must never diverge."""
-    text = TestClient(app).get("/q", params={"v": "example.com"}).text
+    text = TestClient(app, base_url="http://127.0.0.1").get("/q", params={"v": "example.com"}).text
     for candidate in detect("example.com"):
         assert f'id="type-{candidate.type.value}"' in text
 

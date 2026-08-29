@@ -14,6 +14,11 @@ from pathlib import Path
 
 from casefile.types import EntityType
 
+
+class CaseStoreError(Exception):
+    """The cases store could not be written. Callers must surface this, never swallow it:
+    silently failing to save is worse than saying the save failed."""
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cases (
     id          TEXT PRIMARY KEY,
@@ -75,9 +80,19 @@ def _connect() -> sqlite3.Connection:
 
 
 def star(entity_type: EntityType, value: str, finding: Star) -> str:
-    """Keep one finding. Creates the case if this is the first star. Returns the case id."""
+    """Keep one finding. Creates the case if this is the first star. Returns the case id.
+
+    Raises CaseStoreError if the store is unwritable or corrupt, so the caller can tell the
+    user rather than appearing to have saved something it did not."""
     case_id = case_id_for(entity_type, value)
     now = time.time()
+    try:
+        return _star(case_id, entity_type, value, finding, now)
+    except (sqlite3.Error, OSError) as exc:
+        raise CaseStoreError(str(exc)) from exc
+
+
+def _star(case_id: str, entity_type: EntityType, value: str, finding: Star, now: float) -> str:
     with _connect() as conn:
         conn.execute(
             "INSERT INTO cases (id, entity_type, value, created_at, updated_at) VALUES (?, ?, ?, ?, ?) "
@@ -94,6 +109,13 @@ def star(entity_type: EntityType, value: str, finding: Star) -> str:
 def unstar(entity_type: EntityType, value: str, finding: Star) -> None:
     """Drop one finding, and the case with it if that was the last one."""
     case_id = case_id_for(entity_type, value)
+    try:
+        _unstar(case_id, finding)
+    except (sqlite3.Error, OSError) as exc:
+        raise CaseStoreError(str(exc)) from exc
+
+
+def _unstar(case_id: str, finding: Star) -> None:
     with _connect() as conn:
         conn.execute(
             "DELETE FROM stars WHERE case_id = ? AND source_id = ? AND label = ? AND value = ?",
@@ -107,6 +129,16 @@ def unstar(entity_type: EntityType, value: str, finding: Star) -> None:
 
 
 def is_starred(entity_type: EntityType, value: str, finding: Star) -> bool:
+    """Never raises. This runs on every finding row, so a broken store must not break search."""
+    if not cases_path().exists():
+        return False  # browsing must not create the store; only starring does
+    try:
+        return _is_starred(entity_type, value, finding)
+    except (sqlite3.Error, OSError):
+        return False
+
+
+def _is_starred(entity_type: EntityType, value: str, finding: Star) -> bool:
     with _connect() as conn:
         row = conn.execute(
             "SELECT 1 FROM stars WHERE case_id = ? AND source_id = ? AND label = ? AND value = ?",
@@ -116,9 +148,16 @@ def is_starred(entity_type: EntityType, value: str, finding: Star) -> bool:
 
 
 def list_cases() -> tuple[Case, ...]:
-    """Every saved case, most recently updated first. Counts stars but does not load them."""
+    """Every saved case, most recently updated first. Never raises."""
     if not cases_path().exists():
         return ()
+    try:
+        return _list_cases()
+    except (sqlite3.Error, OSError):
+        return ()
+
+
+def _list_cases() -> tuple[Case, ...]:
     with _connect() as conn:
         rows = conn.execute(
             "SELECT c.id, c.entity_type, c.value, c.created_at, c.updated_at, COUNT(s.case_id) "
@@ -131,8 +170,16 @@ def list_cases() -> tuple[Case, ...]:
 
 
 def load_case(case_id: str) -> Case | None:
+    """Never raises. A corrupt store reads as "no such case" rather than a 500."""
     if not cases_path().exists():
         return None
+    try:
+        return _load_case(case_id)
+    except (sqlite3.Error, OSError):
+        return None
+
+
+def _load_case(case_id: str) -> Case | None:
     with _connect() as conn:
         row = conn.execute(
             "SELECT id, entity_type, value, created_at, updated_at FROM cases WHERE id = ?", (case_id,)
@@ -170,6 +217,23 @@ def forget_all() -> int:
     except sqlite3.Error:
         count = 0
     path.unlink(missing_ok=True)
-    for suffix in ("-wal", "-shm"):
+    for suffix in ("-journal", "-wal", "-shm"):
         path.with_name(path.name + suffix).unlink(missing_ok=True)
     return count
+
+
+def delete_case(case_id: str) -> bool:
+    """Remove one case and its stars. Returns whether anything was removed.
+
+    Un-starring from a live result page cannot reach a finding whose source has since changed
+    or died, so deleting the whole case has to be possible on its own.
+    """
+    if not cases_path().exists():
+        return False
+    try:
+        with _connect() as conn:
+            cur = conn.execute("DELETE FROM cases WHERE id = ?", (case_id,))
+            conn.execute("DELETE FROM stars WHERE case_id = ?", (case_id,))
+            return cur.rowcount > 0
+    except (sqlite3.Error, OSError):
+        return False

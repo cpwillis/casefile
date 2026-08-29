@@ -41,6 +41,15 @@ def _sanitize(text: str) -> str:
     return "".join(ch for ch in text if ch.isprintable())
 
 
+def _sanitize_document(text: str) -> str:
+    """Same idea for multi-line output: drop control characters but keep newlines and tabs.
+
+    An exported case is third-party text printed to a terminal, so an ANSI escape inside a
+    starred value would otherwise rewrite the screen.
+    """
+    return "".join(ch for ch in text if ch.isprintable() or ch in "\n\t")
+
+
 def _render_text(raw, candidates, results):
     lines = [raw]
     for i, c in enumerate(candidates):
@@ -144,7 +153,9 @@ def main(argv: list[str] | None = None) -> int:
         if case is None:
             print(f"no such case {args.export!r}", file=sys.stderr)
             return 1
-        print(export_case(case, args.format))
+        # Same sanitiser the text renderer uses: exported values are third-party text and
+        # an escape sequence would otherwise rewrite the terminal.
+        print(_sanitize_document(export_case(case, args.format)))
         return 0
 
     if args.value is None:

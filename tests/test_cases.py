@@ -123,3 +123,42 @@ def test_clear_cache_never_touches_saved_cases(tmp_path, monkeypatch):
     star(EntityType.DOMAIN, "example.com", _star())
     clear_cache()
     assert len(list_cases()) == 1, "clear_cache destroyed saved cases"
+
+
+def test_a_corrupt_store_does_not_break_reads(tmp_path, monkeypatch):
+    """The cases store sits on the hot path of core search, which never depended on it."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    path = cases_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"this is not a sqlite database")
+    assert list_cases() == ()
+    assert load_case("domain:example.com") is None
+    assert is_starred(EntityType.DOMAIN, "example.com", _star()) is False
+
+
+def test_a_corrupt_store_reports_a_failed_write_rather_than_pretending(tmp_path, monkeypatch):
+    """Silently failing to save is worse than saying the save failed."""
+    from casefile.cases import CaseStoreError
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    path = cases_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"this is not a sqlite database")
+    with pytest.raises(CaseStoreError):
+        star(EntityType.DOMAIN, "example.com", _star())
+
+
+def test_browsing_alone_does_not_create_the_store(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    is_starred(EntityType.DOMAIN, "example.com", _star())
+    list_cases()
+    assert not cases_path().exists()
+
+
+def test_forget_all_removes_the_rollback_journal(tmp_path, monkeypatch):
+    """sqlite defaults to rollback-journal mode, and the journal holds the pre-image pages."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    star(EntityType.DOMAIN, "example.com", _star())
+    forget_all()
+    leftovers = [p.name for p in cases_path().parent.iterdir()]
+    assert leftovers == [], f"purge left {leftovers} behind"

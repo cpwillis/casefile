@@ -32,6 +32,17 @@ def _when(ts: float) -> str:
     return datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
+def _md(text: str) -> str:
+    """Escape a third-party value for Markdown.
+
+    Findings are attacker-influenced text. Unescaped, a value containing ] or ( breaks out of
+    the link syntax, and raw HTML passes straight through most Markdown renderers.
+    """
+    for char in ("\\", "`", "*", "_", "[", "]", "(", ")", "<", ">", "|", "#"):
+        text = text.replace(char, "\\" + char)
+    return text.replace("\r", " ").replace("\n", " ")
+
+
 def _safe_url(url: str | None) -> str | None:
     """Findings come from third parties, so a url is only a link if its scheme is one we allow."""
     if url and url.lower().startswith(_SAFE_SCHEMES):
@@ -46,16 +57,16 @@ def _by_source(case: Case):
 
 def _to_markdown(case: Case) -> str:
     lines = [
-        f"# {case.value}",
+        f"# {_md(case.value)}",
         "",
         f"`{case.entity_type}` · {case.star_count} saved · last updated {_when(case.updated_at)}",
     ]
     for source_id, stars in _by_source(case):
-        lines += ["", f"## {source_id}", ""]
+        lines += ["", f"## {_md(source_id)}", ""]
         for s in stars:
             url = _safe_url(s.url)
-            rendered = f"[{s.value}]({url})" if url else s.value
-            lines.append(f"- **{s.label}**: {rendered}")
+            rendered = f"[{_md(s.value)}]({url})" if url else _md(s.value)
+            lines.append(f"- **{_md(s.label)}**: {rendered}")
     lines += ["", "---", "", "Exported by casefile. Only starred findings are included."]
     return "\n".join(lines) + "\n"
 
