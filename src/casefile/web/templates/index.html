@@ -4,5 +4,15 @@
   <h1 class="visually-hidden">casefile</h1>
   <p>Paste any identifier. casefile works out what it could be, then shows every relevant public source.</p>
   <p class="muted">Runs entirely on this machine. Requests go out over your own connection.</p>
+  {% if cases %}
+  <h2 class="recent-heading">Where you left off</h2>
+  <ul class="case-list">
+    {% for c in cases %}
+    <li><a href="/case/{{ c.id | urlencode }}">{{ c.value }}</a>
+      <span class="muted">{{ c.entity_type }} · {{ c.star_count }} saved</span></li>
+    {% endfor %}
+  </ul>
+  <p class="muted"><a href="/cases">All saved cases</a></p>
+  {% endif %}
 </main>
 {% endblock %}

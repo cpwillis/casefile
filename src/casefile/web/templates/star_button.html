@@ -1,0 +1,8 @@
+<button class="star{{ ' starred' if starred else '' }}"
+        title="{{ 'Remove from your saved case' if starred else 'Save this finding' }}"
+        aria-label="{{ 'Remove from your saved case' if starred else 'Save this finding' }}"
+        aria-pressed="{{ 'true' if starred else 'false' }}"
+        hx-post="/star" hx-target="this" hx-swap="outerHTML"
+        hx-vals='{{ {"t": t, "v": v, "source_id": sid, "label": f.label, "value": f.value, "url": f.url or ""} | tojson }}'>
+  {{ "\u2605" if starred else "\u2606" }}
+</button>

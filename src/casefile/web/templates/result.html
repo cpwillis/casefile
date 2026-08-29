@@ -5,6 +5,7 @@
 <main class="intro" id="pane"><p>Nothing recognised in <code>{{ raw }}</code>.</p></main>
 {% else %}
 <h1 class="visually-hidden">casefile results for {{ raw }}</h1>
+<p class="summary muted">{{ sections | length }} reading{{ "s" if sections | length != 1 }} · {{ sections | map(attribute="links") | map("length") | sum }} links · <a href="/cases">saved cases</a></p>
 <div class="layout">
   <nav class="rail" aria-label="Readings and sources">
     {% for section in sections %}

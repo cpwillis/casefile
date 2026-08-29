@@ -90,6 +90,15 @@ def main(argv: list[str] | None = None) -> int:
         "all or nothing, because there is currently exactly one such source (whatsmyname).",
     )
     parser.add_argument("--clear-cache", action="store_true", help="purge the response cache and exit")
+    parser.add_argument("--cases", action="store_true", help="list your saved cases and exit")
+    parser.add_argument("--export", metavar="CASE_ID", help="export one saved case and exit")
+    parser.add_argument("--format", default="md", choices=("md", "json", "html"), help="export format (default: md)")
+    parser.add_argument(
+        "--forget-cases",
+        action="store_true",
+        help="delete every saved case and exit. Separate from --clear-cache on purpose: a privacy "
+        "purge must never destroy the work you deliberately saved.",
+    )
     parser.add_argument("--port", type=int, default=8765, help="port for the web app (default: 8765)")
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser on launch")
     parser.add_argument("--version", action="version", version=f"casefile {__version__}")
@@ -99,6 +108,34 @@ def main(argv: list[str] | None = None) -> int:
         from casefile.cache import clear_cache
 
         print(f"cleared {clear_cache()} cached responses")
+        return 0
+
+    if args.forget_cases:
+        from casefile.cases import forget_all
+
+        print(f"forgot {forget_all()} saved cases")
+        return 0
+
+    if args.cases:
+        from casefile.cases import list_cases
+
+        saved = list_cases()
+        if not saved:
+            print("no saved cases yet", file=sys.stderr)
+            return 1
+        for c in saved:
+            print(f"{c.id:44} {c.star_count:>3} saved")
+        return 0
+
+    if args.export:
+        from casefile.cases import load_case
+        from casefile.export import export_case
+
+        case = load_case(args.export)
+        if case is None:
+            print(f"no such case {args.export!r}", file=sys.stderr)
+            return 1
+        print(export_case(case, args.format))
         return 0
 
     if args.value is None:

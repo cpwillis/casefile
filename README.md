@@ -27,6 +27,23 @@ Nothing is configured, nothing is uploaded, and no account is involved. Ctrl-C s
 
 Add `--no-browser` over SSH or on a headless box, and `--port` if 8765 is taken.
 
+### Saving what you find
+
+Star a finding and casefile keeps it. Stars are grouped into a case per target, so reopening the
+app shows what you were working on rather than an empty box. Export a case as Markdown, JSON or a
+self-contained HTML file.
+
+```bash
+casefile --cases                          # list saved cases
+casefile --export domain:example.com      # markdown to stdout
+casefile --export domain:example.com --format json
+casefile --forget-cases                   # delete them all
+```
+
+Only what you star is kept, and only ever on this machine. Two things reach disk and they are
+purged separately on purpose: the 24-hour response cache (`--clear-cache`) and your saved cases
+(`--forget-cases`). A privacy purge must never destroy the work you deliberately saved.
+
 ### What leaves your machine
 
 casefile fetches live results over **your own connection**, so the sources you query see

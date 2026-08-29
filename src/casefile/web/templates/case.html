@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ case.value }} · casefile{% endblock %}
+{% block content %}
+<main class="intro" id="pane">
+  <h1>{{ case.value }}</h1>
+  <p class="muted">{{ case.entity_type }} · {{ case.star_count }} saved</p>
+  <p>
+    <a href="/q?v={{ case.value | urlencode }}">Re-run this search</a>
+    <span class="muted">·</span>
+    export
+    <a href="/case/{{ case.id | urlencode }}/export.md">md</a>
+    <a href="/case/{{ case.id | urlencode }}/export.json">json</a>
+    <a href="/case/{{ case.id | urlencode }}/export.html">html</a>
+  </p>
+  <ul class="findings">
+    {% for s in case.stars %}
+    <li><span class="f-label">{{ s.source_id }} · {{ s.label }}</span>
+      {% if s.url and s.url.startswith(('http://', 'https://')) %}
+      <a href="{{ s.url }}" rel="noreferrer noopener" target="_blank">{{ s.value }}</a>
+      {% else %}<span class="f-value">{{ s.value }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</main>
+{% endblock %}

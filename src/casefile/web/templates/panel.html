@@ -6,7 +6,8 @@
   {% if result.state == "ok" %}
   <ul class="findings">
     {% for f in result.findings %}
-    <li><span class="f-label">{{ f.label }}</span>
+    <li>{% if t and v %}{% with sid = result.source_id, starred = is_starred(t, v, result.source_id, f) %}
+      {% include "star_button.html" %}{% endwith %}{% endif %}<span class="f-label">{{ f.label }}</span>
       {% if f.url and f.url.startswith(('http://', 'https://')) %}<a href="{{ f.url }}" rel="noreferrer noopener" target="_blank">{{ f.value }}</a>
       {% else %}<span class="f-value">{{ f.value }}</span>{% endif %}
     </li>

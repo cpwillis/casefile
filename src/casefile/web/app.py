@@ -3,18 +3,21 @@
 import threading
 import webbrowser
 from pathlib import Path
+from urllib.parse import parse_qs
 
 import uvicorn
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, PlainTextResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers at import
 from casefile.cache import run_cached
+from casefile.cases import Star, is_starred, list_cases, load_case, star, unstar
 from casefile.detect import detect
+from casefile.export import FORMATS, export_case
 from casefile.fetchers import SourceResult, State, fetchers_for, has_fetcher, registered_fetcher
 from casefile.fetchers.http import build_client
 from casefile.report import links_for
@@ -22,6 +25,11 @@ from casefile.types import EntityType
 
 HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=HERE / "templates")
+# Exposed to templates so a finding row can render its own star state without a second query
+# layer. Kept to one read-only helper rather than handing templates the whole store.
+templates.env.globals["is_starred"] = lambda t, v, sid, f: is_starred(
+    EntityType(t), v, Star(sid, f.label, f.value, f.url)
+)
 
 
 def _panels_for(entity_type) -> list[dict]:
@@ -40,7 +48,7 @@ def _panels_for(entity_type) -> list[dict]:
 
 
 async def index(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "index.html")
+    return templates.TemplateResponse(request, "index.html", {"cases": list_cases()[:8]})
 
 
 async def result(request: Request) -> HTMLResponse:
@@ -77,7 +85,85 @@ async def panel(request: Request) -> HTMLResponse:
         return templates.TemplateResponse(request, "panel.html", {"result": result})
     async with build_client() as client:
         result = await run_cached(source_id, value, entity_type, client)
-    return templates.TemplateResponse(request, "panel.html", {"result": result})
+    return templates.TemplateResponse(request, "panel.html", {"result": result, "t": entity_type.value, "v": value})
+
+
+_MEDIA = {"md": "text/markdown; charset=utf-8", "json": "application/json", "html": "text/html; charset=utf-8"}
+
+
+def _same_origin(request: Request) -> bool:
+    """Mutations demand same-origin, which is stricter than the read-only panel guard.
+
+    A missing Sec-Fetch-Site is refused too: the only legitimate caller of a mutating route is
+    this app's own page, and every browser that can reach it sends the header. A page you visit
+    while casefile is running must not be able to write to your cases.
+    """
+    return request.headers.get("sec-fetch-site") == "same-origin"
+
+
+async def star_route(request: Request) -> Response:
+    """Star or unstar one finding, returning the button's replacement."""
+    if not _same_origin(request):
+        return PlainTextResponse("cross-site request refused", status_code=403)
+    # Parsed with stdlib rather than request.form(), which pulls in python-multipart. htmx posts
+    # hx-vals as urlencoded, so parse_qs is all that is needed and the dependency budget holds.
+    body = (await request.body()).decode("utf-8", "replace")
+    form = {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
+    try:
+        entity_type = EntityType(form.get("t", ""))
+    except ValueError:
+        return PlainTextResponse("unknown entity type", status_code=400)
+    value = form.get("v", "")
+    finding = Star(
+        source_id=form.get("source_id", ""),
+        label=form.get("label", ""),
+        value=form.get("value", ""),
+        url=form.get("url", "") or None,
+    )
+    if not value or not finding.source_id:
+        return PlainTextResponse("missing target or source", status_code=400)
+    if is_starred(entity_type, value, finding):
+        unstar(entity_type, value, finding)
+    else:
+        star(entity_type, value, finding)
+    return templates.TemplateResponse(
+        request,
+        "star_button.html",
+        {
+            "t": entity_type.value,
+            "v": value,
+            "sid": finding.source_id,
+            "f": finding,
+            "starred": is_starred(entity_type, value, finding),
+        },
+    )
+
+
+async def cases(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request, "cases.html", {"cases": list_cases()})
+
+
+async def case_detail(request: Request) -> Response:
+    case = load_case(request.path_params["case_id"])
+    if case is None:
+        return templates.TemplateResponse(request, "cases.html", {"cases": list_cases(), "missing": True})
+    return templates.TemplateResponse(request, "case.html", {"case": case})
+
+
+async def case_export(request: Request) -> Response:
+    fmt = request.path_params["fmt"]
+    if fmt not in FORMATS:
+        return PlainTextResponse(f"unknown format {fmt}", status_code=404)
+    case = load_case(request.path_params["case_id"])
+    if case is None:
+        return PlainTextResponse("no such case", status_code=404)
+    body = export_case(case, fmt)
+    filename = f"{case.entity_type}-{case.value}".replace("/", "-")
+    return Response(
+        body,
+        media_type=_MEDIA[fmt],
+        headers={"content-disposition": f'attachment; filename="{filename}.{fmt}"'},
+    )
 
 
 app = Starlette(
@@ -85,6 +171,10 @@ app = Starlette(
         Route("/", index),
         Route("/q", result),
         Route("/panel/{source_id}", panel),
+        Route("/star", star_route, methods=["POST"]),
+        Route("/cases", cases),
+        Route("/case/{case_id}", case_detail),
+        Route("/case/{case_id}/export.{fmt}", case_export),
         Mount("/static", StaticFiles(directory=HERE / "static"), name="static"),
     ]
 )

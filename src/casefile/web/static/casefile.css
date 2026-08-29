@@ -53,3 +53,12 @@ a { color: var(--accent); }
 
 .panel-run { padding: 6px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); cursor: pointer; }
 .panel-cost { font-size: 12px; margin: 6px 0 0; }
+.star { background: none; border: 0; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px 0 0; color: var(--muted); }
+.star.starred { color: #d99a00; }
+.star:hover { color: var(--accent); }
+.case-list { list-style: none; padding: 0; }
+.case-list li { display: flex; gap: 10px; align-items: baseline; padding: 3px 0; }
+.recent-heading { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin-top: 28px; }
+.summary { font-size: 13px; margin: 0 0 12px; }
+.copy { background: none; border: 0; cursor: pointer; color: var(--muted); font-size: 12px; padding: 0 4px; }
+.copy:hover { color: var(--accent); }
