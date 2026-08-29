@@ -79,8 +79,11 @@ def build_demo(out_dir: Path, data: Path | None = None) -> list[Path]:
         path.write_text(html)
         written.append(path)
 
+    # Replaced, not merged: `make demo` rebuilds into a fixed directory, and merging left the
+    # 51KB htmx from an earlier build sitting in a demo that no longer loads it.
     static_out = out_dir / "static"
-    static_out.mkdir(exist_ok=True)
+    shutil.rmtree(static_out, ignore_errors=True)
+    static_out.mkdir(parents=True)
     for name in DEMO_ASSETS:
         shutil.copy2(HERE / "static" / name, static_out / name)
         written.append(static_out / name)

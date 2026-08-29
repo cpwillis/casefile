@@ -33,7 +33,12 @@ def cache_path() -> Path:
 
 
 def _connect():
-    return store.connect(cache_path(), _SCHEMA)
+    conn = store.connect(cache_path(), _SCHEMA)
+    # Swept on every open, not on write. Retention is a privacy claim, not housekeeping: a
+    # session that fetches nothing cacheable (offline, every source erroring) would otherwise
+    # leave yesterday's search terms and payloads on disk indefinitely.
+    conn.execute("DELETE FROM responses WHERE fetched_at < ?", (time.time() - RETENTION_SECONDS,))
+    return conn
 
 
 def _load(source_id: str, entity_type, value: str, ttl: float) -> SourceResult | None:
@@ -57,9 +62,6 @@ def _load(source_id: str, entity_type, value: str, ttl: float) -> SourceResult |
 
 def _store(result: SourceResult, entity_type, value: str) -> None:
     with _connect() as conn:
-        # Expiry runs here rather than on every open: _load already refuses anything past its
-        # ttl, so the sweep is housekeeping, and housekeeping should not make a read a write.
-        conn.execute("DELETE FROM responses WHERE fetched_at < ?", (time.time() - RETENTION_SECONDS,))
         conn.execute(
             "INSERT OR REPLACE INTO responses (source_id, entity_type, value, fetched_at, payload) "
             "VALUES (?, ?, ?, ?, ?)",
