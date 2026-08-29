@@ -78,6 +78,9 @@ def account_exists(site: Site, status: int, body: str) -> bool:
     return True
 
 
+# Wide enough to finish in about a minute, narrow enough to leave the shared limiter usable.
+_CONCURRENCY = 12
+
 _UNREACHABLE = object()  # this site could not be reached at all, as distinct from "no account"
 
 
@@ -103,7 +106,15 @@ async def _check_one(site: Site, username: str, client: httpx.AsyncClient) -> Fi
 )
 async def whatsmyname(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     sites = load_sites()
-    results = await asyncio.gather(*(_check_one(s, value, client) for s in sites))
+    # Its own budget, not the shared one. Several hundred checks through the global limiter meant
+    # every other panel on the page queued behind this for the full 30 to 60 seconds.
+    budget = asyncio.Semaphore(_CONCURRENCY)
+
+    async def check(site):
+        async with budget:
+            return await _check_one(site, value, client)
+
+    results = await asyncio.gather(*(check(s) for s in sites))
     unreachable = sum(1 for r in results if r is _UNREACHABLE)
     if sites and unreachable == len(sites):
         # Raising maps to state error, which is deliberately not cacheable. Returning an empty

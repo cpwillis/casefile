@@ -93,3 +93,29 @@ def test_a_pivotable_finding_gets_a_search_link_and_a_free_form_one_does_not(mon
     text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
     assert 'href="/q?v=192.0.2.10"' in text
     assert 'href="/q?v=coding"' not in text
+
+
+def test_a_panel_asks_the_store_once_regardless_of_how_many_findings_it_has(monkeypatch):
+    """Star state used to cost one sqlite connection per finding row, which is linear in a
+    number no source is obliged to keep small. crtsh can return tens of thousands."""
+    import sqlite3
+
+    from casefile.cases import Star, star
+    from casefile.types import EntityType
+
+    star(EntityType.DOMAIN, "example.com", Star("dns", "A", "v7"))
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(*(Finding("A", f"v{i}") for i in range(200))))
+
+    opened = 0
+    real = sqlite3.connect
+
+    def counting(*args, **kwargs):
+        nonlocal opened
+        opened += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", counting)
+    text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
+
+    assert opened == 1, f"{opened} connections for 200 rows"
+    assert text.count("star starred") == 1, "the one starred finding lost its state"

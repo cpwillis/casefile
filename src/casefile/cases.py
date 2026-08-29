@@ -305,6 +305,23 @@ def unstar(entity_type: EntityType, value: str, finding: Star) -> None:
     _write(query)
 
 
+def starred_keys(entity_type: EntityType, value: str) -> frozenset[tuple[str, str, str]]:
+    """Every starred (source, label, value) for one target, in a single query.
+
+    A panel asks once and answers for all of its rows. Asking per row was one sqlite connection
+    per finding, which is linear in a number no source is obliged to keep small.
+    """
+    return _read(
+        frozenset(),
+        lambda conn: frozenset(
+            conn.execute(
+                "SELECT source_id, label, value FROM stars WHERE target_type = ? AND target_value = ?",
+                (str(entity_type), value),
+            ).fetchall()
+        ),
+    )
+
+
 def is_starred(entity_type: EntityType, value: str, finding: Star) -> bool:
     """Runs on every finding row, so a broken store must not break search."""
     return _read(

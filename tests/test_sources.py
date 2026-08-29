@@ -523,3 +523,27 @@ async def test_rdap_asn_reports_its_range():
     async with mock_client(handler) as client:
         findings = await rdap("AS64496", EntityType.ASN, client)
     assert {f.label: f.value for f in findings}["as range"] == "AS64496 - AS64511"
+
+
+async def test_crtsh_caps_its_output_and_says_that_it_did():
+    """Unbounded this became a multi-megabyte cache row and a panel with a store read per line.
+    The note is the load-bearing half: a silent slice would report 500 names as if that were all."""
+
+    def handler(request):
+        names = "\n".join(f"sub{i}.example.com" for i in range(20000))
+        return httpx.Response(200, json=[{"name_value": names}])
+
+    async with mock_client(handler) as client:
+        findings = await crtsh("example.com", EntityType.DOMAIN, client)
+    assert len(findings) == 501
+    assert findings[0].label == "note"
+    assert "20000 names found" in findings[0].value
+
+
+async def test_crtsh_adds_no_note_when_nothing_was_cut():
+    def handler(request):
+        return httpx.Response(200, json=[{"name_value": "a.example.com\nb.example.com"}])
+
+    async with mock_client(handler) as client:
+        findings = await crtsh("example.com", EntityType.DOMAIN, client)
+    assert [f.label for f in findings] == ["subdomain", "subdomain"]

@@ -152,3 +152,29 @@ def test_on_demand_defaults_to_false_and_is_recorded():
     assert registered_fetcher("cheap-probe").on_demand is False
     assert registered_fetcher("pricey-probe").on_demand is True
     assert registered_fetcher("pricey-probe").cost_note == "lots of requests"
+
+
+async def test_a_dead_source_reports_a_sentence_not_an_exception_repr():
+    """httpx stringifies a bad status as a paragraph ending in a link to MDN, which is a stack
+    trace pasted into the panel the user is reading."""
+    import httpx as _httpx
+
+    @fetcher(id="reason-probe", accepts=[EntityType.DOMAIN])
+    async def f(value, entity_type, client):
+        request = _httpx.Request("GET", "https://crt.sh/x")
+        raise _httpx.HTTPStatusError("boom", request=request, response=_httpx.Response(502, request=request))
+
+    result = await run_fetcher("reason-probe", "example.com", EntityType.DOMAIN, None)
+    assert result.detail == "crt.sh returned 502"
+    assert "developer.mozilla.org" not in result.detail
+
+
+async def test_an_unreachable_source_names_the_host_it_could_not_reach():
+    import httpx as _httpx
+
+    @fetcher(id="reason-probe-2", accepts=[EntityType.DOMAIN])
+    async def f(value, entity_type, client):
+        raise _httpx.ConnectError("nope", request=_httpx.Request("GET", "https://crt.sh/x"))
+
+    result = await run_fetcher("reason-probe-2", "example.com", EntityType.DOMAIN, None)
+    assert result.detail == "could not reach crt.sh"

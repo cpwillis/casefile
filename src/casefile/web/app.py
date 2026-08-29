@@ -31,6 +31,7 @@ from casefile.cases import (
     rename_case,
     save_target,
     star,
+    starred_keys,
     unstar,
 )
 from casefile.catalog import links_for
@@ -43,9 +44,10 @@ from casefile.types import Candidate, EntityType
 
 HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=HERE / "templates")
-# Exposed to templates so a finding row can render its own star state without a second query
-# layer. Kept to one read-only helper rather than handing templates the whole store.
 templates.env.globals["export_formats"] = FORMATS
+# The set of starred findings for the target a panel is about, looked up once per panel rather
+# than once per row. Empty by default so the demo, which has no store behind it, renders fine.
+templates.env.globals["starred_keys"] = frozenset()
 # A finding that is itself an identifier is the next query, so the page offers it as one.
 templates.env.globals["is_pivotable"] = is_pivotable
 # Every timestamp the store keeps was invisible in the UI while the exports carried them.
@@ -58,9 +60,6 @@ templates.env.filters["dom_id"] = lambda parts: (
 templates.env.globals["wmn"] = {"id": wmn.SOURCE_ID, "credit": wmn.CREDIT, "url": wmn.CREDIT_URL}
 # One scheme allowlist for findings, shared with export rather than re-expressed per template.
 templates.env.filters["safe_url"] = safe_url
-templates.env.globals["is_starred"] = lambda t, v, sid, f: is_starred(
-    EntityType(t), v, Star(sid, f.label, f.value, f.url)
-)
 
 
 def sections_for(raw: str, results: dict | None = None) -> list[dict]:
@@ -90,6 +89,7 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
                 "results": known,
                 "links": links_for(candidate, exclude=fetched_ids()),
                 "case": None if results is not None else case_for_target(candidate.type, candidate.value),
+                "starred": frozenset() if results is not None else starred_keys(candidate.type, candidate.value),
             }
         )
     return sections
@@ -136,7 +136,16 @@ async def panel(request: Request) -> HTMLResponse:
     refresh = request.query_params.get("refresh") == "1"
     async with build_client() as client:
         result = await run_cached(source_id, value, entity_type, client, refresh=refresh)
-    return templates.TemplateResponse(request, "panel.html", {"result": result, "t": entity_type.value, "v": value})
+    return templates.TemplateResponse(
+        request,
+        "panel.html",
+        {
+            "result": result,
+            "t": entity_type.value,
+            "v": value,
+            "starred_keys": starred_keys(entity_type, value),
+        },
+    )
 
 
 def _same_origin(request: Request) -> bool:

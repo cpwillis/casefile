@@ -99,6 +99,11 @@ async def rdap(value: str, entity_type: EntityType, client: httpx.AsyncClient) -
     return findings
 
 
+# A wildcard-heavy domain returns tens of thousands of names. Unbounded, that became one
+# multi-megabyte cache row and a panel with a star button and a store read on every line.
+_CRTSH_LIMIT = 500
+
+
 @fetcher(id="crtsh", accepts=[EntityType.DOMAIN])
 async def crtsh(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     resp = await http.get(client, "https://crt.sh/", "crt.sh", params={"q": value, "output": "json"})
@@ -108,7 +113,14 @@ async def crtsh(value: str, entity_type: EntityType, client: httpx.AsyncClient) 
             name = name.strip().lstrip("*.")
             if name:
                 names.add(name)
-    return [Finding(label="subdomain", value=n, url=f"https://{n}") for n in sorted(names)]
+    shown = sorted(names)[:_CRTSH_LIMIT]
+    findings = [Finding(label="subdomain", value=n, url=f"https://{n}") for n in shown]
+    if len(names) > len(shown):
+        # Said out loud, never a silent slice: "247 subdomains" that quietly became 500 is the
+        # same confident-wrong-answer class as an unqueried source rendering as empty.
+        note = f"{len(names)} names found, showing the first {len(shown)} in order"
+        findings.insert(0, Finding(label="note", value=note))
+    return findings
 
 
 @fetcher(id="internetdb", accepts=[EntityType.IP])

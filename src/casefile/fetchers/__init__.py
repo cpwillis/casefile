@@ -98,7 +98,22 @@ async def run_fetcher(source_id, value, entity_type, client) -> "SourceResult":
     except httpx.TimeoutException:
         return SourceResult(source_id, State.TIMEOUT, detail="no response within the timeout", elapsed_ms=_ms(start))
     except Exception as exc:  # noqa: BLE001 -- a dead source must never break the page
-        return SourceResult(source_id, State.ERROR, detail=str(exc), elapsed_ms=_ms(start))
+        return SourceResult(source_id, State.ERROR, detail=_reason(exc), elapsed_ms=_ms(start))
+
+
+def _reason(exc: Exception) -> str:
+    """A short sentence for a panel, not the exception's repr.
+
+    httpx stringifies a bad status as a paragraph ending in a link to MDN, which is a stack
+    trace pasted into the UI. The host and the code are the useful part; anything unrecognised
+    falls back to the class name so the panel still says something rather than nothing.
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"{exc.request.url.host} returned {exc.response.status_code}"
+    if isinstance(exc, httpx.TransportError):
+        return f"could not reach {exc.request.url.host}" if exc.request else "could not reach the source"
+    text = str(exc).strip().splitlines()[0] if str(exc).strip() else ""
+    return text or type(exc).__name__
 
 
 def _ms(start: float) -> int:

@@ -49,7 +49,8 @@
         {% if prerendered %}
         {# already answered, from the cache or from the demo's canned data: render it exactly as a
            live swap would, with its target attached so it keeps its stars and its refresh control #}
-        {% with result = prerendered, t = (none if demo else section.type), v = (none if demo else section.value) %}
+        {% with result = prerendered, t = (none if demo else section.type), v = (none if demo else section.value),
+                starred_keys = section.starred %}
         {% include "panel.html" %}{% endwith %}
         {% elif demo %}
         <div class="panel" data-state="on-demand">

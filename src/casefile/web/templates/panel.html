@@ -18,7 +18,7 @@
   {% if result.state == "ok" %}
   <ul class="findings">
     {% for f in result.findings %}
-    <li>{% if t and v %}{% with sid = result.source_id, starred = is_starred(t, v, result.source_id, f) %}
+    <li>{% if t and v %}{% with sid = result.source_id, starred = (result.source_id, f.label, f.value) in starred_keys %}
       {% include "star_button.html" %}{% endwith %}{% endif %}<span class="f-label">{{ f.label }}</span>
       {% if f.url | safe_url %}<a href="{{ f.url | safe_url }}" rel="noreferrer noopener" target="_blank">{{ f.value }}</a>
       {% else %}<span class="f-value">{{ f.value }}</span>{% endif %}
