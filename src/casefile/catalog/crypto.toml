@@ -105,3 +105,35 @@ url = "https://www.chainabuse.com/address/{value}"
 notes = "Community scam/abuse reports tied to a crypto address; multi-chain."
 provenance = "chainabuse scam/abuse address reporting (TRM Labs)"
 
+
+[[source]]
+id = "mempool-space-tx"
+name = "mempool.space (tx)"
+accepts = ["tx_hash"]
+url = "https://mempool.space/tx/{value}"
+notes = "Bitcoin transaction detail, including fee and confirmation state."
+provenance = "awesome-osint"
+
+[[source]]
+id = "blockstream-info-tx"
+name = "Blockstream.info (tx)"
+accepts = ["tx_hash"]
+url = "https://blockstream.info/tx/{value}"
+notes = "Bitcoin transaction with inputs and outputs; no account needed."
+provenance = "awesome-osint"
+
+[[source]]
+id = "etherscan-tx"
+name = "Etherscan (tx)"
+accepts = ["tx_hash"]
+url = "https://etherscan.io/tx/{value}"
+notes = "Ethereum transaction; the same 32-byte hash format as Bitcoin, so both are offered."
+provenance = "awesome-osint"
+
+[[source]]
+id = "blockchair-tx"
+name = "Blockchair (tx)"
+accepts = ["tx_hash"]
+url = "https://blockchair.com/search?q={value}"
+notes = "Searches every chain Blockchair indexes, which resolves which one the hash belongs to."
+provenance = "awesome-osint"

@@ -66,6 +66,17 @@ def _icao24(s: str) -> str | None:
     return s.lower() if re.fullmatch(r"(?i)[0-9a-f]{6}", s) else None
 
 
+def _tx_hash(s: str) -> str | None:
+    """A 32-byte hex hash, with or without the 0x Ethereum convention.
+
+    Kept apart from HASH because the two lead somewhere completely different: a bare 64-hex
+    string is a plausible SHA-256 file digest and goes to malware lookups, while the same value
+    with 0x can only be a transaction. Both readings are offered for the bare form.
+    """
+    body = s[2:] if s[:2].lower() == "0x" else s
+    return body.lower() if re.fullmatch(r"(?i)[0-9a-f]{64}", body) else None
+
+
 def _btc_address(s: str) -> str | None:
     if _hash(s):  # a hash-shaped hex string is a hash, not a base58 address
         return None
@@ -156,23 +167,56 @@ def _phone(s: str) -> str | None:
     return f"+{digits}" if plus else digits
 
 
+# ISO 3779: letters transliterate to digits, positions are weighted, and position 9 carries the
+# check value. X stands for 10.
+# The table is not a simple A=1..Z=26 run: it restarts at J and again at S, and I, O and Q are
+# absent from the alphabet entirely.
+_VIN_VALUES = {c: int(c) for c in "0123456789"}
+_VIN_VALUES.update(dict(zip("ABCDEFGH", (1, 2, 3, 4, 5, 6, 7, 8), strict=True)))
+_VIN_VALUES.update(dict(zip("JKLMNPR", (1, 2, 3, 4, 5, 7, 9), strict=True)))
+_VIN_VALUES.update(dict(zip("STUVWXYZ", (2, 3, 4, 5, 6, 7, 8, 9), strict=True)))
+_VIN_WEIGHTS = (8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2)
+
+
+def _vin_check_digit_ok(vin: str) -> bool:
+    total = sum(_VIN_VALUES[c] * w for c, w in zip(vin, _VIN_WEIGHTS, strict=True))
+    expected = total % 11
+    return vin[8] == ("X" if expected == 10 else str(expected))
+
+
 def _vin(s: str) -> str | None:
-    return s.upper() if re.fullmatch(r"(?i)[A-HJ-NPR-Z0-9]{17}", s) else None
+    """Check digit enforced: a transposed character otherwise reads as a valid VIN, and every
+    vehicle source then renders a confident miss instead of "you typed it wrong"."""
+    if not re.fullmatch(r"(?i)[A-HJ-NPR-Z0-9]{17}", s):
+        return None
+    vin = s.upper()
+    return vin if _vin_check_digit_ok(vin) else None
 
 
 def _imo(s: str) -> str | None:
+    """Same reasoning as _vin. The IMO check digit is four lines and pure stdlib."""
     m = re.fullmatch(r"(?i)(?:imo[\s:]*)?([0-9]{7})", s.strip())
-    return m.group(1) if m else None
+    if not m:
+        return None
+    digits = m.group(1)
+    checksum = sum(int(d) * w for d, w in zip(digits[:6], range(7, 1, -1), strict=True))
+    return digits if checksum % 10 == int(digits[6]) else None
 
 
 def _mmsi(s: str) -> str | None:
     return s if re.fullmatch(r"[0-9]{9}", s) else None
 
 
+# Either a hyphenated registration (G-ABCD, VH-OQA, D-AIMA) or a US N-number, which is the one
+# national scheme that omits the hyphen. The hyphen is what makes this safe: without it the old
+# pattern read "octocat" as a tail number and, being tier 2, ranked it above the username.
+_TAIL = re.compile(r"(?i)^(?:[a-z]{1,2}-[a-z0-9]{1,5}|N[0-9]{1,5}[a-z]{0,2})$")
+
+
 def _tail_number(s: str) -> str | None:
     if _asn(s) or _icao24(s):  # AS64496 is an ASN and 6-hex is an ICAO24, neither is a tail number
         return None
-    return s.upper() if re.fullmatch(r"(?i)[a-z]{1,2}-?[a-z0-9]{1,5}", s) and any(c.isalpha() for c in s) else None
+    return s.upper() if _TAIL.match(s) else None
 
 
 def _domain_from_url(value: str) -> str | None:
@@ -196,13 +240,14 @@ TIER2: tuple[tuple[EntityType, Detector], ...] = (
     (EntityType.MMSI, _mmsi),
     (EntityType.ICAO24, _icao24),
     (EntityType.TAIL_NUMBER, _tail_number),
+    (EntityType.TX_HASH, _tx_hash),
 )
 
 _NAMEISH = r"[A-Za-z][A-Za-z0-9 .,&'’\-]{1,59}"
 
 
 def _username(s: str) -> str | None:
-    s = s.strip()
+    s = s.strip().lstrip("@")  # @octocat is how handles are written; it is still the handle
     if " " in s:
         return None
     return s if re.fullmatch(r"[A-Za-z0-9._-]{2,39}", s) and any(c.isalpha() for c in s) else None
@@ -239,6 +284,15 @@ def detect(raw: str) -> tuple[Candidate, ...]:
     have = {c.type for c in tier2}
     if EntityType.URL in have and EntityType.DOMAIN not in have and (host := _domain_from_url(value)):
         tier2 = (*tier2, Candidate(EntityType.DOMAIN, host))
+    # An email carries two more identifiers inside it, and both are real pivots: the domain has
+    # its own catalogue and fetchers, and the local part is very often the handle. A URL already
+    # yields its host this way; an email yielded nothing but itself.
+    if EntityType.EMAIL in have:
+        local, _, host = value.strip().partition("@")
+        if EntityType.DOMAIN not in have and (derived := _domain(host)):
+            tier2 = (*tier2, Candidate(EntityType.DOMAIN, derived))
+        if EntityType.USERNAME not in have and (handle := _username(local)):
+            tier2 = (*tier2, Candidate(EntityType.USERNAME, handle))
 
     if tier1:
         return tier1 + tier2

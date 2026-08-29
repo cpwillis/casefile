@@ -183,3 +183,52 @@ def test_idna_deviation_does_not_become_a_different_domain():
     (double_s,) = [c for c in detect("strasse.de") if c.type is EntityType.DOMAIN]
     assert sharp.value != double_s.value
     assert sharp.value == "xn--strae-oqa.de"
+
+
+def test_a_handle_written_with_its_at_sign_is_still_a_handle():
+    """@octocat is how people write handles, and it used to detect as nothing at all."""
+    assert types_of("@octocat") == [EntityType.USERNAME]
+    assert detect("@octocat")[0].value == "octocat"
+
+
+def test_a_bare_word_is_not_an_aircraft_registration():
+    """The old pattern matched any short word, and being tier 2 it outranked the username."""
+    assert EntityType.TAIL_NUMBER not in types_of("octocat")
+    assert types_of("octocat")[0] is EntityType.USERNAME
+
+
+@pytest.mark.parametrize("raw", ["G-ABCD", "VH-OQA", "N123AB", "N7"])
+def test_real_registrations_still_read_as_tail_numbers(raw):
+    assert EntityType.TAIL_NUMBER in types_of(raw)
+
+
+def test_an_email_also_reads_as_its_domain_and_its_handle():
+    """Both are real pivots with their own sources, and an email used to yield only itself."""
+    assert types_of("jdoe@example.com") == [EntityType.EMAIL, EntityType.DOMAIN, EntityType.USERNAME]
+    values = {c.type: c.value for c in detect("jdoe@example.com")}
+    assert values[EntityType.DOMAIN] == "example.com"
+    assert values[EntityType.USERNAME] == "jdoe"
+
+
+def test_a_transaction_hash_is_not_a_file_digest():
+    """0x + 32 bytes can only be a transaction; without the prefix it is genuinely both, so both
+    readings are offered rather than the value being routed to malware lookups alone."""
+    prefixed = types_of("0x" + "e" * 64)
+    assert prefixed == [EntityType.TX_HASH]
+    bare = types_of("e" * 64)
+    assert EntityType.HASH in bare and EntityType.TX_HASH in bare
+
+
+@pytest.mark.parametrize(
+    ("raw", "valid"),
+    [("1HGCM82633A004352", True), ("1HGCM82633A004325", False), ("11111111111111111", True)],
+)
+def test_vin_check_digit_is_enforced(raw, valid):
+    """A transposed character otherwise reads as a valid VIN, and every vehicle source then
+    renders a confident miss rather than "you typed it wrong"."""
+    assert (EntityType.VIN in types_of(raw)) is valid
+
+
+@pytest.mark.parametrize(("raw", "valid"), [("IMO 9074729", True), ("IMO 9074728", False)])
+def test_imo_check_digit_is_enforced(raw, valid):
+    assert (EntityType.IMO in types_of(raw)) is valid

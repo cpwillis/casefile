@@ -18,6 +18,7 @@ class EntityType(StrEnum):
     CVE = "cve"
     BTC_ADDRESS = "btc_address"
     ETH_ADDRESS = "eth_address"
+    TX_HASH = "tx_hash"
     COORDINATES = "coordinates"
     MAC = "mac"
     VIN = "vin"
