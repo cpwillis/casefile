@@ -19,7 +19,7 @@ from casefile.cache import run_cached
 from casefile.cases import CaseStoreError, Star, delete_case, is_starred, list_cases, load_case, star, unstar
 from casefile.detect import detect
 from casefile.export import FORMATS, export_case
-from casefile.fetchers import SourceResult, State, fetchers_for, has_fetcher, registered_fetcher
+from casefile.fetchers import SourceResult, State, fetchers_for, registered_fetcher
 from casefile.fetchers.http import build_client
 from casefile.report import links_for
 from casefile.types import EntityType
@@ -33,19 +33,10 @@ templates.env.globals["is_starred"] = lambda t, v, sid, f: is_starred(
 )
 
 
-def _panels_for(entity_type) -> list[dict]:
-    """Panel descriptors for a type. on_demand panels render a button instead of self-loading."""
-    panels = []
-    for source_id in fetchers_for(entity_type):
-        rec = registered_fetcher(source_id)
-        panels.append(
-            {
-                "id": source_id,
-                "on_demand": bool(rec and rec.on_demand),
-                "cost_note": rec.cost_note if rec else None,
-            }
-        )
-    return panels
+def _panels_for(entity_type) -> list:
+    """The registry rows a type's panels render from. Every id fetchers_for yields is registered
+    by construction, so these are never None."""
+    return [registered_fetcher(source_id) for source_id in fetchers_for(entity_type)]
 
 
 async def index(request: Request) -> HTMLResponse:
@@ -63,7 +54,7 @@ async def result(request: Request) -> HTMLResponse:
                 "type": candidate.type.value,
                 "value": candidate.value,
                 "panels": _panels_for(candidate.type),
-                "links": [link for link in links_for(candidate) if not has_fetcher(link.id)],
+                "links": [link for link in links_for(candidate) if registered_fetcher(link.id) is None],
             }
         )
     return templates.TemplateResponse(request, "result.html", {"raw": raw, "sections": sections})

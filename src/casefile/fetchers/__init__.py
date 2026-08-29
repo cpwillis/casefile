@@ -70,17 +70,8 @@ def registered_fetcher(source_id: str) -> Registered | None:
     return _REGISTRY.get(source_id)
 
 
-def has_fetcher(source_id: str) -> bool:
-    return source_id in _REGISTRY
-
-
 def fetchers_for(entity_type: EntityType) -> tuple[str, ...]:
     return tuple(r.id for r in _REGISTRY.values() if entity_type in r.accepts)
-
-
-def is_on_demand(source_id: str) -> bool:
-    rec = _REGISTRY.get(source_id)
-    return bool(rec and rec.on_demand)
 
 
 async def run_fetcher(source_id, value, entity_type, client) -> "SourceResult":

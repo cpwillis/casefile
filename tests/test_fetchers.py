@@ -9,7 +9,6 @@ from casefile.fetchers import (
     State,
     fetcher,
     fetchers_for,
-    has_fetcher,
     registered_fetcher,
     run_fetcher,
 )
@@ -53,14 +52,12 @@ def test_register_and_look_up_a_fetcher():
     assert rec.id == "probe"
     assert rec.accepts == (EntityType.DOMAIN, EntityType.EMAIL)
     assert rec.func is probe
-    assert has_fetcher("probe")
     assert "probe" in fetchers_for(EntityType.DOMAIN)
     assert "probe" not in fetchers_for(EntityType.IP)
 
 
 def test_unknown_id_returns_none():
     assert registered_fetcher("nope") is None
-    assert not has_fetcher("nope")
 
 
 def test_duplicate_id_is_rejected():
@@ -152,9 +149,9 @@ def test_on_demand_defaults_to_false_and_is_recorded():
     async def pricey(value, entity_type, client):
         return []
 
-    from casefile.fetchers import is_on_demand, registered_fetcher
+    from casefile.fetchers import registered_fetcher
 
-    assert is_on_demand("cheap-probe") is False
-    assert is_on_demand("pricey-probe") is True
+    assert registered_fetcher("cheap-probe").on_demand is False
+    assert registered_fetcher("pricey-probe").on_demand is True
     assert registered_fetcher("pricey-probe").cost_note == "lots of requests"
-    assert is_on_demand("no-such-fetcher") is False
+    assert registered_fetcher("no-such-fetcher") is None
