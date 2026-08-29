@@ -186,7 +186,12 @@ async def test_internetdb_never_queries_a_non_global_address(addr):
 
     async with mock_client(handler) as client:
         result = await run_fetcher("internetdb", addr, EntityType.IP, client)
-    assert result.state == "empty"
+    # It says it was skipped. "empty" would claim InternetDB answered and had nothing, which is
+    # a different and wrong conclusion about a host nobody asked about.
+    assert result.state == "ok"
+    (note,) = result.findings
+    assert note.label == "note"
+    assert "not queried" in note.value
 
 
 async def test_internetdb_surfaces_cpes_and_vulns():
@@ -414,3 +419,41 @@ async def test_phone_meta_distinguishes_no_country_code_from_unparseable():
     assert note.label == "note"
     assert "country code" in note.value
     assert await phone_meta("+999", EntityType.PHONE, client=None) == []
+
+
+async def test_dns_servfail_is_an_error_not_an_empty_answer():
+    """DoH answers HTTP 200 for SERVFAIL, so reading only the Answer section turned a resolver
+    failure into "this domain has no records" and cached it for a day."""
+
+    def handler(request):
+        return httpx.Response(200, json={"Status": 2, "Comment": ["EDE(9): DNSKEY Missing"]})
+
+    async with mock_client(handler) as client:
+        result = await run_fetcher("dns", "broken.example", EntityType.DOMAIN, client)
+    assert result.state == "error"
+    assert "SERVFAIL" in result.detail
+
+
+async def test_dns_nxdomain_is_reported_as_a_finding_not_as_silence():
+    """ "The name does not exist" is a positive result, and distinct from "it exists with no
+    records of the types we asked for"."""
+
+    def handler(request):
+        return httpx.Response(200, json={"Status": 3})
+
+    async with mock_client(handler) as client:
+        result = await run_fetcher("dns", "nope.example", EntityType.DOMAIN, client)
+    assert result.state == "ok"
+    (note,) = result.findings
+    assert "NXDOMAIN" in note.value
+
+
+async def test_dns_no_records_of_these_types_stays_empty():
+    """The third case, which must not be confused with either of the two above."""
+
+    def handler(request):
+        return httpx.Response(200, json={"Status": 0})
+
+    async with mock_client(handler) as client:
+        result = await run_fetcher("dns", "bare.example", EntityType.DOMAIN, client)
+    assert result.state == "empty"

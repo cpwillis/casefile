@@ -140,3 +140,15 @@ def test_no_fetch_keeps_every_link_including_the_fetchable_ones(capsys):
     assert main(["example.com", "--json", "--no-fetch"]) == 0
     domain = next(c for c in json.loads(capsys.readouterr().out)["candidates"] if c["type"] == "domain")
     assert any(link["id"] == "crtsh" for link in domain["links"])
+
+
+def test_the_sanitiser_shows_a_homograph_instead_of_repairing_it(monkeypatch, capsys):
+    """The failure this exists to prevent: str.isprintable() is false for zero-width and bidi
+    characters, so deleting them turned a lookalike into the name it was imitating."""
+    from casefile.cli import _sanitize
+
+    assert _sanitize("paypa\u200bl.example") == "paypa\\u200bl.example"
+    assert _sanitize("a\u202eb") == "a\\u202eb"
+    assert _sanitize("a\xa0b") == "a\\xa0b"
+    # and it still defuses the thing it was written for
+    assert "\x1b" not in _sanitize("a\x1b[31mb")

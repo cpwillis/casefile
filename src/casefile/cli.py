@@ -36,8 +36,13 @@ def _sanitize(text: str, keep: str = "") -> str:
     Third-party findings (RDAP fields, crt.sh names) are free text we don't control; without
     this, an ANSI escape or carriage return in a value could erase or rewrite earlier output.
     `keep` names the control characters a multi-line document needs to survive.
+
+    Escaped, never dropped. str.isprintable() is false for zero-width, bidi and non-breaking
+    characters as well as control codes, so deleting them turned a homograph into the legitimate
+    name it was imitating: paypa\u200bl.example came out as paypal.example. In a tool whose job
+    is to notice that, the suspicious character usually *is* the finding.
     """
-    return "".join(ch for ch in text if ch.isprintable() or ch in keep)
+    return "".join(ch if ch.isprintable() or ch in keep else ch.encode("unicode_escape").decode("ascii") for ch in text)
 
 
 def _shown_links(candidate, results):

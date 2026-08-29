@@ -12,13 +12,19 @@ from casefile.fetchers import Finding, NeedsKey, fetcher, http
 from casefile.types import EntityType
 
 _DNS_TYPES = {1: "A", 28: "AAAA", 15: "MX", 16: "TXT", 2: "NS"}
+# DNS response codes. 0 is an answer and 3 is an authoritative "no such name", which is itself a
+# finding. Everything else means the resolver could not tell us, which is not the same as "no
+# records" and must never render as one.
+_DNS_RCODES = {1: "FORMERR", 2: "SERVFAIL", 4: "NOTIMP", 5: "REFUSED", 9: "NOTAUTH"}
 
 
 @fetcher(id="dns", accepts=[EntityType.DOMAIN, EntityType.EMAIL])
 async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     name = value.split("@")[-1] if entity_type is EntityType.EMAIL else value
     findings: list[Finding] = []
-    for qtype in ("A", "AAAA", "MX", "TXT", "NS"):
+    types = ("A", "AAAA", "MX", "TXT", "NS")
+    absent = 0
+    for qtype in types:
         resp = await http.get(
             client,
             "https://cloudflare-dns.com/dns-query",
@@ -26,9 +32,18 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
             params={"name": name, "type": qtype},
             headers={"accept": "application/dns-json"},
         )
-        for row in resp.json().get("Answer", []):
+        data = resp.json()
+        status = data.get("Status", 0)
+        if status == 3:  # NXDOMAIN: the name does not exist, which is an answer worth reporting
+            absent += 1
+        elif status != 0:
+            # DoH answers 200 for SERVFAIL, so without this a broken zone renders as "no records"
+            raise RuntimeError(f"{qtype}: resolver returned {_DNS_RCODES.get(status, status)}")
+        for row in data.get("Answer", []):
             label = _DNS_TYPES.get(row.get("type"), str(row.get("type")))
             findings.append(Finding(label=label, value=row.get("data", "")))
+    if absent == len(types):
+        return [Finding(label="note", value="NXDOMAIN: this name does not exist in DNS")]
     return findings
 
 
@@ -65,7 +80,9 @@ async def internetdb(value: str, entity_type: EntityType, client: httpx.AsyncCli
     # is_global is True only for publicly routable addresses. False covers private, loopback,
     # link-local, CGNAT and the RFC 5737/3849 documentation ranges, for both v4 and v6.
     if not address.is_global:
-        return []  # verified: 10.0.0.1 returns 200 with junk data, so never ask
+        # Skipped, not empty. Verified: 10.0.0.1 answers 200 with junk, so asking is worse than
+        # useless, but rendering that as "responded, nothing found" claims an answer we never got.
+        return [Finding(label="note", value="not a public address, so InternetDB was not queried")]
     resp = await http.get(
         client,
         f"https://internetdb.shodan.io/{quote(value, safe='')}",
