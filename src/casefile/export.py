@@ -36,8 +36,9 @@ def _md(text: str) -> str:
 
 
 def safe_url(url: str | None) -> str | None:
-    """A url is only a link if its scheme is allowed. A Jinja filter too, so templates cannot re-express it wrong."""
-    if url and url.lower().startswith(_SAFE_SCHEMES):
+    """A url is a link only with an allowed scheme and no whitespace or controls, which no real url has and which
+    would break out of a Markdown link or an HTML attribute. The one gate the exporter and the Jinja filter share."""
+    if url and url.lower().startswith(_SAFE_SCHEMES) and url.isprintable() and " " not in url:
         return url
     return None
 
@@ -72,7 +73,9 @@ def _to_markdown(case: Case) -> str:
             lines += ["", f"### {_md(source_id)}", ""]
             for s in stars:
                 url = safe_url(s.url)
-                rendered = f"[{_md(s.value)}]({url})" if url else _md(s.value)
+                # Parens are legal in a url but close a Markdown link early, letting a crafted second link in.
+                link = url.replace("(", "%28").replace(")", "%29") if url else None
+                rendered = f"[{_md(s.value)}]({link})" if link else _md(s.value)
                 seen = f" _(saved {_md(when(s.starred_at))})_" if s.starred_at else ""
                 lines.append(f"- **{_md(s.label)}**: {rendered}{seen}")
     lines += ["", "---", "", "Exported by casefile. Only starred findings are included."]

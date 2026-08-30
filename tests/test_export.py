@@ -196,3 +196,31 @@ def test_markdown_escapes_a_hostile_label_and_the_case_name():
     out = export_case(hostile, "md")
     assert "](http://evil.example)" not in out
     assert "**bold**:" not in out, "a label escaped into markdown emphasis"
+
+
+def test_markdown_url_cannot_break_out_of_its_link():
+    """A finding url with a paren closes the Markdown link early, letting a second attacker-chosen link in. crtsh
+    builds urls straight from CT log SANs, so this is reachable without a crafted request."""
+    hostile = Case(
+        id="h",
+        name="x.example",
+        created_at=0.0,
+        updated_at=0.0,
+        star_count=1,
+        stars=(
+            Star(
+                "crtsh", "subdomain", "a.example", "https://ok.example/)[x](javascript:alert(1))", "domain", "x.example"
+            ),
+        ),
+    )
+    out = export_case(hostile, "md")
+    assert "](javascript:" not in out
+
+
+def test_a_url_with_whitespace_or_controls_is_not_linked():
+    """No real url has a newline or space; one that does injects Markdown headings or breaks an HTML attribute."""
+    from casefile.export import safe_url
+
+    assert safe_url("https://ok.example/\n## heading") is None
+    assert safe_url("https://ok.example/a b") is None
+    assert safe_url("https://ok.example/café") == "https://ok.example/café"  # non-ascii path stays a link
