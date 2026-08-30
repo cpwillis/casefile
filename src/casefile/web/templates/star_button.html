@@ -2,8 +2,8 @@
 <button id="{{ [t, v, sid, f.label, f.value] | dom_id }}"
         class="star{{ ' starred' if starred else '' }}"
         title="{% if error %}could not save: {{ error }}{% else %}{{ 'Remove from your saved case' if starred else 'Save this finding' }}{% endif %}"
-        {# static name + aria-pressed: a name that flips too announces "Remove…, pressed", a contradiction #}
-        aria-label="Save this finding"
+        {# static name + aria-pressed, except a failure: without it a failed save reads as a plain unpressed button #}
+        aria-label="{% if error %}Save failed: {{ error }}{% else %}Save this finding{% endif %}"
         aria-pressed="{{ 'true' if starred else 'false' }}"
         hx-post="/star" hx-target="this" hx-swap="outerHTML"
         hx-vals='{{ {"t": t, "v": v, "source_id": sid, "label": f.label, "value": f.value, "url": f.url or "", "action": ("unstar" if starred else "star")} | tojson }}'>
