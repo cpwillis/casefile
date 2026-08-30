@@ -119,3 +119,20 @@ async def test_post_sends_form_data_and_returns_body():
     assert seen["method"] == "POST"
     assert "query=get_info" in seen["body"]
     assert resp.json() == {"query_status": "ok"}
+
+
+@pytest.mark.parametrize("status", [429, 500, 503])
+async def test_one_retry_on_429_and_5xx(status):
+    """fetch documents "one retry on 429/5xx" but only the 429 half was covered: the 5xx branch
+    could be deleted with the suite green."""
+    calls = 0
+
+    def handler(request):
+        nonlocal calls
+        calls += 1
+        return httpx.Response(status) if calls == 1 else httpx.Response(200, json={"ok": True})
+
+    async with mock_client(handler) as client:
+        resp = await http.fetch(client, "https://h.test/x")
+    assert calls == 2
+    assert resp.status_code == 200

@@ -6,6 +6,14 @@ from casefile.fetchers import Finding, State, fetchers_for
 from casefile.types import EntityType
 
 
+def _panel_block_by_id(html, source_id):
+    """The one panel div that mentions this source, scanned rather than sliced by offset."""
+    marker = html.index(source_id)
+    start = html.rindex('<div class="panel"', 0, marker)
+    end = html.index("</div>", html.index("</div>", start) + 6) + len("</div>")
+    return html[start:end]
+
+
 def test_domain_has_the_three_fetchers_registered():
     ids = [r.id for r in fetchers_for(EntityType.DOMAIN)]
     assert {"dns", "rdap", "crtsh"} <= set(ids)
@@ -187,3 +195,48 @@ def test_a_value_is_never_shown_in_a_different_case_than_it_is_stored(monkeypatc
     assert ".reading .muted" in css and "text-transform: none" in css
     text = client.get("/q", params={"v": "Acme-Example"}).text
     assert "Acme-Example" in text and "ACME-EXAMPLE" not in text
+
+
+async def test_a_cached_panel_paints_with_the_page_instead_of_self_loading():
+    """Runs the real run_cached, not a stub. Two mutations survived the whole suite before this:
+    stubbing cached_result to None killed the prefill entirely, and dropping `refresh` turned the
+    refresh button into a no-op returning the stale answer."""
+    from casefile.fetchers import Finding, fetcher
+    from casefile.types import EntityType
+
+    calls = []
+
+    @fetcher(id="prefill-probe", accepts=[EntityType.DOMAIN])
+    async def _f(value, entity_type, client):
+        calls.append(value)
+        return [Finding(label="A", value="192.0.2.10")]
+
+    first = client.get("/panel/prefill-probe", params={"v": "prefill.example", "t": "domain"}).text
+    assert "192.0.2.10" in first
+    assert len(calls) == 1
+
+    page = client.get("/q", params={"v": "prefill.example"}).text
+    block = _panel_block_by_id(page, "prefill-probe")
+    assert "192.0.2.10" in block, "the cached answer did not paint with the page"
+    assert "hx-trigger" not in block, "an already-answered panel still self-loads"
+    assert len(calls) == 1, "rendering the page re-queried a cached source"
+
+
+async def test_refresh_requeries_while_a_plain_load_does_not():
+    from casefile.fetchers import Finding, fetcher
+    from casefile.types import EntityType
+
+    calls = []
+
+    @fetcher(id="refresh-probe", accepts=[EntityType.DOMAIN])
+    async def _f(value, entity_type, client):
+        calls.append(value)
+        return [Finding(label="A", value=str(len(calls)))]
+
+    p = {"v": "refresh.example", "t": "domain"}
+    client.get("/panel/refresh-probe", params=p)
+    client.get("/panel/refresh-probe", params=p)
+    assert len(calls) == 1, "a plain load re-queried"
+    client.get("/panel/refresh-probe", params={**p, "refresh": "1"})
+    assert len(calls) == 2, "refresh did not re-query"
+    assert "2" in client.get("/panel/refresh-probe", params=p).text, "refresh did not replace the stored answer"

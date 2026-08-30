@@ -18,7 +18,23 @@ def test_app_has_no_startup_hooks():
     Starlette exposes the default (no custom startup) as a `_DefaultLifespan`; anything else
     means a lifespan or startup handler was registered, which is where such a bug would live.
     """
-    assert type(app.router.lifespan_context).__name__ == "_DefaultLifespan"
+    # Asserted by driving the lifespan rather than by naming Starlette's private default class,
+    # which an upgrade could rename with no defect present. The risk this guards is real: a
+    # startup hook that opened a browser would fire for every importer, including the test suite
+    # and --build-demo.
+    import webbrowser
+
+    from starlette.testclient import TestClient
+
+    opened = []
+    real = webbrowser.open
+    webbrowser.open = lambda *a, **k: opened.append(a)
+    try:
+        with TestClient(app, base_url="http://127.0.0.1") as c:
+            assert c.get("/").status_code == 200
+    finally:
+        webbrowser.open = real
+    assert opened == [], "starting the app opened a browser"
 
 
 def test_the_web_page_renders_every_reading_detect_found():

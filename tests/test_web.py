@@ -96,6 +96,24 @@ def test_sources_without_a_fetcher_have_no_panel():
     assert 'hx-get="/panel/censys-certs' not in text
 
 
+def test_no_on_demand_source_ever_self_loads():
+    """The consent rule, asserted against the registry rather than one source id. Pinned to the
+    string "whatsmyname", a second expensive source could self-load with the suite green."""
+    import casefile.fetchers.sources  # noqa: F401
+    from casefile.fetchers import _REGISTRY
+
+    on_demand = [r for r in _REGISTRY.values() if r.on_demand]
+    assert on_demand, "nothing is on-demand, so this rule is not being checked"
+    for rec in on_demand:
+        for entity_type in rec.accepts:
+            value = {"username": "octocat", "domain": "example.com", "ip": "1.1.1.1"}.get(entity_type.value)
+            if value is None:
+                continue
+            block = _panel_block(client.get("/q", params={"v": value}).text, rec.id)
+            assert 'data-state="on-demand"' in block, f"{rec.id} does not ask first"
+            assert "hx-trigger" not in block, f"{rec.id} self-loads"
+
+
 def test_domain_search_does_not_auto_load_the_expensive_checker():
     """example.com reads as a username too, but must not fire hundreds of requests unasked."""
     text = client.get("/q", params={"v": "example.com"}).text
