@@ -244,3 +244,45 @@ def test_no_input_yields_a_repeated_type(raw):
     """A duplicate type means duplicate DOM ids, duplicate panels and doubled egress on the page."""
     types = types_of(raw)
     assert len(types) == len(set(types)), f"{raw} yielded {types}"
+
+
+def test_an_out_of_range_url_port_does_not_crash_detect():
+    """`.port` raises ValueError outside the urlsplit guard, 500ing every page since is_pivotable runs on findings."""
+    assert detect("http://example.com:99999") == ()  # nothing recognised, not a traceback
+
+
+@pytest.mark.parametrize("raw", ["https://alice:hunter2@example.com/admin", "http://u:pw@example.com:8080/p"])
+def test_url_userinfo_is_dropped_not_baked_into_the_value(raw):
+    """A password kept in the value leaks into every outbound catalogue link, the store and the export."""
+    url = next(c for c in detect(raw) if c.type is EntityType.URL)
+    assert "hunter2" not in url.value and "pw" not in url.value and "@" not in url.value
+
+
+def test_a_mailto_link_is_read_as_the_address_without_its_scheme():
+    values = {c.type: c.value for c in detect("mailto:someone@example.com")}
+    assert values[EntityType.EMAIL] == "someone@example.com"
+
+
+def test_a_schemeless_url_with_a_path_still_reads_as_its_domain():
+    assert any(c.type is EntityType.DOMAIN and c.value == "example.com" for c in detect("example.com/about"))
+
+
+def test_a_hyphenated_word_is_not_an_aircraft_registration():
+    """The tail-number branch matched any 1-2 letter prefix, so e-corp, co-op and x-ray opened as aircraft."""
+    for raw in ("e-corp", "co-op", "x-ray"):
+        assert EntityType.TAIL_NUMBER not in types_of(raw), raw
+
+
+def test_a_zero_padded_ipv4_is_not_read_as_a_phone_number():
+    """ipaddress rejects zero-padded octets, so the old `if _ip(s)` guard let 192.168.001.010 fall through to phone."""
+    assert EntityType.PHONE not in types_of("192.168.001.010")
+
+
+def test_a_bare_40_hex_string_reads_as_an_ethereum_address():
+    """Mirrors the 64-hex tx-hash case: HASH is tier 1, so both readings surface."""
+    types = types_of("52908400098527886E0F7030069857D2E4169EE7")
+    assert EntityType.ETH_ADDRESS in types and EntityType.HASH in types
+
+
+def test_a_zero_width_character_makes_an_email_unrecognised():
+    assert detect("user​@example.com") == ()

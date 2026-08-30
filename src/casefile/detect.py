@@ -15,7 +15,7 @@ _HASH_LENGTHS = {32, 40, 64}
 
 
 def _has_control(s: str) -> bool:
-    return any(ord(c) < 32 for c in s)
+    return not s.isprintable()  # catches C0, DEL, the C1 block and zero-width chars; space stays printable
 
 
 def _ip(s: str) -> str | None:
@@ -83,7 +83,9 @@ def _btc_address(s: str) -> str | None:
 
 
 def _eth_address(s: str) -> str | None:
-    return s.lower() if re.fullmatch(r"(?i)0x[0-9a-f]{40}", s) else None
+    # With or without 0x, like _tx_hash: bare 40-hex is also a SHA-1, so both readings are offered.
+    body = s[2:] if s[:2].lower() == "0x" else s
+    return "0x" + body.lower() if re.fullmatch(r"(?i)[0-9a-f]{40}", body) else None
 
 
 TIER1: tuple[tuple[EntityType, Detector], ...] = (
@@ -105,8 +107,9 @@ def _email(s: str) -> str | None:
     # A URL with userinfo (https://user@host) is not an email: read as one it leaked credentials into every link.
     if _has_control(s) or "://" in s:
         return None
+    s = s[7:] if s[:7].lower() == "mailto:" else s  # a copied mailto: link is still an address
     m = re.fullmatch(r"([^@\s]+)@([^@\s]+\.[^@\s]+)", s)
-    return f"{m.group(1)}@{m.group(2).lower()}" if m else None  # local-part is case-sensitive
+    return f"{m.group(1)}@{m.group(2).lower().rstrip('.')}" if m else None  # local-part is case-sensitive
 
 
 def _url(s: str) -> str | None:
@@ -115,21 +118,19 @@ def _url(s: str) -> str | None:
     try:
         parts = urlsplit(s)
         host = parts.hostname
+        if host is None:
+            return s
+        netloc = host.lower()
+        if parts.port is not None:  # .port raises ValueError on an out-of-range port, same as urlsplit
+            netloc = f"{netloc}:{parts.port}"
     except ValueError:
         return None
-    if host is None:
-        return s
-    netloc = host.lower()
-    if parts.port is not None:
-        netloc = f"{netloc}:{parts.port}"
-    if parts.username:
-        auth = parts.username + (f":{parts.password}" if parts.password else "")
-        netloc = f"{auth}@{netloc}"
+    # Userinfo is dropped, not preserved: a password baked into the value leaks into every outbound link.
     return parts._replace(scheme=parts.scheme.lower(), netloc=netloc).geturl()
 
 
 def _domain(s: str) -> str | None:
-    s = s.strip().rstrip(".")  # accept a trailing-dot FQDN
+    s = s.strip().split("/", 1)[0].rstrip(".")  # accept a trailing-dot FQDN and a schemeless url with a path
     if not s:
         return None
     if s.isascii():
@@ -150,7 +151,7 @@ def _domain(s: str) -> str | None:
 
 def _phone(s: str) -> str | None:
     """Regex-only; the phone fetcher does the real parsing with libphonenumber."""
-    if _ip(s):  # 192.0.2.10 is seven digits and all-dots, which would otherwise pass
+    if re.fullmatch(r"[0-9]{1,3}(?:\.[0-9]{1,3}){3}", s.strip()):  # dotted-quad shape, even a zero-padded or bad one
         return None
     plus = s.strip().startswith("+")
     digits = re.sub(r"[^0-9]", "", s)
@@ -198,13 +199,23 @@ def _mmsi(s: str) -> str | None:
 
 
 # A hyphenated registration (G-ABCD, VH-OQA) or a US N-number, the one scheme without one. The hyphen stops "octocat".
-_TAIL = re.compile(r"(?i)^(?:[a-z]{1,2}-[a-z0-9]{1,5}|N[0-9]{1,5}[a-z]{0,2})$")
+_TAIL = re.compile(r"(?i)^(?:([a-z]{1,2})-[a-z0-9]{1,5}|N[0-9]{1,5}[a-z]{0,2})$")
+# ICAO nationality prefixes (alphabetic 1-2 letters, all the hyphenated branch can capture), so "e-corp"/"co-op"/
+# "x-ray" do not read as aircraft. Gated on a real prefix, not shape.
+_ICAO_PREFIXES = frozenset(
+    "B C D F G I N AP BV CC CN CP CS CU CX DQ EC EI EK EL EP ER ES ET EW EX EY EZ HA HB HC HH HI HK HL HP HR HS HZ "  # noqa: SIM905
+    "JA JU JY LN LV LX LY LZ MT OB OD OE OH OK OM OO OY PH PJ PK PP PR PT PZ RA RP SE SP SU SX TC TF TG TI TJ TL TN "
+    "TR TS TT TU TY TZ UK UR VH VN VP VQ VT XA XB XC XT XU XY YA YI YJ YK YL YN YR YS YU YV ZA ZK ZP ZS".split()
+)
 
 
 def _tail_number(s: str) -> str | None:
     if _asn(s) or _icao24(s):  # AS64496 is an ASN and 6-hex is an ICAO24, neither is a tail number
         return None
-    return s.upper() if _TAIL.match(s) else None
+    m = _TAIL.match(s)
+    if not m or (m.group(1) and m.group(1).upper() not in _ICAO_PREFIXES):
+        return None
+    return s.upper()
 
 
 def _domain_from_url(value: str) -> str | None:
@@ -278,7 +289,7 @@ def detect(raw: str) -> tuple[Candidate, ...]:
         local, _, host = value.strip().partition("@")
         if EntityType.DOMAIN not in have and (derived := _domain(host)):
             tier2 = (*tier2, Candidate(EntityType.DOMAIN, derived))
-        if EntityType.USERNAME not in have and (handle := _username(local)):
+        if handle := _username(local):  # TIER2 has no username detector, so `have` can never hold one
             tier2 = (*tier2, Candidate(EntityType.USERNAME, handle))
 
     if tier1:
