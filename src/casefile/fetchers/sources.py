@@ -479,7 +479,10 @@ async def blockscout_tx(value: str, entity_type: EntityType, client: httpx.Async
         if address := (data.get(key) or {}).get("hash"):
             findings.append(Finding(label=label, value=str(address)))
     if (wei := data.get("value")) is not None:
-        amount = f"{int(wei) / 1e18:.18f}".rstrip("0").rstrip(".") or "0"
+        # Integer arithmetic: 18 decimals does not survive a float, so 0.1 ETH rendered as
+        # 0.100000000000000006 and 3.3 as 3.299999999999999822.
+        whole, frac = divmod(int(wei), 10**18)
+        amount = f"{whole}.{frac:018d}".rstrip("0").rstrip(".") or "0"
         findings.append(Finding(label="value", value=f"{amount} ETH"))
     return findings
 

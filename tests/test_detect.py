@@ -232,3 +232,25 @@ def test_vin_check_digit_is_enforced(raw, valid):
 @pytest.mark.parametrize(("raw", "valid"), [("IMO 9074729", True), ("IMO 9074728", False)])
 def test_imo_check_digit_is_enforced(raw, valid):
     assert (EntityType.IMO in types_of(raw)) is valid
+
+
+@pytest.mark.parametrize(
+    "raw", ["https://user@example.com", "https://alice:hunter2@example.com/x", "http://u@example.com:8080/p"]
+)
+def test_a_url_with_userinfo_is_not_an_email(raw):
+    """It used to read as EMAIL first, taking the "most likely" row, and emit DOMAIN twice.
+    With credentials in the url those were then percent-encoded into every email link."""
+    types = types_of(raw)
+    assert EntityType.EMAIL not in types
+    assert types.count(EntityType.DOMAIN) == 1
+    assert types == list(dict.fromkeys(types)), f"a type is repeated: {types}"
+
+
+@pytest.mark.parametrize(
+    "raw", ["example.com", "someone@example.com", "https://user@example.com", "octocat", "1.1.1.1"]
+)
+def test_no_input_yields_a_repeated_type(raw):
+    """Widened from the single example.com case: a duplicate type means duplicate DOM ids,
+    duplicate panels and doubled egress on the page."""
+    types = types_of(raw)
+    assert len(types) == len(set(types)), f"{raw} yielded {types}"

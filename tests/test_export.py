@@ -171,3 +171,37 @@ def test_a_joined_case_names_every_identifier_and_attributes_every_finding(fmt):
     assert "Acme-Example" in out
     assert "192.0.2.10" in out
     assert "username" in out and "domain" in out
+
+
+def test_markdown_escapes_a_hostile_finding_value():
+    """The only thing stopping a third-party value from injecting raw HTML into an exported .md
+    and retargeting the link it sits in. Nothing covered it: _md could be replaced with the
+    identity function and the whole suite stayed green."""
+    hostile = Case(
+        id="hostile",
+        name="x.example",
+        created_at=0.0,
+        updated_at=0.0,
+        star_count=1,
+        targets=(Target(entity_type="domain", value="x.example"),),
+        stars=(Star("dns", "A", "<b>x</b>](http://evil.example)", "https://ok.example", "domain", "x.example"),),
+    )
+    out = export_case(hostile, "md")
+    assert "](http://evil.example)" not in out, "the value broke out of its markdown link"
+    assert "<b>" not in out, "raw html survived into the markdown"
+    assert "https://ok.example" in out
+
+
+def test_markdown_escapes_a_hostile_label_and_the_case_name():
+    hostile = Case(
+        id="hostile2",
+        name="[click](http://evil.example)",
+        created_at=0.0,
+        updated_at=0.0,
+        star_count=1,
+        targets=(),
+        stars=(Star("dns", "**bold**", "v", None, "domain", "x.example"),),
+    )
+    out = export_case(hostile, "md")
+    assert "](http://evil.example)" not in out
+    assert "**bold**:" not in out, "a label escaped into markdown emphasis"

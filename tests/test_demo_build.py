@@ -80,9 +80,23 @@ def test_the_demo_result_page_matches_the_live_one(built):
     live = client.get("/q", params={"v": target}).text
     demo = (built / f"{_slug(target)}.html").read_text()
 
-    links = lambda html: re.findall(r'<li><a href="(http[^"]+)"[^>]*>([^<]+)</a>', html)  # noqa: E731
+    def links(html):
+        # Scoped to the link lists. The demo banner carries a "source" link the live app has no
+        # reason to, and comparing whole pages would flag that as drift forever.
+        lists = re.findall(r'<ul class="links">(.*?)</ul>', html, re.S)
+        assert lists, 'no <ul class="links"> found, so this comparison would prove nothing'
+        return re.findall(r'<a href="(https?://[^"]+)"[^>]*>([^<]+)</a>', "".join(lists))
+
+    def readings(html):
+        return re.findall(r'id="links-([a-z_]+)"', html)
+
+    # The guards are the load-bearing half. This test went vacuous once before: it matched
+    # `<li><a href=` and `id="type-"`, both of which stopped existing when the markup changed,
+    # so two of its three assertions compared [] to [] and it passed on anything.
+    assert links(live), "no links parsed from the live page, so the comparison below proves nothing"
+    assert readings(live), "no readings parsed from the live page"
     assert links(demo) == links(live), "demo and live disagree on the link list"
-    assert re.findall(r'id="type-([a-z_]+)"', demo) == re.findall(r'id="type-([a-z_]+)"', live)
+    assert readings(demo) == readings(live)
     assert demo.count('class="filter"') == live.count('class="filter"')
 
 

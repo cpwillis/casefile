@@ -107,7 +107,10 @@ _LABEL = r"[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?"
 
 
 def _email(s: str) -> str | None:
-    if _has_control(s):
+    # A URL carrying userinfo (https://user@host) is not an email. Read as one it took the
+    # "most likely" row, emitted the domain twice, and percent-encoded any credentials in it
+    # into every third-party email link on the page.
+    if _has_control(s) or "://" in s:
         return None
     m = re.fullmatch(r"([^@\s]+)@([^@\s]+\.[^@\s]+)", s)
     return f"{m.group(1)}@{m.group(2).lower()}" if m else None  # local-part is case-sensitive

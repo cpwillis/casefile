@@ -4,6 +4,7 @@ from helpers import mock_client, responder
 
 from casefile.fetchers import Finding, run_fetcher
 from casefile.fetchers.sources import (  # noqa: F401 -- import registers them
+    blockscout_tx,
     crtsh,
     dns,
     github,
@@ -608,3 +609,47 @@ async def test_a_bitcoin_address_balance_is_received_minus_sent():
     async with mock_client(handler) as client:
         findings = await mempool_address("1" + "A" * 33, EntityType.BTC_ADDRESS, client)
     assert {f.label: f.value for f in findings}["balance"].startswith("300 sats")
+
+
+@pytest.mark.parametrize(
+    ("wei", "expected"),
+    [
+        (10**18, "1 ETH"),
+        (10**17, "0.1 ETH"),
+        (33 * 10**17, "3.3 ETH"),
+        (1234567890123456789, "1.234567890123456789 ETH"),
+        (0, "0 ETH"),
+        (1, "0.000000000000000001 ETH"),
+    ],
+)
+async def test_an_ethereum_value_is_exact(wei, expected):
+    """18 decimals does not survive a float: 0.1 rendered as 0.100000000000000006."""
+
+    async with responder(200, json={"value": str(wei), "result": "success"}) as client:
+        findings = await blockscout_tx("a" * 64, EntityType.TX_HASH, client)
+    assert {f.label: f.value for f in findings}["value"] == expected
+
+
+@pytest.mark.parametrize("status", [404, 422])
+async def test_blockscout_miss_is_empty_not_error(status):
+    """404 is no such transaction, 422 is a malformed hash. Neither is an error, and a Bitcoin
+    hash asked of the Ethereum panel takes this path on every search."""
+    async with responder(status, json={"message": "Not found"}) as client:
+        result = await run_fetcher("blockscout-tx", "b" * 64, EntityType.TX_HASH, client)
+    assert result.state == "empty"
+    assert result.detail is None
+
+
+async def test_blockscout_reads_the_nested_from_and_to_objects():
+    payload = {
+        "result": "success",
+        "block_number": 46147,
+        "from": {"hash": "0xAAA"},
+        "to": {"hash": "0xBBB"},
+        "value": "31337",
+    }
+    async with responder(200, json=payload) as client:
+        got = {f.label: f.value for f in await blockscout_tx("c" * 64, EntityType.TX_HASH, client)}
+    assert got["from"] == "0xAAA"
+    assert got["to"] == "0xBBB"
+    assert got["block"] == "46147"
