@@ -393,3 +393,18 @@ def test_a_new_write_route_is_guarded_without_remembering_to_guard_it():
 )
 def test_every_write_refuses_a_cross_site_request(path, data):
     assert client.post(path, data=data, headers={"sec-fetch-site": "cross-site"}).status_code == 403
+
+
+def test_a_case_page_labels_each_target_with_its_own_type():
+    """Grouping stars by value alone merged a username and a company sharing a value under one type label."""
+    from casefile.cases import Star, save_target, star
+    from casefile.types import EntityType
+
+    cid = star(EntityType.USERNAME, "acme", Star("github", "profile", "acme", "https://gh.example/acme"))
+    save_target(EntityType.COMPANY, "acme", case_id=cid)
+    star(EntityType.COMPANY, "acme", Star("wikidata", "label", "Acme Corp", "https://wd.example/Q1"))
+    html = client.get(f"/case/{cid}").text
+    import re
+
+    headings = re.findall(r'<h3 class="reading">([a-z_]+) <span class="muted">([^<]+)</span>', html)
+    assert ("username", "acme") in headings and ("company", "acme") in headings

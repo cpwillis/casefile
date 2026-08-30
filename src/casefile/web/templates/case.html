@@ -38,8 +38,8 @@
 
   {% if case.stars %}
   <h2 class="recent-heading">Saved findings</h2>
-  {% for target, rows in case.stars | groupby("target_value") %}
-  <h3 class="reading">{{ rows[0].target_type }} <span class="muted">{{ target }}</span></h3>
+  {% for target_type, target_value, rows in groups %}
+  <h3 class="reading">{{ target_type }} <span class="muted">{{ target_value }}</span></h3>
   <ul class="findings">
     {% for s in rows %}
     <li><span class="f-label">{{ s.source_id }} · {{ s.label }}</span>

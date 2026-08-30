@@ -3,6 +3,7 @@
 import hashlib
 import re
 import threading
+from itertools import groupby
 from pathlib import Path
 from urllib.parse import parse_qs, quote
 
@@ -271,7 +272,12 @@ async def case_detail(request: Request) -> Response:
     case = load_case(request.path_params["case_id"])
     if case is None:
         return templates.TemplateResponse(request, "cases.html", {"cases": list_cases(), "missing": True})
-    return templates.TemplateResponse(request, "case.html", {"case": case})
+    # Group by (type, value), not value alone: a username and a company can share a value and must not merge under
+    # one type label. _load already orders stars by this key, the same one export._by_target uses.
+    groups = [
+        (tt, tv, list(rows)) for (tt, tv), rows in groupby(case.stars, key=lambda s: (s.target_type, s.target_value))
+    ]
+    return templates.TemplateResponse(request, "case.html", {"case": case, "groups": groups})
 
 
 async def case_export(request: Request) -> Response:
