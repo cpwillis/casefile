@@ -54,9 +54,10 @@ def test_joining_a_target_that_already_had_its_own_case_moves_its_findings():
     assert len(list_cases()) == 2
 
     save_target(EntityType.USERNAME, "acme-example", case_id=second)
-    (case,) = list_cases()
-    assert len(case.targets) == 2
-    assert case.star_count == 2, "a finding was lost when its target moved case"
+    (summary,) = list_cases()
+    assert len(summary.targets) == 2
+    assert summary.star_count == 2, "a finding was lost when its target moved case"
+    case = load_case(summary.id)  # list_cases carries counts, not star rows; load the case for the findings
     assert {s.target_value for s in case.stars} == {"acme-example", "acme.example"}
 
 

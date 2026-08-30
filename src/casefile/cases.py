@@ -294,9 +294,27 @@ def load_case(case_id: str) -> Case | None:
 
 
 def list_cases() -> tuple[Case, ...]:
+    """Every case with its targets and counts, newest first. Not the star rows: no list view renders them, and
+    loading them made this linear in total stars. Four queries, independent of how many cases or stars exist."""
+
     def query(conn):
-        ids = [r[0] for r in conn.execute("SELECT id FROM cases ORDER BY updated_at DESC, id").fetchall()]
-        return tuple(case for cid in ids if (case := _load(conn, cid)) is not None)
+        cases = conn.execute("SELECT id, name, created_at, updated_at FROM cases ORDER BY updated_at DESC, id").fetchall()
+        if not cases:
+            return ()
+        star_counts = dict(conn.execute("SELECT case_id, COUNT(*) FROM stars GROUP BY case_id").fetchall())
+        per_target = {
+            (r[0], r[1], r[2]): r[3]
+            for r in conn.execute("SELECT case_id, target_type, target_value, COUNT(*) FROM stars GROUP BY 1, 2, 3")
+        }
+        targets: dict[str, list[Target]] = {}
+        for r in conn.execute("SELECT case_id, entity_type, value, added_at FROM targets ORDER BY added_at, value"):
+            targets.setdefault(r[0], []).append(
+                Target(entity_type=r[1], value=r[2], added_at=r[3], star_count=per_target.get((r[0], r[1], r[2]), 0))
+            )
+        return tuple(
+            Case(c[0], c[1], c[2], c[3], star_count=star_counts.get(c[0], 0), targets=tuple(targets.get(c[0], ())))
+            for c in cases
+        )
 
     return _read((), query)
 
