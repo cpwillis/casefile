@@ -80,6 +80,10 @@ async def fetch(
             resp = await client.request(method, url, **kwargs)
         if resp.status_code == 429:
             raise RateLimited(f"{host} returned 429")
+        # GitHub and NVD signal an exhausted unauthenticated quota with a 403 and a zeroed remaining header,
+        # not a 429; without this it reads as a plain error rather than "try again later".
+        if resp.status_code == 403 and resp.headers.get("x-ratelimit-remaining") == "0":
+            raise RateLimited(f"{host} rate limit reached")
         if resp.status_code in allow:
             return resp
         resp.raise_for_status()

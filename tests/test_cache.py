@@ -62,6 +62,7 @@ async def test_a_failure_is_held_briefly_rather_than_for_the_full_day():
     assert len(calls) == 1, "a reload re-queried a source that had just failed"
     assert _ttl_for(State.ERROR) == FAILURE_RETENTION
     assert _ttl_for(State.OK) == RETENTION_SECONDS
+    assert _ttl_for(State.EMPTY) == RETENTION_SECONDS  # a source that answered with nothing is not a failure
     assert FAILURE_RETENTION < RETENTION_SECONDS / 100
 
 

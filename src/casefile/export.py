@@ -45,7 +45,7 @@ def _md(text: str) -> str:
 def safe_url(url: str | None) -> str | None:
     """A url is a link only with an allowed scheme and no whitespace or controls, which no real url has and which
     would break out of a Markdown link or an HTML attribute. The one gate the exporter and the Jinja filter share."""
-    if url and url.lower().startswith(_SAFE_SCHEMES) and url.isprintable() and " " not in url:
+    if url and url.lower().startswith(_SAFE_SCHEMES) and url.isprintable() and " " not in url and "\\" not in url:
         return url
     return None
 

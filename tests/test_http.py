@@ -132,3 +132,27 @@ async def test_one_retry_on_429_and_5xx(status):
         resp = await http.fetch(client, "https://h.test/x")
     assert calls == 2
     assert resp.status_code == 200
+
+
+async def test_a_403_with_an_exhausted_quota_is_rate_limited_not_an_error():
+    """GitHub and NVD signal an exhausted unauthenticated quota with a 403 + zeroed remaining header, not a 429."""
+    from casefile.fetchers import RateLimited
+    from casefile.fetchers.http import fetch
+
+    def handler(request):
+        return httpx.Response(403, headers={"x-ratelimit-remaining": "0"})
+
+    async with mock_client(handler) as client:
+        with pytest.raises(RateLimited):
+            await fetch(client, "https://api.github.example/users/x")
+
+
+async def test_a_plain_403_is_still_an_error():
+    from casefile.fetchers.http import fetch
+
+    def handler(request):
+        return httpx.Response(403)
+
+    async with mock_client(handler) as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            await fetch(client, "https://api.github.example/users/x")

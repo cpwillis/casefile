@@ -241,3 +241,10 @@ def test_exports_carry_the_source_polarity_note(fmt):
     )
     out = export_case(case, fmt)
     assert "known-GOOD" in out or "legitimate" in out
+
+
+def test_a_url_with_a_backslash_is_not_linked():
+    """A backslash escapes the Markdown link's closing paren; no real url carries a raw one."""
+    from casefile.export import safe_url
+
+    assert safe_url("https://ok.example/a\\b") is None
