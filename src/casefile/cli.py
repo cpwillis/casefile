@@ -44,12 +44,12 @@ def _shown_links(candidate, results):
     return links_for(candidate, exclude=frozenset(fetched))
 
 
-async def _check_all(candidates):
+async def _check_all(candidates, results):
     """One verdict per link, for every reading. Opt-in like the web button: a request per link, sent from your IP."""
     async with build_client() as client:
         out = {}
-        for c in candidates:
-            out[(c.type, c.value)] = await check_links(_shown_links(c, {}), client)
+        for c in candidates:  # exactly the links that are shown, so no request goes out for a link never printed
+            out[(c.type, c.value)] = await check_links(_shown_links(c, results), client)
         return out
 
 
@@ -107,9 +107,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="casefile",
         description="One input box, every relevant OSINT pivot. Runs locally.",
-        epilog=f"Exactly one identifier per run, by design. {REPO}",
+        epilog=f"With no identifier, casefile launches the local web app (see --port, --no-browser). {REPO}",
     )
-    parser.add_argument("value", nargs="?", help="the identifier to look up")
+    parser.add_argument("value", nargs="?", help="the identifier to look up; omit it to launch the local web app")
     parser.add_argument("--json", action="store_true", help="emit JSON instead of text")
     parser.add_argument("--no-fetch", action="store_true", help="skip live fetching, show links only")
     parser.add_argument("--no-cache", action="store_true", help="bypass the response cache")
@@ -191,7 +191,7 @@ def main(argv: list[str] | None = None) -> int:
     deep = True if args.deep == [] else (args.deep or False)
     results = {} if args.no_fetch else asyncio.run(_fetch_all(candidates, use_cache=not args.no_cache, deep=deep))
     if args.check_links:
-        verdicts = asyncio.run(_check_all(candidates))
+        verdicts = asyncio.run(_check_all(candidates, results))
         print(_render_links(candidates, results, verdicts))
         return 0
     render = _render_json if args.json else _render_text
