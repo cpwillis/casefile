@@ -103,7 +103,19 @@ def _render_json(raw, candidates, results):
     )
 
 
+def _port(text: str) -> int:
+    n = int(text)  # a non-int raises ValueError, which argparse turns into a clean usage error
+    if not 1 <= n <= 65535:
+        raise argparse.ArgumentTypeError(f"port must be between 1 and 65535, not {n}")
+    return n
+
+
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        try:  # third-party text is UTF-8; a latin-1 terminal would otherwise traceback mid-print
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass  # a captured or already-detached stream has no reconfigure
     parser = argparse.ArgumentParser(
         prog="casefile",
         description="One input box, every relevant OSINT pivot. Runs locally.",
@@ -139,7 +151,7 @@ def main(argv: list[str] | None = None) -> int:
         help="delete every saved case and exit. Separate from --clear-cache on purpose: a privacy "
         "purge must never destroy the work you deliberately saved.",
     )
-    parser.add_argument("--port", type=int, default=8765, help="port for the web app (default: 8765)")
+    parser.add_argument("--port", type=_port, default=8765, help="port for the web app (default: 8765)")
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser on launch")
     parser.add_argument("--version", action="version", version=f"casefile {__version__}")
     args = parser.parse_args(argv)

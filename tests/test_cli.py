@@ -252,3 +252,11 @@ def test_deep_before_the_target_does_not_swallow_it(monkeypatch, capsys):
     assert main(["--deep", "example.com"]) == 0
     assert "example.com" in seen["values"]  # the target was searched, not treated as a source
     assert seen["deep"] is True  # bare deep: all on-demand sources
+
+
+@pytest.mark.parametrize("bad", ["99999", "0", "-1", "abc"])
+def test_an_invalid_port_is_a_clean_usage_error_not_a_traceback(bad):
+    """An out-of-range port used to print 'running at ...' then traceback out of uvicorn."""
+    with pytest.raises(SystemExit) as exc:
+        main(["--port", bad])
+    assert exc.value.code == 2  # argparse usage error, before any server start
