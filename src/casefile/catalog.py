@@ -78,7 +78,9 @@ def sources_for(catalog: tuple[Source, ...], entity_type: EntityType) -> tuple[S
 
 
 def build_url(source: Source, value: str) -> str:
-    return source.url.replace(PLACEHOLDER, quote(value, safe=""))
+    # lstrip('+'): a phone's leading + becomes %2B and 404s path-embedded sources; only phones start with one.
+    # safe=',': a coordinate's comma is structural to map links (windy, zoom.earth), not a character to encode.
+    return source.url.replace(PLACEHOLDER, quote(value.lstrip("+"), safe=","))
 
 
 @dataclass(frozen=True)

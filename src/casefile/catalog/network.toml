@@ -109,7 +109,7 @@ provenance = "IP geolocation service"
 id = "zoomeye-search"
 name = "ZoomEye"
 accepts = ["ip", "domain"]
-url = "https://www.zoomeye.org/searchResult?q={value}"
+url = "https://www.zoomeye.ai/searchResult?q={value}"
 notes = "Internet asset / port scan search; ip or domain."
 provenance = "awesome-osint"
 

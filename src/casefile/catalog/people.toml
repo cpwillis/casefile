@@ -124,7 +124,7 @@ provenance = "awesome-osint"
 [[source]]
 id = "instagram-user"
 name = "Instagram Profile"
-accepts = ["person"]
+accepts = ["username"]
 url = "https://www.instagram.com/{value}/"
 notes = "Direct username profile; login may be prompted."
 provenance = "major social network"
@@ -132,7 +132,7 @@ provenance = "major social network"
 [[source]]
 id = "reddit-user"
 name = "Reddit User"
-accepts = ["person"]
+accepts = ["username"]
 url = "https://www.reddit.com/user/{value}"
 notes = "Direct username profile and post history."
 provenance = "major social network"
