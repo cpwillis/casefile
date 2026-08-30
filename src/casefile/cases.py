@@ -298,7 +298,9 @@ def list_cases() -> tuple[Case, ...]:
     loading them made this linear in total stars. Four queries, independent of how many cases or stars exist."""
 
     def query(conn):
-        cases = conn.execute("SELECT id, name, created_at, updated_at FROM cases ORDER BY updated_at DESC, id").fetchall()
+        cases = conn.execute(
+            "SELECT id, name, created_at, updated_at FROM cases ORDER BY updated_at DESC, id"
+        ).fetchall()
         if not cases:
             return ()
         star_counts = dict(conn.execute("SELECT case_id, COUNT(*) FROM stars GROUP BY case_id").fetchall())
