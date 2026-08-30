@@ -124,9 +124,13 @@ def _case_of(conn, target: tuple[str, str]) -> str | None:
     return None if row is None else row[0]
 
 
+NAME_LIMIT = 120
+
+
 def _new_case(conn, name: str, now: float) -> str:
     # Opaque, not derived from the first target: a case gets renamed and gains targets, so a derived id misleads.
     cid = secrets.token_hex(6)
+    name = name[:NAME_LIMIT]  # bound at creation too, so a case auto-named after a long value can be renamed to it
     conn.execute("INSERT INTO cases (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)", (cid, name, now, now))
     return cid
 
@@ -187,9 +191,6 @@ def remove_target(entity_type: EntityType, value: str) -> None:
         _drop_if_empty(conn, cid)
 
     _write(query)
-
-
-NAME_LIMIT = 120
 
 
 def rename_case(case_id: str, name: str) -> None:
@@ -305,5 +306,6 @@ def forget_all() -> int:
 
 
 def delete_case(case_id: str) -> bool:
-    """Remove one case. Its targets and stars go with it: foreign keys are on and both cascade."""
-    return _read(False, lambda conn: conn.execute("DELETE FROM cases WHERE id = ?", (case_id,)).rowcount > 0)
+    """Remove one case. Its targets and stars go with it: foreign keys are on and both cascade. A store failure
+    raises rather than reading as False, so a delete that could not happen is not reported as already gone."""
+    return _write(lambda conn: conn.execute("DELETE FROM cases WHERE id = ?", (case_id,)).rowcount > 0)

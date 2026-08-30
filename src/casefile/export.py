@@ -24,6 +24,12 @@ li { display: flex; gap: .75rem; padding: .2rem 0; border-bottom: 1px solid rgba
 """
 
 
+def sanitize(text: str, keep: str = "") -> str:
+    """Escape non-printable third-party characters. Escaped not dropped: deleting a zero-width turns paypa<zwsp>l
+    into the name it imitates. Shared by the CLI's terminal output and every export, so a download is safe too."""
+    return "".join(ch if ch.isprintable() or ch in keep else ch.encode("unicode_escape").decode("ascii") for ch in text)
+
+
 def when(ts: float) -> str:
     return datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -152,4 +158,5 @@ def export_case(case: Case, fmt: str) -> str:
         render = _RENDERERS[fmt][0]
     except KeyError:
         raise ValueError(f"unknown export format {fmt!r}, expected one of {', '.join(FORMATS)}") from None
-    return render(case)
+    # keep \n\t: they are the structure of md and html. json is already ascii-escaped by json.dumps, so this is a no-op.
+    return sanitize(render(case), keep="\n\t")

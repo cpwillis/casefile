@@ -141,12 +141,12 @@ def test_no_fetch_keeps_every_link_including_the_fetchable_ones(capsys):
 
 def test_the_sanitiser_shows_a_homograph_instead_of_repairing_it(monkeypatch, capsys):
     """str.isprintable() is false for zero-width and bidi chars, so deleting them turns a lookalike into its target."""
-    from casefile.cli import _sanitize
+    from casefile.export import sanitize
 
-    assert _sanitize("paypa\u200bl.example") == "paypa\\u200bl.example"
-    assert _sanitize("a\u202eb") == "a\\u202eb"
-    assert _sanitize("a\xa0b") == "a\\xa0b"
-    assert "\x1b" not in _sanitize("a\x1b[31mb")
+    assert sanitize("paypa\u200bl.example") == "paypa\\u200bl.example"
+    assert sanitize("a\u202eb") == "a\\u202eb"
+    assert sanitize("a\xa0b") == "a\\xa0b"
+    assert "\x1b" not in sanitize("a\x1b[31mb")
 
 
 def test_cases_lists_what_is_saved_and_exits_nonzero_when_nothing_is(capsys):

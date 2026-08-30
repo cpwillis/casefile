@@ -13,7 +13,7 @@ from casefile.cache import clear_cache, run_cached
 from casefile.cases import forget_all, list_cases, load_case
 from casefile.catalog import links_for
 from casefile.detect import detect
-from casefile.export import FORMATS, export_case
+from casefile.export import FORMATS, export_case, sanitize
 from casefile.fetchers import fetchers_for
 from casefile.fetchers.http import build_client
 from casefile.linkcheck import check_links, tally
@@ -36,14 +36,6 @@ async def _fetch_all(candidates, use_cache: bool = True, deep=False):
             got = await asyncio.gather(*(run_cached(r.id, c.value, c.type, client, use_cache=use_cache) for r in due))
             results[(c.type, c.value)] = got
         return results
-
-
-def _sanitize(text: str, keep: str = "") -> str:
-    """Escape non-printable characters in third-party text before a terminal sees them. `keep` names the exceptions.
-
-    Escaped, never dropped: deleting zero-width and bidi turns paypa<zwsp>l.example into the name it imitates.
-    """
-    return "".join(ch if ch.isprintable() or ch in keep else ch.encode("unicode_escape").decode("ascii") for ch in text)
 
 
 def _shown_links(candidate, results):
@@ -81,12 +73,12 @@ def _render_text(raw, candidates, results):
         lines.append("")
         lines.append(f"  {c.type.value.upper():<14} {c.value:<40} {'most likely' if i == 0 else ''}")
         for r in results.get((c.type, c.value), []):
-            detail = f": {_sanitize(r.detail)}" if r.detail else ""
+            detail = f": {sanitize(r.detail)}" if r.detail else ""
             lines.append(f"    [{r.state}] {r.source_id}{detail}")
             for f in r.findings:
                 # the url is often the whole result (a WhatsMyName hit's value is a category), so text mode must keep it
-                url = f"  {_sanitize(f.url)}" if f.url else ""
-                lines.append(f"      {_sanitize(f.label)}: {_sanitize(f.value)}{url}")
+                url = f"  {sanitize(f.url)}" if f.url else ""
+                lines.append(f"      {sanitize(f.label)}: {sanitize(f.value)}{url}")
         # notes go to --json, the web and exports, not here: 46 of 49 domain sources have one and they run long
         for link in _shown_links(c, results):
             lines.append(f"    {link.name:<28} {link.url}")
@@ -182,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"no such case {args.export!r}", file=sys.stderr)
             return 1
         # third-party text on a terminal, same as the text renderer; \n and \t survive because an export is multi-line
-        print(_sanitize(export_case(case, args.format), keep="\n\t"))
+        print(export_case(case, args.format))
         return 0
 
     if args.value is None:

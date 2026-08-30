@@ -182,6 +182,8 @@ async def star_route(request: Request) -> Response:
         # htmx does not swap 5xx, so a silent non-save would look identical to a save; show it on the button.
         error = str(exc)
     if back:  # posted from a case page, which has no button to swap
+        if error:  # a redirect would look identical to a save; surface the failure instead
+            return _mutation_error(request, f"could not update: {error}")
         return RedirectResponse(f"/case/{quote(back)}", status_code=303)
     return templates.TemplateResponse(
         request,
@@ -280,15 +282,17 @@ async def case_export(request: Request) -> Response:
     if case is None:
         return PlainTextResponse("no such case", status_code=404)
     body = export_case(case, fmt)
-    return Response(
-        body,
-        media_type=media_type(fmt),
-        headers={"content-disposition": f'attachment; filename="{_filename_for(case, fmt)}"'},
-    )
+    # filename* carries the real unicode name; the ASCII slug stays as the fallback for browsers that ignore it.
+    disposition = f"attachment; filename=\"{_filename_for(case, fmt)}\"; filename*=UTF-8''{quote(case.name)}.{fmt}"
+    return Response(body, media_type=media_type(fmt), headers={"content-disposition": disposition})
 
 
 async def case_delete(request: Request) -> Response:
-    if not delete_case(request.path_params["case_id"]):
+    try:
+        deleted = delete_case(request.path_params["case_id"])
+    except CaseStoreError as exc:
+        return _mutation_error(request, f"could not delete: {exc}")
+    if not deleted:
         return templates.TemplateResponse(request, "cases.html", {"cases": list_cases(), "missing": True})
     return RedirectResponse("/cases", status_code=303)
 

@@ -78,6 +78,7 @@ def test_export_filename_survives_a_unicode_target():
     disposition = resp.headers["content-disposition"]
     disposition.encode("latin-1")  # raises if non-latin-1 leaked into the header
     assert "\r" not in disposition and "\n" not in disposition and disposition.count('"') == 2
+    assert "filename*=UTF-8''" in disposition  # the real unicode name is preserved, not only the ascii slug
 
 
 def test_star_rejects_an_unknown_entity_type():
