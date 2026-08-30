@@ -4,6 +4,19 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def no_politeness_sleeps(request, monkeypatch):
+    """Zero the outbound jitter and retry backoff for everything but the live suite.
+
+    They exist to be polite to third parties. A MockTransport has nobody to be polite to, and
+    they were 88% of the suite's wall time: 16.1s to 1.9s. The `live` guard is load-bearing,
+    because `make live` really does hit several hundred sites.
+    """
+    if "live" not in request.keywords:
+        monkeypatch.setattr("casefile.fetchers.http.JITTER", 0.0)
+        monkeypatch.setattr("casefile.fetchers.http.BACKOFF", 0.0)
+
+
+@pytest.fixture(autouse=True)
 def isolated_xdg(tmp_path, monkeypatch):
     """Point both stores at tmp_path, for every test, always.
 

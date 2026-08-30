@@ -37,11 +37,26 @@ def build_client() -> httpx.AsyncClient:
     )
 
 
+# Named so tests can zero them, and so the two magic numbers are not buried in the call.
+JITTER = 0.25
+BACKOFF = 0.5
+
+
 @asynccontextmanager
 async def domain_slot(host: str):
+    """Hold a global and a per-host slot, jittering only when there is a burst to spread.
+
+    Jitter exists to stop several concurrent requests to one host landing together. Applied
+    unconditionally it was pure dead time on the critical path: the dns fetcher makes five
+    sequential DoH queries and paid up to 250ms before each, turning an 83ms panel into 784ms.
+    A host whose slot is free has nothing to spread against, so it goes straight through.
+    """
     global_slot, per_host = _slots_for_running_loop()
-    async with global_slot, per_host[host]:
-        await asyncio.sleep(random.uniform(0, 0.25))  # jitter, politeness not security
+    slot = per_host[host]
+    crowded = slot.locked()
+    async with global_slot, slot:
+        if crowded and JITTER:
+            await asyncio.sleep(random.uniform(0, JITTER))
         yield
 
 
@@ -59,7 +74,7 @@ async def fetch(
     async with domain_slot(host):
         resp = await client.request(method, url, **kwargs)
         if resp.status_code == 429 or resp.status_code >= 500:
-            await asyncio.sleep(0.5)  # single backoff
+            await asyncio.sleep(BACKOFF)  # single backoff
             resp = await client.request(method, url, **kwargs)
         if resp.status_code == 429:
             raise RateLimited(f"{host} returned 429")
