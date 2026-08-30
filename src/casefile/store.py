@@ -1,5 +1,6 @@
 """Sqlite plumbing shared by the disposable response cache and the durable cases store, so neither imports the other."""
 
+import os
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -9,7 +10,11 @@ _SIDECARS = ("-journal", "-wal", "-shm")
 
 def connect(path: Path, schema: str) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
+    # Owner-only: a store of someone's searches and third-party payloads must not be world-readable. Dir 0700
+    # covers the journal/wal/shm sidecars too, so they need no separate chmod.
+    os.chmod(path.parent, 0o700)
     conn = sqlite3.connect(path)
+    os.chmod(path, 0o600)
     conn.execute("PRAGMA foreign_keys = ON")  # off by default, and cases' cascade depends on it
     conn.executescript(schema)
     return conn

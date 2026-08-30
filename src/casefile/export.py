@@ -105,7 +105,7 @@ def _to_html(case: Case) -> str:
     parts = [
         "<!doctype html>",
         '<html lang="en"><head><meta charset="utf-8">',
-        f"<title>{escape(case.name)} — casefile</title>",
+        f"<title>{escape(case.name)} - casefile</title>",
         f"<style>{_HTML_CSS}</style>",
         "</head><body>",
         f"<h1>{escape(case.name)}</h1>",

@@ -183,3 +183,16 @@ async def test_same_value_under_two_types_does_not_collide():
     await run_cached("cache-twotype", "acme.example", EntityType.DOMAIN, None)
     await run_cached("cache-twotype", "acme.example", EntityType.COMPANY, None)
     assert calls == [EntityType.DOMAIN, EntityType.COMPANY]
+
+
+def test_a_store_is_created_owner_only(tmp_path, monkeypatch):
+    """A store of someone's searches and third-party payloads must not be world-readable."""
+    import stat
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    from casefile.store import connect
+
+    p = tmp_path / "sub" / "s.db"
+    connect(p, "CREATE TABLE IF NOT EXISTS t (x)").close()
+    assert stat.S_IMODE(p.stat().st_mode) == 0o600
+    assert stat.S_IMODE(p.parent.stat().st_mode) == 0o700
