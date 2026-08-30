@@ -8,7 +8,7 @@ import phonenumbers
 from phonenumbers import PhoneNumberFormat
 
 from casefile.config import get_key
-from casefile.fetchers import Finding, NeedsKey, fetcher, http
+from casefile.fetchers import Finding, NeedsKey, RateLimited, fetcher, http
 from casefile.types import EntityType
 
 _DNS_TYPES = {1: "A", 28: "AAAA", 15: "MX", 16: "TXT", 2: "NS"}
@@ -28,19 +28,26 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
     types = ("A", "AAAA", "MX", "TXT", "NS")
     absent = 0
     failed: list[str] = []
+    last_exc: Exception | None = None
     for qtype in types:
-        resp = await http.fetch(
-            client,
-            "https://cloudflare-dns.com/dns-query",
-            params={"name": name, "type": qtype},
-            headers={"accept": "application/dns-json"},
-        )
-        data = resp.json()
+        # DoH answers 200 for SERVFAIL, and one query can 429 or drop; either way one bad query must not discard
+        # the records the others returned.
+        try:
+            resp = await http.fetch(
+                client,
+                "https://cloudflare-dns.com/dns-query",
+                params={"name": name, "type": qtype},
+                headers={"accept": "application/dns-json"},
+            )
+            data = resp.json()
+        except (RateLimited, httpx.HTTPError) as exc:
+            failed.append(f"{qtype} {type(exc).__name__}")
+            last_exc = exc
+            continue
         status = data.get("Status", 0)
         if status == 3:
             absent += 1
         elif status != 0:
-            # DoH answers 200 for SERVFAIL, so one bad query must not discard the records the others returned.
             failed.append(f"{qtype} {_DNS_RCODES.get(status, status)}")
             continue
         for row in data.get("Answer", []):
@@ -48,8 +55,8 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
             findings.append(Finding(label=label, value=row.get("data", "")))
     if absent and absent + len(failed) == len(types):
         return [Finding(label="note", value="NXDOMAIN: this name does not exist in DNS", note=True)]
-    if failed and not findings:
-        raise RuntimeError(f"resolver returned {', '.join(failed)}")  # nothing resolved, so this is an error
+    if failed and not findings:  # nothing resolved: re-raise the real error so a 429 still reads as rate-limited
+        raise last_exc if last_exc else RuntimeError(f"resolver returned {', '.join(failed)}")
     if failed:
         findings.insert(0, Finding(label="note", value=f"no answer for {', '.join(failed)}", note=True))
     return findings

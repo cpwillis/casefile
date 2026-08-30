@@ -121,7 +121,7 @@ link catalogue of 192 sources covering 246 type-slots. Live fetching comes from 
 internetdb, github, wikidata, hashlookup, nvd-cve, mempool-space-tx, mempool-space-btc and
 blockscout-tx over the network, plus phone_meta offline) and the WhatsMyName username checker, which queries several hundred sites from your IP and is opt-in
 (the browser button, or `--deep` on the CLI) rather than run automatically. The link lists carry
-the same kind of opt-in check: **Check which of these exist** probes each link once and marks the
+the same kind of opt-in check: **Check for dead links** probes each link once and marks the
 ones that are definitely not there. Only 404 and 410 count as missing; bot protection, redirects
 and timeouts are reported as telling you nothing, because a checker that guessed would invent
 cleared leads.

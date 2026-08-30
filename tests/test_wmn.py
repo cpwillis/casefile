@@ -36,7 +36,6 @@ def _site(**kw):
         uri_check="https://t.test/{account}",
         e_code=200,
         e_string="found-me",
-        m_code=404,
         m_string="no-user",
         cat="test",
     )

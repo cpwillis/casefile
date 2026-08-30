@@ -197,3 +197,18 @@ def test_a_store_is_created_owner_only(tmp_path, monkeypatch):
     connect(p, "CREATE TABLE IF NOT EXISTS t (x)").close()
     assert stat.S_IMODE(p.stat().st_mode) == 0o600
     assert stat.S_IMODE(p.parent.stat().st_mode) == 0o700
+
+
+async def test_a_cache_hit_reports_when_it_was_fetched_not_epoch_zero(monkeypatch, tmp_path):
+    """fetched_at comes from the row, not the payload; a swap to the payload would misreport age as 1970."""
+    import time
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    from casefile.cache import _load, _store
+    from casefile.fetchers import SourceResult, State
+
+    before = time.time()
+    _store(SourceResult("dns", State.OK), EntityType.DOMAIN, "example.com")
+    hit = _load("dns", EntityType.DOMAIN, "example.com")
+    assert hit is not None
+    assert hit.fetched_at >= before  # a real timestamp, not 0.0

@@ -421,3 +421,17 @@ def test_a_hostile_case_name_cannot_break_out_of_the_delete_confirm():
     line = next(ln for ln in html.splitlines() if "This cannot be undone" in ln)
     assert "'); alert(document.domain)" not in line  # the apostrophe must be escaped, not break the attribute
     assert "\\u0027" in line  # tojson escaped it inside a single-quoted attribute
+
+
+def test_a_long_case_name_downloads_with_a_bounded_ascii_slug():
+    """_filename_for slugs and truncates to 80 chars, so a huge name cannot produce an unwieldy filename."""
+    from casefile.cases import Star, star
+    from casefile.types import EntityType
+
+    cid = star(EntityType.DOMAIN, "x.example", Star("dns", "A", "1"))
+    client.post(f"/case/{cid}/rename", data={"name": "a" * 300}, headers=SAME)
+    disp = client.get(f"/case/{cid}/export.md").headers["content-disposition"]
+    import re
+
+    slug = re.search(r'filename="([^"]+)\.md"', disp).group(1)
+    assert len(slug) <= 80

@@ -29,7 +29,6 @@ class Site:
     uri_check: str
     e_code: int
     e_string: str
-    m_code: int
     m_string: str
     cat: str
     protection: tuple[str, ...] = ()
@@ -44,7 +43,6 @@ def load_sites() -> tuple[Site, ...]:
             uri_check=raw["uri_check"],
             e_code=int(raw.get("e_code", 200)),
             e_string=raw.get("e_string", "") or "",
-            m_code=int(raw.get("m_code", 404)),
             m_string=raw.get("m_string", "") or "",
             cat=raw.get("cat", "other"),
             protection=tuple(raw.get("protection", ()) or ()),

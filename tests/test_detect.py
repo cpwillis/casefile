@@ -286,3 +286,8 @@ def test_a_bare_40_hex_string_reads_as_an_ethereum_address():
 
 def test_a_zero_width_character_makes_an_email_unrecognised():
     assert detect("user​@example.com") == ()
+
+
+def test_a_digit_only_string_is_not_a_username():
+    """_username requires a letter; without that guard a bare number would pivot as a handle."""
+    assert EntityType.USERNAME not in {c.type for c in detect("1234")}
