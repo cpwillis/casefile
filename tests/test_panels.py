@@ -178,12 +178,18 @@ def test_casefiles_own_notes_are_not_starrable_or_pivotable(monkeypatch):
     assert text.count('class="pivot"') == 1
 
 
-def test_a_value_is_never_shown_in_a_different_case_than_it_is_stored(monkeypatch):
-    """text-transform on .reading uppercased the identifier too, so a handle displayed differently than it is stored."""
+def test_a_value_is_never_shown_in_a_different_case_than_it_is_stored():
+    """.reading uppercases the type name, so the identifier beside it must reset text-transform or it goes too.
+
+    Both declarations are matched inside their own selector's block: `text-transform: none` also sits on .tag,
+    so an unanchored substring check passes even after the reset is removed.
+    """
+    import re
     from pathlib import Path
 
     css = (Path(__file__).resolve().parents[1] / "src/casefile/web/static/casefile.css").read_text()
-    assert ".reading .muted" in css and "text-transform: none" in css
+    assert re.search(r"\.reading \{[^}]*text-transform: uppercase", css), "the hazard the reset exists for is gone"
+    assert re.search(r"\.reading \.muted \{[^}]*text-transform: none", css), "the identifier will render uppercased"
     text = client.get("/q", params={"v": "Acme-Example"}).text
     assert "Acme-Example" in text and "ACME-EXAMPLE" not in text
 
