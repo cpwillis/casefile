@@ -435,3 +435,15 @@ def test_a_long_case_name_downloads_with_a_bounded_ascii_slug():
 
     slug = re.search(r'filename="([^"]+)\.md"', disp).group(1)
     assert len(slug) <= 80
+
+
+def test_a_rename_error_stays_on_the_case_page():
+    """A bad rename dumped the user onto the cases dashboard, away from what they were editing."""
+    from casefile.cases import Star, star
+    from casefile.types import EntityType
+
+    cid = star(EntityType.DOMAIN, "x.example", Star("dns", "A", "1"))
+    resp = client.post(f"/case/{cid}/rename", data={"name": "   "}, headers=SAME)
+    assert resp.status_code == 400
+    assert "could not rename" in resp.text
+    assert f'action="/case/{cid}/rename"' in resp.text  # still the case page, not the dashboard

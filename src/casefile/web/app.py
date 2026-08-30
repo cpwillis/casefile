@@ -250,6 +250,9 @@ async def save_route(request: Request) -> Response:
         else:
             save_target(entity_type, value, case_id=form.get("case_id") or None, name=form.get("name", ""))
     except CaseStoreError as exc:
+        # A remove posted from a case page belongs back on that page, not on the dashboard.
+        if (back := form.get("back")) and (case := load_case(back)) is not None:
+            return _case_page(request, case, problem=f"could not update: {exc}", status_code=400)
         return _mutation_error(request, f"could not save: {exc}")
     return RedirectResponse(f"/q?v={quote(value)}", status_code=303)
 
@@ -266,6 +269,10 @@ async def case_rename(request: Request) -> Response:
     try:
         rename_case(case_id, form.get("name", ""))
     except CaseStoreError as exc:
+        # Back on the case page with the reason, not bounced to the dashboard away from what was being edited.
+        case = load_case(case_id)
+        if case is not None:
+            return _case_page(request, case, problem=f"could not rename: {exc}", status_code=400)
         return _mutation_error(request, f"could not rename: {exc}")
     return RedirectResponse(f"/case/{quote(case_id)}", status_code=303)
 
@@ -274,16 +281,21 @@ async def cases(request: Request) -> Response:
     return templates.TemplateResponse(request, "cases.html", {"cases": list_cases()})
 
 
-async def case_detail(request: Request) -> Response:
-    case = load_case(request.path_params["case_id"])
-    if case is None:
-        return templates.TemplateResponse(request, "cases.html", {"cases": list_cases(), "missing": True})
+def _case_page(request: Request, case, problem: str | None = None, status_code: int = 200) -> Response:
     # Group by (type, value), not value alone: a username and a company can share a value and must not merge under
     # one type label. _load already orders stars by this key, the same one export._by_target uses.
     groups = [
         (tt, tv, list(rows)) for (tt, tv), rows in groupby(case.stars, key=lambda s: (s.target_type, s.target_value))
     ]
-    return templates.TemplateResponse(request, "case.html", {"case": case, "groups": groups})
+    context = {"case": case, "groups": groups, "problem": problem}
+    return templates.TemplateResponse(request, "case.html", context, status_code=status_code)
+
+
+async def case_detail(request: Request) -> Response:
+    case = load_case(request.path_params["case_id"])
+    if case is None:
+        return templates.TemplateResponse(request, "cases.html", {"cases": list_cases(), "missing": True})
+    return _case_page(request, case)
 
 
 async def case_export(request: Request) -> Response:

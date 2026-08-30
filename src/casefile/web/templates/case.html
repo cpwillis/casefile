@@ -3,6 +3,7 @@
 {% block content %}
 <main class="intro wide" id="pane" tabindex="-1">
   <p class="muted"><a href="/cases">← all saved cases</a></p>
+  {% if problem %}<p class="problem" role="alert">{{ problem }}</p>{% endif %}
   <h1 class="visually-hidden">{{ case.name }}</h1>
   <form class="rename" method="post" action="/case/{{ case.id | urlencode }}/rename">
     <label class="visually-hidden" for="case-name">Case name</label>
