@@ -290,7 +290,8 @@ async def case_export(request: Request) -> Response:
         return PlainTextResponse("no such case", status_code=404)
     body = export_case(case, fmt)
     # filename* carries the real unicode name; the ASCII slug stays as the fallback for browsers that ignore it.
-    disposition = f"attachment; filename=\"{_filename_for(case, fmt)}\"; filename*=UTF-8''{quote(case.name)}.{fmt}"
+    encoded = quote(case.name, safe="")  # safe='' so a '/' in the name cannot read as a path separator
+    disposition = f"attachment; filename=\"{_filename_for(case, fmt)}\"; filename*=UTF-8''{encoded}.{fmt}"
     return Response(body, media_type=media_type(fmt), headers={"content-disposition": disposition})
 
 

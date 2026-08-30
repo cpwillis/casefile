@@ -37,6 +37,7 @@ document.addEventListener("click", (event) => {
   navigator.clipboard.writeText(button.dataset.copy || "").then(() => {
     const original = button.textContent;
     button.textContent = "copied";
+    announce(`copied ${button.dataset.copy || ""}`); // the button text change alone is visual-only
     setTimeout(() => { button.textContent = original; }, 1200);
   });
 });
@@ -82,9 +83,9 @@ document.addEventListener("htmx:afterSwap", (event) => {
   if (!active || active === document.body || el.contains(active)) el.focus({ preventScroll: true });
 });
 
-// A single persistent live region, so a panel arriving is announced without the placeholder that used to carry
-// aria-live (and was destroyed by the very swap it was meant to announce).
-function announcePanel(panel) {
+// One persistent live region for anything visual-only: a panel arriving (the aria-live placeholder was destroyed
+// by the very swap it announced) and a clipboard copy (the button text change alone reaches no screen reader).
+function announce(text) {
   let region = document.getElementById("panel-status");
   if (!region) {
     region = document.createElement("p");
@@ -93,9 +94,13 @@ function announcePanel(panel) {
     region.setAttribute("role", "status");
     document.body.appendChild(region);
   }
+  if (text) region.textContent = text;
+}
+
+function announcePanel(panel) {
   const name = panel.querySelector(".panel-id")?.textContent?.trim();
   const state = panel.querySelector(".panel-state")?.textContent?.trim();
-  if (name && state) region.textContent = `${name}: ${state}`;
+  if (name && state) announce(`${name}: ${state}`);
 }
 
 
