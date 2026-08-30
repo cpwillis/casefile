@@ -237,3 +237,18 @@ def test_check_links_reports_a_verdict_per_link(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "missing" in out and "live" in out
     assert "tell you nothing" in out
+
+
+def test_deep_before_the_target_does_not_swallow_it(monkeypatch, capsys):
+    """`casefile --deep example.com` must search the target with deep sources, not read it as a source and serve."""
+    seen = {}
+
+    async def fake(candidates, use_cache=True, deep=False):
+        seen["deep"] = deep
+        seen["values"] = [c.value for c in candidates]
+        return {}
+
+    monkeypatch.setattr("casefile.cli._fetch_all", fake)
+    assert main(["--deep", "example.com"]) == 0
+    assert "example.com" in seen["values"]  # the target was searched, not treated as a source
+    assert seen["deep"] is True  # bare deep: all on-demand sources

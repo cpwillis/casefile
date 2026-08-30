@@ -14,7 +14,7 @@ from casefile.cases import forget_all, list_cases, load_case
 from casefile.catalog import links_for
 from casefile.detect import detect
 from casefile.export import FORMATS, export_case, sanitize
-from casefile.fetchers import fetchers_for
+from casefile.fetchers import fetched_ids, fetchers_for
 from casefile.fetchers.http import build_client
 from casefile.linkcheck import check_links, tally
 
@@ -115,9 +115,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-cache", action="store_true", help="bypass the response cache")
     parser.add_argument(
         "--deep",
-        nargs="*",
-        metavar="SOURCE",
-        help="also run on-demand sources: all of them, or only the ones named. These are the "
+        nargs="?",
+        const="",
+        metavar="SOURCES",
+        help="also run on-demand sources: bare for all, or a comma-separated list of ids. These are the "
         "sources whose egress is large enough to need consent, so they are off by default.",
     )
     parser.add_argument(
@@ -142,6 +143,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser on launch")
     parser.add_argument("--version", action="version", version=f"casefile {__version__}")
     args = parser.parse_args(argv)
+
+    # `--deep <target>` makes argparse hand the target to --deep, leaving no identifier and silently launching the
+    # web app. If what it grabbed is not a known source id and no identifier was given, it was the identifier: all.
+    if args.value is None and args.deep and args.deep not in fetched_ids():
+        args.value, args.deep = args.deep, ""
 
     if args.build_demo:
         from casefile.demo import build_demo
@@ -188,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"nothing recognised in {args.value!r}", file=sys.stderr)
         return 1
 
-    deep = True if args.deep == [] else (args.deep or False)
+    deep = True if args.deep == "" else (args.deep.split(",") if args.deep else False)
     results = {} if args.no_fetch else asyncio.run(_fetch_all(candidates, use_cache=not args.no_cache, deep=deep))
     if args.check_links:
         verdicts = asyncio.run(_check_all(candidates, results))
