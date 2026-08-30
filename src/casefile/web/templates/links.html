@@ -1,5 +1,5 @@
 {# included by result.html and returned bare by /links, so both paths render the same list #}
-<div class="linkset">
+<div class="linkset" id="linkset-{{ section.type }}" tabindex="-1">
   {% if verdicts %}
   <p class="muted linkset-tally">
     {% for name, count in tally.items() %}{{ count }} {{ name }}{% if not loop.last %} · {% endif %}{% endfor %}

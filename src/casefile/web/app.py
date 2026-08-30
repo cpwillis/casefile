@@ -100,7 +100,8 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
 
 
 async def index(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "index.html", {"cases": list_cases()[:8]})
+    # autofocus only here: on a content page it defeats the skip link and pulls focus off the results.
+    return templates.TemplateResponse(request, "index.html", {"cases": list_cases()[:8], "autofocus": True})
 
 
 async def result(request: Request) -> HTMLResponse:

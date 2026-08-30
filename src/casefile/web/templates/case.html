@@ -46,7 +46,8 @@
       {% if s.url | safe_url %}
       <a href="{{ s.url | safe_url }}" rel="noreferrer noopener" target="_blank">{{ s.value }}</a>
       {% else %}<span class="f-value">{{ s.value }}</span>{% endif %}
-      {% if is_pivotable(s.value) %}<a class="pivot" href="/q?v={{ s.value | urlencode }}">search</a>{% endif %}
+      {% if is_pivotable(s.value) %}<a class="pivot" href="/q?v={{ s.value | urlencode }}"
+         title="Search casefile for this value" aria-label="Search casefile for {{ s.value }}">search</a>{% endif %}
       <span class="muted star-when">{{ s.starred_at | when }}</span>
       {# per-row remove: a source that has since changed can no longer be un-starred from a result page #}
       <form method="post" action="/star" class="inline">

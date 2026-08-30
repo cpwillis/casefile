@@ -43,7 +43,7 @@ document.addEventListener("click", (event) => {
 
 // htmx swaps nothing when a request never completes, so a blocked panel just sits there looking idle.
 function panelFailed(event, reason) {
-  const panel = event.detail.elt.closest(".panel");
+  const panel = event.detail.elt.closest(".panel") || event.detail.elt.closest(".linkset");
   if (!panel) return;
   panel.dataset.state = "error";
   const state = panel.querySelector(".panel-state");
@@ -72,13 +72,14 @@ document.addEventListener("htmx:afterSwap", (event) => {
   // With outerHTML the swapped-out target is detached, so focusing it does nothing; look the id back up.
   const id = event.detail.target?.id;
   if (!id) return;
-  const panel = document.getElementById(id);
-  if (!panel || !panel.classList.contains("panel")) return;
-  announcePanel(panel);
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el.classList.contains("panel")) announcePanel(el);
+  else if (!el.classList.contains("linkset")) return;
   // Take focus only when it is loose (a clicked refresh/run button just detached, dropping focus to body) or
-  // already inside this panel. An auto-loading panel resolving while the user types elsewhere must not steal it.
+  // already inside this element. An auto-loading panel resolving while the user types elsewhere must not steal it.
   const active = document.activeElement;
-  if (!active || active === document.body || panel.contains(active)) panel.focus({ preventScroll: true });
+  if (!active || active === document.body || el.contains(active)) el.focus({ preventScroll: true });
 });
 
 // A single persistent live region, so a panel arriving is announced without the placeholder that used to carry

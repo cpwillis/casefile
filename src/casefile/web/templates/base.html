@@ -22,7 +22,7 @@
   <form action="/q" method="get" class="search" role="search">
     <label class="visually-hidden" for="target">Identifier to look up</label>
     <input id="target" type="search" name="v" value="{{ raw | default('') }}"
-           placeholder="domain, ip, email, username, company, hash…" autofocus>
+           placeholder="domain, ip, email, username, company, hash…"{% if autofocus %} autofocus{% endif %}>
     <button type="submit">Search</button>
   </form>
   {% endif %}
