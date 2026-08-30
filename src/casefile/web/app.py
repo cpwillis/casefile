@@ -3,11 +3,9 @@
 import hashlib
 import re
 import threading
-import webbrowser
 from pathlib import Path
 from urllib.parse import parse_qs, quote
 
-import uvicorn
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -398,6 +396,12 @@ app = Starlette(
 
 
 def serve(port: int = 8765, host: str = "127.0.0.1", open_browser: bool = True) -> int:
+    # Both only ever used here, and uvicorn alone is ~70ms of import. Nothing that merely renders
+    # a page, builds the demo or runs the CLI should pay for the server it is not starting.
+    import webbrowser
+
+    import uvicorn
+
     url = f"http://{host}:{port}"
     print(f"casefile is running at {url}")
     print("press ctrl-c to stop")

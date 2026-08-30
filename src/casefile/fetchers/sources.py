@@ -5,7 +5,7 @@ from urllib.parse import quote
 
 import httpx
 import phonenumbers
-from phonenumbers import PhoneNumberFormat, carrier, geocoder, timezone
+from phonenumbers import PhoneNumberFormat
 
 from casefile.config import get_key
 from casefile.fetchers import Finding, NeedsKey, fetcher, http
@@ -318,6 +318,11 @@ _PHONE_TYPES = {
 )
 async def phone_meta(value: str, entity_type: EntityType, client) -> list[Finding]:
     """Offline. libphonenumber metadata only; makes no network request at all."""
+    # Imported here, not at module scope: the geocoding and carrier tables are ~160ms to load,
+    # which every casefile run and every server start was paying for one panel most searches
+    # never reach. PhoneNumberFormat stays up top because _PHONE_TYPES needs it at import.
+    from phonenumbers import carrier, geocoder, timezone
+
     try:
         parsed = phonenumbers.parse(value, None)
     except phonenumbers.NumberParseException:
