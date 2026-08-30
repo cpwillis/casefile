@@ -27,6 +27,7 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
     findings: list[Finding] = []
     types = ("A", "AAAA", "MX", "TXT", "NS")
     absent = 0
+    failed: list[str] = []
     for qtype in types:
         resp = await http.fetch(
             client,
@@ -39,13 +40,18 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
         if status == 3:
             absent += 1
         elif status != 0:
-            # DoH answers 200 for SERVFAIL, so without this a broken zone renders as "no records"
-            raise RuntimeError(f"{qtype}: resolver returned {_DNS_RCODES.get(status, status)}")
+            # DoH answers 200 for SERVFAIL, so one bad query must not discard the records the others returned.
+            failed.append(f"{qtype} {_DNS_RCODES.get(status, status)}")
+            continue
         for row in data.get("Answer", []):
             label = _DNS_TYPES.get(row.get("type"), str(row.get("type")))
             findings.append(Finding(label=label, value=row.get("data", "")))
-    if absent == len(types):
+    if absent and absent + len(failed) == len(types):
         return [Finding(label="note", value="NXDOMAIN: this name does not exist in DNS", note=True)]
+    if failed and not findings:
+        raise RuntimeError(f"resolver returned {', '.join(failed)}")  # nothing resolved, so this is an error
+    if failed:
+        findings.insert(0, Finding(label="note", value=f"no answer for {', '.join(failed)}", note=True))
     return findings
 
 

@@ -1,5 +1,6 @@
 """Fetcher contract: the result model, panel states, exceptions, registry and runner."""
 
+import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -136,6 +137,8 @@ def _reason(exc: Exception) -> str:
         return f"{exc.request.url.host} returned {exc.response.status_code}"
     if isinstance(exc, httpx.TransportError):
         return f"could not reach {exc.request.url.host}" if exc.request else "could not reach the source"
+    if isinstance(exc, json.JSONDecodeError):
+        return "the source answered, but not with JSON"
     text = str(exc).strip().splitlines()[0] if str(exc).strip() else ""
     return text or type(exc).__name__
 

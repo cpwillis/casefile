@@ -26,3 +26,12 @@ def test_environment_wins_over_dotenv(monkeypatch, tmp_path):
     (tmp_path / ".env").write_text("MY_KEY=from_file\n")
     monkeypatch.setenv("MY_KEY", "from_env")
     assert get_key("MY_KEY", tmp_path / ".env") == "from_env"
+
+
+def test_a_non_utf8_dotenv_reads_as_absent_not_an_error(monkeypatch, tmp_path):
+    """A .env with a stray non-UTF-8 byte must not raise into the panel; valid lines still read."""
+    monkeypatch.delenv("MY_KEY", raising=False)
+    path = tmp_path / ".env"
+    path.write_bytes(b"MY_KEY=ok\nJUNK=\xff\xfe\n")
+    assert get_key("MY_KEY", path) == "ok"
+    assert get_key("MISSING", path) is None

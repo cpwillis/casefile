@@ -10,7 +10,7 @@ def get_key(name: str, env_path: Path | None = None) -> str | None:
         return value
     path = env_path if env_path is not None else Path.cwd() / ".env"
     try:
-        lines = path.read_text().splitlines()
+        lines = path.read_text(errors="replace").splitlines()  # a non-UTF-8 .env must not error a panel
     except OSError:
         return None
     for line in lines:

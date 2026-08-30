@@ -627,3 +627,21 @@ async def test_blockscout_reads_the_nested_from_and_to_objects():
     assert got["from"] == "0xAAA"
     assert got["to"] == "0xBBB"
     assert got["block"] == "46147"
+
+
+async def test_dns_keeps_the_records_it_got_when_one_query_type_fails():
+    """A/AAAA/MX/NS resolving with only TXT SERVFAILing must not discard the addresses that did resolve."""
+
+    def handler(request):
+        qtype = dict(request.url.params)["type"]
+        if qtype == "TXT":
+            return httpx.Response(200, json={"Status": 2})
+        answer = [{"type": 1, "data": "192.0.2.1"}] if qtype == "A" else []
+        return httpx.Response(200, json={"Status": 0, "Answer": answer})
+
+    async with mock_client(handler) as client:
+        result = await run_fetcher("dns", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "ok"
+    values = [f.value for f in result.findings]
+    assert "192.0.2.1" in values
+    assert any(f.note and "TXT" in f.value for f in result.findings)
