@@ -7,6 +7,7 @@ from html import escape
 from itertools import groupby
 
 from casefile.cases import Case
+from casefile.fetchers import source_note
 from casefile.fetchers.wmn import CREDIT, CREDIT_URL, SOURCE_ID
 
 _SAFE_SCHEMES = ("https://", "http://")
@@ -77,6 +78,8 @@ def _to_markdown(case: Case) -> str:
         lines += ["", f"## {_md(target_value)}", "", f"`{_md(target_type)}`"]
         for source_id, stars in sources:
             lines += ["", f"### {_md(source_id)}", ""]
+            if note := source_note(source_id):  # the polarity caveat: a known-good hit and a malware hit look alike
+                lines += [f"_{_md(note)}_", ""]
             for s in stars:
                 url = safe_url(s.url)
                 # Parens are legal in a url but close a Markdown link early, letting a crafted second link in.
@@ -119,7 +122,10 @@ def _to_html(case: Case) -> str:
     for (target_type, target_value), sources in _by_target(case):
         parts.append(f'<h2>{escape(target_value)} <span class="meta">{escape(target_type)}</span></h2>')
         for source_id, stars in sources:
-            parts.append(f"<h3>{escape(source_id)}</h3><ul>")
+            parts.append(f"<h3>{escape(source_id)}</h3>")
+            if note := source_note(source_id):
+                parts.append(f'<p class="meta">{escape(note)}</p>')
+            parts.append("<ul>")
             for s in stars:
                 url = safe_url(s.url)
                 value = (

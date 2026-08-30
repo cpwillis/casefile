@@ -224,3 +224,20 @@ def test_a_url_with_whitespace_or_controls_is_not_linked():
     assert safe_url("https://ok.example/\n## heading") is None
     assert safe_url("https://ok.example/a b") is None
     assert safe_url("https://ok.example/café") == "https://ok.example/café"  # non-ascii path stays a link
+
+
+@pytest.mark.parametrize("fmt", ["md", "html"])
+def test_exports_carry_the_source_polarity_note(fmt):
+    """A hit in a known-good corpus and a hit in a malware corpus look identical; the note is what tells them apart."""
+    import casefile.fetchers.sources  # noqa: F401 -- registers the sources so source_note resolves
+
+    case = Case(
+        id="c",
+        name="x",
+        created_at=0.0,
+        updated_at=0.0,
+        star_count=1,
+        stars=(Star("hashlookup", "known good file", "f", None, "hash", "d" * 32),),
+    )
+    out = export_case(case, fmt)
+    assert "known-GOOD" in out or "legitimate" in out
