@@ -408,3 +408,16 @@ def test_a_case_page_labels_each_target_with_its_own_type():
 
     headings = re.findall(r'<h3 class="reading">([a-z_]+) <span class="muted">([^<]+)</span>', html)
     assert ("username", "acme") in headings and ("company", "acme") in headings
+
+
+def test_a_hostile_case_name_cannot_break_out_of_the_delete_confirm():
+    """The name went raw into a single-quoted JS string in a double-quoted attr; an apostrophe closed it and ran JS."""
+    from casefile.cases import Star, star
+    from casefile.types import EntityType
+
+    cid = star(EntityType.DOMAIN, "x.example", Star("dns", "A", "1"))
+    client.post(f"/case/{cid}/rename", data={"name": "x'); alert(document.domain);//"}, headers=SAME)
+    html = client.get(f"/case/{cid}").text
+    line = next(ln for ln in html.splitlines() if "This cannot be undone" in ln)
+    assert "'); alert(document.domain)" not in line  # the apostrophe must be escaped, not break the attribute
+    assert "\\u0027" in line  # tojson escaped it inside a single-quoted attribute

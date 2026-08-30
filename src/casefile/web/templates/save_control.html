@@ -3,12 +3,12 @@
 {% set only = section.case.targets | length == 1 %}
 <div class="save-state muted">Saved to <a href="/case/{{ section.case.id | urlencode }}">{{ section.case.name }}</a>
   <form method="post" action="/save" class="inline"
-        onsubmit="return confirm({{ (
-          'Remove ' ~ section.value ~ ' from “' ~ section.case.name ~ '”?\n\nIt is the only identifier in this case, so the case and its '
-            ~ section.case.star_count ~ ' saved finding' ~ ('' if section.case.star_count == 1 else 's') ~ ' will be deleted too.'
+        onsubmit='return confirm({{ (
+          "Remove " ~ section.value ~ " from “" ~ section.case.name ~ "”?\n\nIt is the only identifier in this case, so the case and its "
+            ~ section.case.star_count ~ " saved finding" ~ ("" if section.case.star_count == 1 else "s") ~ " will be deleted too."
           if only else
-          'Remove ' ~ section.value ~ ' from “' ~ section.case.name ~ '”?\n\nAny findings saved against it go too.'
-        ) | tojson }});">
+          "Remove " ~ section.value ~ " from “" ~ section.case.name ~ "”?\n\nAny findings saved against it go too."
+        ) | tojson }});'>
     <input type="hidden" name="t" value="{{ section.type }}">
     <input type="hidden" name="v" value="{{ section.value }}">
     <input type="hidden" name="action" value="remove">
