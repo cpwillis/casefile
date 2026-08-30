@@ -1,12 +1,6 @@
-"""Probe catalogue links so a dead one is visible without opening it.
+"""Probe catalogue links. Opt-in, because it is one request per link from your IP to several dozen third parties.
 
-Opt-in, like the WhatsMyName checker and for the same reason: it is one request per link, sent
-from your IP to several dozen third parties, which is not something to do on every page load.
-
-The verdicts are deliberately coarse, and three of the five mean "cannot tell". Earlier catalogue
-verification found 43 of 78 apparent failures were bot-protection 403s rather than dead links, so
-a checker that collapsed those into "missing" would manufacture exactly the confident false
-negative this tool exists to avoid. Only 404 and 410 are reported as nothing-there.
+Only 404 and 410 read as missing: 43 of 78 apparent catalogue failures were bot-protection 403s, not dead links.
 """
 
 import asyncio
@@ -33,8 +27,7 @@ async def check_link(url: str, client: httpx.AsyncClient) -> str:
         return UNREACHABLE
     try:
         async with domain_slot(host):
-            # Redirects are not followed on purpose: a site that sends a missing profile to its
-            # home page would otherwise answer 200 and read as a hit.
+            # follow_redirects=False on purpose: a missing profile redirected home would answer 200 and read as a hit.
             resp = await client.get(url, follow_redirects=False)
     except Exception:  # noqa: BLE001 -- a probe that fails is a verdict, not an error
         return UNREACHABLE
@@ -47,8 +40,7 @@ async def check_link(url: str, client: httpx.AsyncClient) -> str:
     return UNREACHABLE
 
 
-# Its own budget rather than the shared limiter's. A domain has ~48 links, and gathering them
-# all put 48 waiters on the global slot, so every panel on the page queued behind the check.
+# Its own budget: ~48 links per domain put 48 waiters on the global slot and queued every panel behind the check.
 _CONCURRENCY = 8
 
 

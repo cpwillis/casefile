@@ -136,7 +136,7 @@ def test_no_duplicate_types():
 
 def test_malformed_url_never_crashes_detect():
     for bad in ["http://[", "https://[::1", "http://a]b", "http://]"]:
-        assert detect(bad) == ()  # no candidate, and crucially no exception
+        assert detect(bad) == ()
 
 
 def test_dictionary_word_keeps_free_form_readings():
@@ -174,11 +174,7 @@ def test_control_characters_are_rejected():
 
 
 def test_idna_deviation_does_not_become_a_different_domain():
-    """straße.de and strasse.de are different registrable domains.
-
-    The stdlib "idna" codec is IDNA2003 and maps the first to the second, which would silently
-    point a user at somebody else's host. UTS46 keeps them distinct.
-    """
+    """The stdlib idna codec is IDNA2003 and maps straße.de to strasse.de, a different registrable domain."""
     (sharp,) = [c for c in detect("straße.de") if c.type is EntityType.DOMAIN]
     (double_s,) = [c for c in detect("strasse.de") if c.type is EntityType.DOMAIN]
     assert sharp.value != double_s.value
@@ -186,13 +182,12 @@ def test_idna_deviation_does_not_become_a_different_domain():
 
 
 def test_a_handle_written_with_its_at_sign_is_still_a_handle():
-    """@octocat is how people write handles, and it used to detect as nothing at all."""
     assert types_of("@octocat") == [EntityType.USERNAME]
     assert detect("@octocat")[0].value == "octocat"
 
 
 def test_a_bare_word_is_not_an_aircraft_registration():
-    """The old pattern matched any short word, and being tier 2 it outranked the username."""
+    """A tier-2 match outranks the username reading, so a loose pattern here takes the first row."""
     assert EntityType.TAIL_NUMBER not in types_of("octocat")
     assert types_of("octocat")[0] is EntityType.USERNAME
 
@@ -203,7 +198,6 @@ def test_real_registrations_still_read_as_tail_numbers(raw):
 
 
 def test_an_email_also_reads_as_its_domain_and_its_handle():
-    """Both are real pivots with their own sources, and an email used to yield only itself."""
     assert types_of("jdoe@example.com") == [EntityType.EMAIL, EntityType.DOMAIN, EntityType.USERNAME]
     values = {c.type: c.value for c in detect("jdoe@example.com")}
     assert values[EntityType.DOMAIN] == "example.com"
@@ -211,8 +205,7 @@ def test_an_email_also_reads_as_its_domain_and_its_handle():
 
 
 def test_a_transaction_hash_is_not_a_file_digest():
-    """0x + 32 bytes can only be a transaction; without the prefix it is genuinely both, so both
-    readings are offered rather than the value being routed to malware lookups alone."""
+    """0x + 32 bytes can only be a transaction; without the prefix it is genuinely both, so both are offered."""
     prefixed = types_of("0x" + "e" * 64)
     assert prefixed == [EntityType.TX_HASH]
     bare = types_of("e" * 64)
@@ -224,8 +217,7 @@ def test_a_transaction_hash_is_not_a_file_digest():
     [("1HGCM82633A004352", True), ("1HGCM82633A004325", False), ("11111111111111111", True)],
 )
 def test_vin_check_digit_is_enforced(raw, valid):
-    """A transposed character otherwise reads as a valid VIN, and every vehicle source then
-    renders a confident miss rather than "you typed it wrong"."""
+    """Without the check digit a transposed character reads as a valid VIN and sources render a confident miss."""
     assert (EntityType.VIN in types_of(raw)) is valid
 
 
@@ -238,8 +230,7 @@ def test_imo_check_digit_is_enforced(raw, valid):
     "raw", ["https://user@example.com", "https://alice:hunter2@example.com/x", "http://u@example.com:8080/p"]
 )
 def test_a_url_with_userinfo_is_not_an_email(raw):
-    """It used to read as EMAIL first, taking the "most likely" row, and emit DOMAIN twice.
-    With credentials in the url those were then percent-encoded into every email link."""
+    """It read as EMAIL first, percent-encoding the url's credentials into email links, and emitted DOMAIN twice."""
     types = types_of(raw)
     assert EntityType.EMAIL not in types
     assert types.count(EntityType.DOMAIN) == 1
@@ -250,7 +241,6 @@ def test_a_url_with_userinfo_is_not_an_email(raw):
     "raw", ["example.com", "someone@example.com", "https://user@example.com", "octocat", "1.1.1.1"]
 )
 def test_no_input_yields_a_repeated_type(raw):
-    """Widened from the single example.com case: a duplicate type means duplicate DOM ids,
-    duplicate panels and doubled egress on the page."""
+    """A duplicate type means duplicate DOM ids, duplicate panels and doubled egress on the page."""
     types = types_of(raw)
     assert len(types) == len(set(types)), f"{raw} yielded {types}"

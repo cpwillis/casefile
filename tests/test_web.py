@@ -6,11 +6,7 @@ from casefile.web.app import serve
 
 
 def _panel_block(html: str, source_id: str) -> str:
-    """The single `<div class="panel" ...>` that references this source.
-
-    Parsed by scanning back to the opening div and forward to its close rather than slicing a
-    fixed character window, so the test cannot pass or fail because markup moved.
-    """
+    """The one panel div that references this source, scanned rather than sliced by offset."""
     marker = html.index(f"/panel/{source_id}")
     start = html.rindex('<div class="panel"', 0, marker)
     end = html.index("</div>", html.index("</div>", start) + 6) + len("</div>")
@@ -59,11 +55,7 @@ def test_domain_reading_precedes_company_reading():
 
 
 def test_everything_fetched_comes_before_everything_you_must_click():
-    """Reading order follows effort: results casefile already has, then links you go and open.
-
-    Grouping by entity type first put a domain's 49 unvisited links above a username's actual
-    findings, so the answers were below the homework.
-    """
+    """Reading order follows effort: results casefile already has, then the links you go and open yourself."""
     text = client.get("/q", params={"v": "example.com"}).text
     assert text.index('id="results"') < text.index('id="links"')
     assert text.index('class="panels"') < text.index('class="links"')
@@ -97,8 +89,7 @@ def test_sources_without_a_fetcher_have_no_panel():
 
 
 def test_no_on_demand_source_ever_self_loads():
-    """The consent rule, asserted against the registry rather than one source id. Pinned to the
-    string "whatsmyname", a second expensive source could self-load with the suite green."""
+    """Asserted against the registry: pinned to one source id, a second expensive one could self-load unnoticed."""
     import casefile.fetchers.sources  # noqa: F401
     from casefile.fetchers import _REGISTRY
 
@@ -117,13 +108,12 @@ def test_no_on_demand_source_ever_self_loads():
 def test_domain_search_does_not_auto_load_the_expensive_checker():
     """example.com reads as a username too, but must not fire hundreds of requests unasked."""
     text = client.get("/q", params={"v": "example.com"}).text
-    assert 'hx-get="/panel/whatsmyname' in text  # the panel is offered
+    assert 'hx-get="/panel/whatsmyname' in text
     assert 'hx-trigger="load"' in text  # other panels still self-load
-    # but the whatsmyname panel specifically must be a button, not a load trigger
     block = _panel_block(text, "whatsmyname")
     assert "panel-run" in block
     assert 'data-state="on-demand"' in block
-    assert "hx-trigger" not in block  # the whole point: nothing fires this without a click
+    assert "hx-trigger" not in block
 
 
 def test_cheap_panels_still_self_load():
@@ -141,8 +131,7 @@ def test_htmx_loads_only_on_the_page_that_swaps():
 
 
 def test_free_form_readings_are_folded_when_a_structured_one_exists():
-    """On example.com, 35 of 86 links were person and company guesses competing for the same
-    space as the domain, which is the reading that is not a guess."""
+    """On example.com, 35 of 86 links were person/company guesses crowding the one reading that is not a guess."""
     text = client.get("/q", params={"v": "example.com"}).text
     assert '<details class="speculative">' in text
     assert text.count('<details class="speculative">') == 3  # username, person, company
@@ -151,16 +140,13 @@ def test_free_form_readings_are_folded_when_a_structured_one_exists():
 
 
 def test_free_form_readings_stay_at_full_weight_when_they_are_all_there_is():
-    """A bare word has nothing but free-form readings. Demoting all of them would leave the page
-    with nothing on it."""
+    """A bare word has only free-form readings, so demoting them all would leave the page empty."""
     text = client.get("/q", params={"v": "octocat"}).text
     assert '<details class="speculative">' not in text
 
 
 def test_static_assets_are_revalidated_rather_than_heuristically_cached():
-    """Starlette sends etag but no cache-control, so a browser guesses a freshness lifetime and
-    can serve the previous version's casefile.js against a freshly upgraded server. This bit the
-    UI audit itself: two fixed handlers appeared broken because the page ran stale JS."""
+    """Starlette sends an etag but no cache-control, so a browser guesses a lifetime and serves stale casefile.js."""
     resp = client.get("/static/casefile.js")
     assert resp.headers["cache-control"] == "no-cache"
     assert resp.headers["etag"], "revalidation needs an etag to be cheap"

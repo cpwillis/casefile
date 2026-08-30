@@ -1,9 +1,4 @@
-"""Turn one saved case into Markdown, JSON or a self-contained HTML file.
-
-Export renders what you starred and nothing else. It never re-fetches: a case is a record of
-what you chose to keep, not a fresh scrape, so exporting an old case cannot quietly reach out
-to twenty third parties.
-"""
+"""One saved case to Markdown, JSON or self-contained HTML. Never re-fetches: a case is what you kept, not a scrape."""
 
 import json
 from dataclasses import asdict
@@ -34,40 +29,26 @@ def when(ts: float) -> str:
 
 
 def _md(text: str) -> str:
-    """Escape a third-party value for Markdown.
-
-    Findings are attacker-influenced text. Unescaped, a value containing ] or ( breaks out of
-    the link syntax, and raw HTML passes straight through most Markdown renderers.
-    """
+    """Escape a third-party value for Markdown: unescaped, ] or ( breaks out of link syntax and raw HTML survives."""
     for char in ("\\", "`", "*", "_", "[", "]", "(", ")", "<", ">", "|", "#"):
         text = text.replace(char, "\\" + char)
     return text.replace("\r", " ").replace("\n", " ")
 
 
 def safe_url(url: str | None) -> str | None:
-    """Findings come from third parties, so a url is only a link if its scheme is one we allow.
-
-    Public and registered as a Jinja filter, because the web templates used to re-express this
-    inline and got it subtly wrong: their version omitted the casefold, so HTTPS://x rendered as
-    plain text in the app while linking in an export.
-    """
+    """A url is only a link if its scheme is allowed. A Jinja filter too, so templates cannot re-express it wrong."""
     if url and url.lower().startswith(_SAFE_SCHEMES):
         return url
     return None
 
 
 def _credit(case: Case) -> bool:
-    """CC BY-SA asks for attribution where the material is used, and an exported file is the one
-    artifact that leaves this machine without the vendored licence beside it."""
+    """CC BY-SA wants attribution where used, and an export is the one artifact that leaves without the licence."""
     return any(s.source_id == SOURCE_ID for s in case.stars)
 
 
 def _by_target(case: Case):
-    """Findings grouped the way the case is organised: identifier first, then source.
-
-    A case spans several identifiers, so a flat source list would put a domain's DNS records
-    next to a username's profile hits with nothing saying which was which.
-    """
+    """Findings grouped as the case is: identifier first, then source, because a flat list mixes unrelated targets."""
     ordered = sorted(case.stars, key=lambda s: (s.target_type, s.target_value, s.source_id, s.label, s.value))
     for target, rows in groupby(ordered, key=lambda s: (s.target_type, s.target_value)):
         yield target, groupby(rows, key=lambda s: s.source_id)
@@ -92,8 +73,6 @@ def _to_markdown(case: Case) -> str:
             for s in stars:
                 url = safe_url(s.url)
                 rendered = f"[{_md(s.value)}]({url})" if url else _md(s.value)
-                # When it was captured, not just what: an undated observation is not evidence,
-                # and a case routinely holds rows captured weeks apart.
                 seen = f" _(saved {_md(when(s.starred_at))})_" if s.starred_at else ""
                 lines.append(f"- **{_md(s.label)}**: {rendered}{seen}")
     lines += ["", "---", "", "Exported by casefile. Only starred findings are included."]
@@ -103,11 +82,7 @@ def _to_markdown(case: Case) -> str:
 
 
 def _to_json(case: Case) -> str:
-    """The model as it stands, not a hand-copied subset of it.
-
-    The hand-written version had already drifted: it omitted id, added_at and star_count, which
-    the other two renderers include, so the machine-readable export carried less than the page.
-    """
+    """asdict, not a hand-copied subset: a hand-written payload drifts below what the other renderers show."""
     payload = asdict(case)
     if _credit(case):
         payload["attribution"] = [{"text": CREDIT, "url": CREDIT_URL}]
@@ -156,8 +131,7 @@ def _to_html(case: Case) -> str:
     return "\n".join(parts) + "\n"
 
 
-# The one place a format is declared: renderer and media type together, so the download route
-# cannot know about a format the renderer does not have, or type it differently.
+# One place a format is declared, renderer and media type together, so the download route cannot type one differently.
 _RENDERERS = {
     "md": (_to_markdown, "text/markdown; charset=utf-8"),
     "json": (_to_json, "application/json"),

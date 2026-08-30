@@ -5,11 +5,7 @@ from casefile.types import EntityType
 
 
 def test_the_shipped_catalogue_obeys_every_rule():
-    """One pass over the real catalogue, asserting everything a contributed entry must satisfy.
-
-    The emptiness guard comes first on purpose: these were four separate `for s in catalog`
-    loops, and a loader regression that returned nothing left all four green.
-    """
+    """One pass over the real catalogue. Emptiness first: a loader returning nothing left every loop green."""
     catalog = load_catalog()
     assert catalog, "the catalogue loaded empty, so nothing below is being checked"
     ids = [s.id for s in catalog]
@@ -63,7 +59,6 @@ def test_malformed_entry_raises_with_the_file_named(tmp_path):
 @pytest.mark.parametrize(
     ("toml", "match"),
     [
-        # every rule _parse_source enforces, each shown to actually reject something
         (b'[[source]]\nid = "x"\nname = "X"\naccepts = ["domain"]\nurl = "https://e.test/fixed"\n', "{value}"),
         (b'[[source]]\nid = "x"\nname = "X"\naccepts = []\nurl = "https://e.test/?q={value}"\n', "accepts nothing"),
         (b'[[source]]\nid = "x"\nname = "X"\naccepts = ["not-a-type"]\nurl = "https://e.test/?q={value}"\n', "invalid"),
@@ -78,8 +73,7 @@ def test_a_malformed_entry_is_rejected_and_the_file_is_named(tmp_path, toml, mat
 
 
 def test_two_ids_pointing_at_one_url_for_one_type_are_rejected(tmp_path):
-    """The guard the slot floor was re-based on: six duplicate rows were removed when it landed,
-    so MINIMUM_SLOTS dropped from 250 to 240 and nothing pinned the rule that made that correct."""
+    """Pins the rule MINIMUM_SLOTS was re-based on: six duplicate rows went, so the floor dropped 250 to 240."""
     (tmp_path / "dupe.toml").write_bytes(
         b'[[source]]\nid = "one"\nname = "One"\naccepts = ["domain"]\nurl = "https://dup.test/?q={value}"\n\n'
         b'[[source]]\nid = "two"\nname = "Two"\naccepts = ["domain"]\nurl = "https://dup.test/?q={value}"\n'

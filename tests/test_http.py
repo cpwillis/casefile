@@ -33,7 +33,7 @@ async def test_domain_slot_caps_concurrency_per_host():
             active -= 1
 
     await asyncio.gather(*(worker() for _ in range(12)))
-    assert peak <= 4  # per-host cap
+    assert peak <= 4
 
 
 async def test_domain_slot_caps_global_concurrency_across_many_hosts():
@@ -48,18 +48,15 @@ async def test_domain_slot_caps_global_concurrency_across_many_hosts():
             await asyncio.sleep(0.02)
             active -= 1
 
-    # 30 distinct hosts, 2 workers each: the per-host cap of 4 can never be the binding
-    # constraint here, so any observed cap is proof of the global semaphore.
+    # 30 hosts, 2 workers each: the per-host cap of 4 cannot bind, so any observed cap proves the global semaphore.
     hosts = [f"h{i}.test" for i in range(30) for _ in range(2)]
     await asyncio.gather(*(worker(h) for h in hosts))
-    assert peak <= 20  # global cap
+    assert peak <= 20
     assert peak > 4  # confirms real contention, ie the per-host cap isn't what limited it
 
 
 def test_domain_slot_survives_a_second_event_loop():
-    """Regression: asyncio.Semaphore binds to the loop that first contends it. A second,
-    separate asyncio.run() (eg a later CLI invocation, or a later test module) must not hit
-    'bound to a different event loop' when it drives the same host through domain_slot."""
+    """asyncio.Semaphore binds to the loop that first contends it, so a second asyncio.run() must not raise."""
 
     async def contend():
         async def worker():
@@ -85,7 +82,7 @@ async def test_retries_once_then_raises_rate_limited(method):
     async with mock_client(handler) as client:
         with pytest.raises(RateLimited):
             await http.fetch(client, "https://h.test/x", method=method)
-    assert calls == 2  # original plus one retry
+    assert calls == 2
 
 
 async def test_get_returns_on_success():
@@ -123,8 +120,7 @@ async def test_post_sends_form_data_and_returns_body():
 
 @pytest.mark.parametrize("status", [429, 500, 503])
 async def test_one_retry_on_429_and_5xx(status):
-    """fetch documents "one retry on 429/5xx" but only the 429 half was covered: the 5xx branch
-    could be deleted with the suite green."""
+    """Only the 429 half was covered: the 5xx retry branch could be deleted with the suite green."""
     calls = 0
 
     def handler(request):

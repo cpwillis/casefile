@@ -4,11 +4,7 @@ from casefile.types import EntityType
 
 
 def counting(source_id, *, findings=(("A", "1"),), raises=None):
-    """Register a fetcher that counts its calls. Returns the list it appends to.
-
-    Nine tests opened with the same seven-line closure, so the cache behaviour each one actually
-    pins was three lines underneath six of scaffolding.
-    """
+    """Register a fetcher that counts its calls; returns the list it appends to."""
     calls = []
 
     @fetcher(id=source_id, accepts=[EntityType.DOMAIN])
@@ -55,8 +51,7 @@ async def test_expired_entries_are_re_fetched(monkeypatch):
 
 
 async def test_a_failure_is_held_briefly_rather_than_for_the_full_day():
-    """Reloading a page must not re-hammer a source that just 502'd, but a transient outage has
-    to clear itself without --clear-cache. So a failure is cached, on a much shorter clock."""
+    """A failure must not be re-hammered on reload, but a transient outage has to clear without --clear-cache."""
     from casefile.cache import FAILURE_RETENTION, _ttl_for
 
     calls = counting("cache-error", raises=ValueError("boom"))
@@ -90,7 +85,6 @@ async def test_no_cache_neither_reads_nor_writes():
 
 
 async def test_a_forced_refresh_requeries_and_replaces_the_stored_answer():
-    """The per-panel refresh control: you have a cached answer and want a current one."""
     calls = 0
 
     @fetcher(id="cache-refresh", accepts=[EntityType.DOMAIN])
@@ -103,7 +97,6 @@ async def test_a_forced_refresh_requeries_and_replaces_the_stored_answer():
     assert (await run_cached("cache-refresh", "example.com", EntityType.DOMAIN, None)).findings[0].value == "1"
     fresh = await run_cached("cache-refresh", "example.com", EntityType.DOMAIN, None, refresh=True)
     assert fresh.findings[0].value == "2"
-    # and the refresh replaced what is stored, rather than leaving the stale one behind
     assert (await run_cached("cache-refresh", "example.com", EntityType.DOMAIN, None)).findings[0].value == "2"
 
 
@@ -153,11 +146,7 @@ async def test_clear_cache_actually_removes_the_data_from_disk():
 
 
 async def test_stale_rows_are_pruned_from_disk_not_just_ignored():
-    """The README promises 24 hour retention, which means removal, not just invalidation.
-
-    Asserted through a read, not a write: a session that fetches nothing cacheable still has to
-    collect expired rows, or the retention promise only holds for people who keep searching.
-    """
+    """24h retention means rows are removed, not just ignored, and a read must prune them or only searchers get it."""
     import time as _time
 
     from casefile.cache import _connect, _load, _store
@@ -180,7 +169,7 @@ async def test_a_corrupt_cache_degrades_to_an_uncached_lookup():
     cache_path().parent.mkdir(parents=True, exist_ok=True)
     cache_path().write_bytes(b"this is not a sqlite database")
     result = await run_cached("cache-corrupt", "example.com", EntityType.DOMAIN, None)
-    assert result.state == State.OK  # the lookup still succeeded
+    assert result.state == State.OK
 
 
 async def test_same_value_under_two_types_does_not_collide():

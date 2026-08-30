@@ -1,11 +1,4 @@
-"""Build the static demo: the real app rendered against canned data, then written to disk.
-
-The demo is a prerender of the actual templates, not a copy of them. `demo=True` is the only
-difference, and it lives inside the same base.html, index.html and result.html the live app
-uses, so a change to the result page cannot land in one and miss the other. It is inert by
-construction: there is no backend behind it, so every dynamic affordance is either baked in or
-rendered disabled rather than left dangling.
-"""
+"""Build the static demo: the real templates rendered against canned data, with `demo=True` the only difference."""
 
 import json
 import shutil
@@ -14,12 +7,10 @@ from pathlib import Path
 
 from casefile.fetchers import Finding, SourceResult
 
-# Inside the package, not at the repo root: --build-demo is advertised in --help to every
-# installed user, and a repo-relative path crashes on any wheel install.
+# Inside the package, not the repo root: --build-demo is in --help for every install, and a repo path breaks a wheel.
 DEMO_DATA = Path(__file__).resolve().parent / "demo_data" / "demo.json"
 
-# htmx is deliberately absent: nothing in a built page swaps, so shipping it would be 51KB of
-# dead weight on the one page served to strangers.
+# htmx deliberately absent: nothing in a built page swaps, so it would be 51KB of dead weight.
 DEMO_ASSETS = ("casefile.css", "casefile.js")
 
 
@@ -79,8 +70,7 @@ def build_demo(out_dir: Path, data: Path | None = None) -> list[Path]:
         path.write_text(html)
         written.append(path)
 
-    # Replaced, not merged: `make demo` rebuilds into a fixed directory, and merging left the
-    # 51KB htmx from an earlier build sitting in a demo that no longer loads it.
+    # Replaced, not merged: merging left the 51KB htmx of an earlier build in a demo that no longer loads it.
     static_out = out_dir / "static"
     shutil.rmtree(static_out, ignore_errors=True)
     static_out.mkdir(parents=True)

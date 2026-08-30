@@ -56,8 +56,7 @@ def test_static_assets_are_copied(built):
 
 
 def test_the_demo_ships_the_javascript_its_own_markup_needs_and_nothing_more(built):
-    """It renders copy buttons and a link filter, so casefile.js has to be there. Nothing in a
-    built page swaps, so htmx would be 51KB served to strangers for nothing."""
+    """casefile.js is used by the markup; nothing swaps, so htmx would be 51KB served to strangers for nothing."""
     assert (built / "static" / "casefile.js").exists()
     assert not (built / "static" / "htmx.min.js").exists()
     page = (built / "example-com.html").read_text()
@@ -67,13 +66,7 @@ def test_the_demo_ships_the_javascript_its_own_markup_needs_and_nothing_more(bui
 
 
 def test_the_demo_result_page_matches_the_live_one(built):
-    """The lock that replaces the old demo_*.html fork.
-
-    The demo used to be a copy of the result template and had drifted four ways: a duplicated
-    crt.sh entry, no link notes, no filter box and dead copy buttons. Both pages now render from
-    result.html, so this compares the parts that are not supposed to differ. Panels legitimately
-    differ (live ones self-load, demo ones are baked in) and are excluded.
-    """
+    """Replaces the old demo_*.html fork, which had drifted four ways. Panels legitimately differ and are excluded."""
     from helpers import client
 
     target = "example.com"
@@ -81,8 +74,7 @@ def test_the_demo_result_page_matches_the_live_one(built):
     demo = (built / f"{_slug(target)}.html").read_text()
 
     def links(html):
-        # Scoped to the link lists. The demo banner carries a "source" link the live app has no
-        # reason to, and comparing whole pages would flag that as drift forever.
+        # Scoped to the link lists: the demo banner has a source link the live app does not, and that is not drift.
         lists = re.findall(r'<ul class="links">(.*?)</ul>', html, re.S)
         assert lists, 'no <ul class="links"> found, so this comparison would prove nothing'
         return re.findall(r'<a href="(https?://[^"]+)"[^>]*>([^<]+)</a>', "".join(lists))
@@ -90,9 +82,7 @@ def test_the_demo_result_page_matches_the_live_one(built):
     def readings(html):
         return re.findall(r'id="links-([a-z_]+)"', html)
 
-    # The guards are the load-bearing half. This test went vacuous once before: it matched
-    # `<li><a href=` and `id="type-"`, both of which stopped existing when the markup changed,
-    # so two of its three assertions compared [] to [] and it passed on anything.
+    # The guards are load-bearing: this test once compared [] to [] for two of three assertions and passed on anything.
     assert links(live), "no links parsed from the live page, so the comparison below proves nothing"
     assert readings(live), "no readings parsed from the live page"
     assert links(demo) == links(live), "demo and live disagree on the link list"

@@ -42,8 +42,6 @@
   </nav>
 
   <main class="pane" id="pane">
-    {# Results first, links after: reading order follows effort. Everything casefile already went
-       and got, then everything you have to go and look at yourself. #}
     <section class="region" id="results">
       <h2>Results</h2>
       {% if not sourced %}
@@ -60,8 +58,7 @@
         {% set panel_url = '/panel/' ~ p.id ~ '?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type %}
         {% set prerendered = section.results.get(p.id) %}
         {% if prerendered %}
-        {# already answered, from the cache or from the demo's canned data: render it exactly as a
-           live swap would, with its target attached so it keeps its stars and its refresh control #}
+        {# rendered exactly as a live swap would be; the demo passes no target, so no stars and no refresh #}
         {% with result = prerendered, t = (none if demo else section.type), v = (none if demo else section.value),
                 starred_keys = section.starred %}
         {% include "panel.html" %}{% endwith %}
@@ -102,8 +99,7 @@
         looking, picked by what the input could be.</p>
       {% for section in sections %}
       {% if section.speculative %}
-      {# Folded, not dropped. Anything is a plausible person or company name, so on a domain
-         search these are guesses competing for the same space as the reading that is not. #}
+      {# folded, not dropped: any string is a plausible name, so guesses would crowd out the real reading #}
       <details class="speculative">
         <summary id="links-{{ section.type }}"><h3 class="reading">{{ section.type }}</h3>
           <span class="muted">{{ section.value }} · {{ section.links | length }} links, a guess from the shape

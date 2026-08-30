@@ -10,8 +10,7 @@ from casefile.linkcheck import BLOCKED, LIVE, MISSING, REDIRECTED, UNREACHABLE, 
 @pytest.mark.parametrize(
     ("status", "verdict"),
     [
-        # 43 of 78 apparent catalogue failures were bot-protection 403s rather than dead links,
-        # so everything below that is not 404/410 must stay out of MISSING.
+        # 43 of 78 apparent catalogue failures were bot-protection 403s, so only 404/410 may count as MISSING.
         (200, LIVE),
         (204, LIVE),
         (404, MISSING),
@@ -31,8 +30,7 @@ async def test_status_maps_to_a_verdict(status, verdict):
 
 
 async def test_a_redirect_is_not_counted_as_live():
-    """A site that sends a missing profile to its home page would answer 200 after a redirect,
-    which is why redirects are not followed and are reported as telling you nothing."""
+    """A site that sends a missing profile home answers 200 after a redirect, so redirects are not followed."""
     seen = {}
 
     def handler(request):
@@ -73,8 +71,7 @@ async def test_check_links_returns_one_verdict_per_link_id():
 
 
 def test_the_link_list_offers_the_check_but_never_runs_it_on_page_load(monkeypatch):
-    """Egress consent, same rule as the WhatsMyName checker: dozens of third-party requests
-    from your IP are not something a page load does by itself."""
+    """Egress consent: dozens of third-party requests from your IP are not something a page load does by itself."""
     import casefile.web.app as appmod
 
     async def explode(links, client):

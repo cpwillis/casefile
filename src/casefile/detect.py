@@ -67,12 +67,7 @@ def _icao24(s: str) -> str | None:
 
 
 def _tx_hash(s: str) -> str | None:
-    """A 32-byte hex hash, with or without the 0x Ethereum convention.
-
-    Kept apart from HASH because the two lead somewhere completely different: a bare 64-hex
-    string is a plausible SHA-256 file digest and goes to malware lookups, while the same value
-    with 0x can only be a transaction. Both readings are offered for the bare form.
-    """
+    """32-byte hex, with or without 0x. Separate from HASH: bare 64-hex is also a SHA-256 for malware lookups."""
     body = s[2:] if s[:2].lower() == "0x" else s
     return body.lower() if re.fullmatch(r"(?i)[0-9a-f]{64}", body) else None
 
@@ -107,9 +102,7 @@ _LABEL = r"[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?"
 
 
 def _email(s: str) -> str | None:
-    # A URL carrying userinfo (https://user@host) is not an email. Read as one it took the
-    # "most likely" row, emitted the domain twice, and percent-encoded any credentials in it
-    # into every third-party email link on the page.
+    # A URL with userinfo (https://user@host) is not an email: read as one it leaked credentials into every link.
     if _has_control(s) or "://" in s:
         return None
     m = re.fullmatch(r"([^@\s]+)@([^@\s]+\.[^@\s]+)", s)
@@ -140,13 +133,11 @@ def _domain(s: str) -> str | None:
     if not s:
         return None
     if s.isascii():
-        # Deliberately not routed through idna: it rejects underscores, and _dmarc.example.com
-        # and _sip._tcp.example.com are routine DNS pivots we want to keep.
+        # Not idna: it rejects underscores, and _dmarc.example.com is a routine DNS pivot.
         candidate = s.lower()
     else:
         try:
-            # UTS46, not the stdlib "idna" codec. The stdlib is IDNA2003 and maps ß to "ss", so
-            # straße.de would silently normalise to strasse.de, a different real host.
+            # UTS46, not the stdlib "idna" codec: IDNA2003 maps ß to ss, so straße.de becomes a different real host.
             candidate = idna.encode(s, uts46=True).decode("ascii")
         except idna.IDNAError:
             return None
@@ -158,7 +149,7 @@ def _domain(s: str) -> str | None:
 
 
 def _phone(s: str) -> str | None:
-    """Regex-only. libphonenumber arrives in phase 4 with the fetcher that needs it."""
+    """Regex-only; the phone fetcher does the real parsing with libphonenumber."""
     if _ip(s):  # 192.0.2.10 is seven digits and all-dots, which would otherwise pass
         return None
     plus = s.strip().startswith("+")
@@ -170,10 +161,7 @@ def _phone(s: str) -> str | None:
     return f"+{digits}" if plus else digits
 
 
-# ISO 3779: letters transliterate to digits, positions are weighted, and position 9 carries the
-# check value. X stands for 10.
-# The table is not a simple A=1..Z=26 run: it restarts at J and again at S, and I, O and Q are
-# absent from the alphabet entirely.
+# ISO 3779: position 9 is the check digit, X means 10. Letter values restart at J and at S; I, O and Q are absent.
 _VIN_VALUES = {c: int(c) for c in "0123456789"}
 _VIN_VALUES.update(dict(zip("ABCDEFGH", (1, 2, 3, 4, 5, 6, 7, 8), strict=True)))
 _VIN_VALUES.update(dict(zip("JKLMNPR", (1, 2, 3, 4, 5, 7, 9), strict=True)))
@@ -188,8 +176,7 @@ def _vin_check_digit_ok(vin: str) -> bool:
 
 
 def _vin(s: str) -> str | None:
-    """Check digit enforced: a transposed character otherwise reads as a valid VIN, and every
-    vehicle source then renders a confident miss instead of "you typed it wrong"."""
+    """Check digit enforced: a transposed character otherwise reads as a valid VIN, and every source then misses."""
     if not re.fullmatch(r"(?i)[A-HJ-NPR-Z0-9]{17}", s):
         return None
     vin = s.upper()
@@ -197,7 +184,7 @@ def _vin(s: str) -> str | None:
 
 
 def _imo(s: str) -> str | None:
-    """Same reasoning as _vin. The IMO check digit is four lines and pure stdlib."""
+    """Same reasoning as _vin: the check digit rejects typos that would otherwise look like a real IMO."""
     m = re.fullmatch(r"(?i)(?:imo[\s:]*)?([0-9]{7})", s.strip())
     if not m:
         return None
@@ -210,9 +197,7 @@ def _mmsi(s: str) -> str | None:
     return s if re.fullmatch(r"[0-9]{9}", s) else None
 
 
-# Either a hyphenated registration (G-ABCD, VH-OQA, D-AIMA) or a US N-number, which is the one
-# national scheme that omits the hyphen. The hyphen is what makes this safe: without it the old
-# pattern read "octocat" as a tail number and, being tier 2, ranked it above the username.
+# A hyphenated registration (G-ABCD, VH-OQA) or a US N-number, the one scheme without one. The hyphen stops "octocat".
 _TAIL = re.compile(r"(?i)^(?:[a-z]{1,2}-[a-z0-9]{1,5}|N[0-9]{1,5}[a-z]{0,2})$")
 
 
@@ -223,7 +208,6 @@ def _tail_number(s: str) -> str | None:
 
 
 def _domain_from_url(value: str) -> str | None:
-    """A URL is also a pivot on its host, so paste a URL and get the domain sources too."""
     try:
         host = urlsplit(value).hostname
     except ValueError:
@@ -231,8 +215,7 @@ def _domain_from_url(value: str) -> str | None:
     return _domain(host) if host else None
 
 
-# ICAO24 lives in TIER2, not TIER1: a bare 6-hex string collides with dictionary words
-# (facade, decade) and real usernames, so it must NOT suppress the free-form TIER3 readings.
+# ICAO24 is TIER2, not TIER1: bare 6-hex collides with words (facade, decade), so it must not suppress TIER3.
 TIER2: tuple[tuple[EntityType, Detector], ...] = (
     (EntityType.EMAIL, _email),
     (EntityType.URL, _url),
@@ -257,8 +240,7 @@ def _username(s: str) -> str | None:
 
 
 def _nameish(s: str) -> str | None:
-    """Person and company share this: nothing in the string itself separates the two readings,
-    so both are offered and the catalogue decides what each is worth looking up in."""
+    """Person and company are indistinguishable in the string itself, so both are offered and the catalogue decides."""
     s = s.strip()
     return s if re.fullmatch(_NAMEISH, s) else None
 
@@ -270,28 +252,17 @@ TIER3: tuple[tuple[EntityType, Detector], ...] = (
 )
 
 
-# The free-form readings. Almost any string is a plausible person or company name, so a value
-# whose only readings are these is not worth offering as a pivot: the arrow would be on every
-# row and would mean nothing.
+# Almost any string reads as a person or company, so a value with only these readings is not worth a pivot.
 FREE_FORM = frozenset({EntityType.USERNAME, EntityType.PERSON, EntityType.COMPANY})
 
 
 def is_pivotable(value: str) -> bool:
-    """Whether a finding's value is itself a structured identifier worth searching from.
-
-    This is what turns a result into a lead: a discovered IP, nameserver, subdomain or CVE is
-    the next query, and until now every one of them was a dead end on the page.
-    """
+    """Whether a value is a structured identifier worth searching from: a discovered IP or CVE is the next query."""
     return any(c.type not in FREE_FORM for c in detect(value))
 
 
 def detect(raw: str) -> tuple[Candidate, ...]:
-    """Ranked candidate readings of `raw`, most constrained first.
-
-    Tier 3 is suppressed entirely when a tier-1 detector matches: an IP address is not a
-    plausible person, and offering it as one is noise. Tier 2 does not suppress tier 3,
-    because `example.com` genuinely is both a domain and a plausible company name.
-    """
+    """Ranked readings, most constrained first. Tier 1 suppresses tier 3; tier 2 does not (example.com is both)."""
     value = raw.strip()
     if not value:
         return ()
@@ -302,9 +273,7 @@ def detect(raw: str) -> tuple[Candidate, ...]:
     have = {c.type for c in tier2}
     if EntityType.URL in have and EntityType.DOMAIN not in have and (host := _domain_from_url(value)):
         tier2 = (*tier2, Candidate(EntityType.DOMAIN, host))
-    # An email carries two more identifiers inside it, and both are real pivots: the domain has
-    # its own catalogue and fetchers, and the local part is very often the handle. A URL already
-    # yields its host this way; an email yielded nothing but itself.
+    # An email carries a domain and often a handle, both real pivots; a URL already yields its host the same way.
     if EntityType.EMAIL in have:
         local, _, host = value.strip().partition("@")
         if EntityType.DOMAIN not in have and (derived := _domain(host)):

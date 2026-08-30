@@ -1,11 +1,7 @@
-{# The page's save state. One control, not one per reading: you save the identifier you typed,
-   and re-running it re-detects every reading anyway. Per reading, saving example.com four ways
-   made four dashboard rows all called "example.com" with nothing to tell them apart. #}
+{# one control, not one per reading: per-reading saves made four dashboard rows all named the same #}
 {% if section.case %}
 {% set only = section.case.targets | length == 1 %}
 <div class="save-state muted">Saved to <a href="/case/{{ section.case.id | urlencode }}">{{ section.case.name }}</a>
-  {# The confirm names the real cost. Removing the last identifier destroys the case, its name and
-     every finding starred against it, and a first case is almost always a one-identifier case. #}
   <form method="post" action="/save" class="inline"
         onsubmit="return confirm({{ (
           'Remove ' ~ section.value ~ ' from “' ~ section.case.name ~ '”?\n\nIt is the only identifier in this case, so the case and its '

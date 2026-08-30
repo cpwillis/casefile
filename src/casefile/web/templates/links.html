@@ -1,5 +1,4 @@
-{# One reading's link list, optionally annotated with what a probe found. Rendered inline on the
-   result page and returned on its own by /links, so both paths agree by construction. #}
+{# included by result.html and returned bare by /links, so both paths render the same list #}
 <div class="linkset" id="links-{{ section.type }}-list">
   {% if verdicts %}
   <p class="muted linkset-tally">

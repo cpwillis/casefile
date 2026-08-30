@@ -29,7 +29,6 @@ def test_cases_path_follows_xdg_data_home(tmp_path, monkeypatch):
 
 
 def test_saving_a_search_creates_a_case_with_no_stars_in_it():
-    """The gap this closes: a search worth keeping, with nothing yet worth starring."""
     cid = save_target(EntityType.USERNAME, "acme-example")
     (case,) = list_cases()
     assert case.id == cid
@@ -39,8 +38,7 @@ def test_saving_a_search_creates_a_case_with_no_stars_in_it():
 
 
 def test_two_identifiers_can_be_joined_into_one_case():
-    """The point of the model: these are the same subject to a person and nothing alike to a
-    detector, so they must be one row on the dashboard, not two."""
+    """Same subject to a person, nothing alike to a detector: one row on the dashboard, not two."""
     cid = save_target(EntityType.USERNAME, "acme-example")
     save_target(EntityType.DOMAIN, "acme.example", case_id=cid)
     (case,) = list_cases()
@@ -49,7 +47,6 @@ def test_two_identifiers_can_be_joined_into_one_case():
 
 
 def test_joining_a_target_that_already_had_its_own_case_moves_its_findings():
-    """Save one, save the other, then decide they are the same thing: nothing may be orphaned."""
     save_target(EntityType.USERNAME, "acme-example")
     star(EntityType.USERNAME, "acme-example", _star(label="profile", value="p"))
     second = save_target(EntityType.DOMAIN, "acme.example")
@@ -79,15 +76,13 @@ def test_an_identifier_belongs_to_at_most_one_case():
 
 
 def test_a_case_that_loses_its_last_identifier_goes():
-    """Distinct from losing its last star, which keeps the case: an investigation with no
-    identifiers in it has nothing left to be about."""
+    """Distinct from losing its last star, which keeps the case."""
     save_target(EntityType.DOMAIN, "example.com")
     remove_target(EntityType.DOMAIN, "example.com")
     assert list_cases() == ()
 
 
 def test_starring_alone_still_starts_a_case():
-    """The quick path stays one click: you should not have to save before you can star."""
     star(EntityType.DOMAIN, "example.com", _star())
     (case,) = list_cases()
     assert case.name == "example.com"
@@ -101,8 +96,7 @@ def test_starring_the_same_finding_twice_is_idempotent():
 
 
 def test_removing_the_last_star_keeps_the_case():
-    """Changed from the old model on purpose: a case you saved deliberately must not evaporate
-    because you changed your mind about one row."""
+    """Deliberate: a saved case must not evaporate because you changed your mind about one finding."""
     finding = _star()
     star(EntityType.DOMAIN, "example.com", finding)
     unstar(EntityType.DOMAIN, "example.com", finding)
@@ -188,8 +182,7 @@ def test_unknown_case_loads_as_none():
 
 
 def test_clear_cache_never_touches_saved_cases():
-    """The trap the two-store design exists to avoid: --clear-cache is documented as a privacy
-    control, and destroying deliberately saved work would make it a footgun."""
+    """The two-store design exists for this: --clear-cache must not destroy deliberately saved work."""
     from casefile.cache import clear_cache
 
     save_target(EntityType.DOMAIN, "example.com")
@@ -233,7 +226,6 @@ def test_forget_all_removes_the_rollback_journal():
 
 
 def test_starred_keys_reflects_state():
-    """The read every finding row goes through, replacing the per-row is_starred lookup."""
     finding = _star()
     key = (finding.source_id, finding.label, finding.value)
     assert key not in starred_keys(EntityType.DOMAIN, "example.com")

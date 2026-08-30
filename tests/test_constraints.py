@@ -13,15 +13,8 @@ from casefile.web.app import app
 
 
 def test_app_has_no_startup_hooks():
-    """A browser-opening startup hook would fire under TestClient and launch a browser in CI.
-
-    Starlette exposes the default (no custom startup) as a `_DefaultLifespan`; anything else
-    means a lifespan or startup handler was registered, which is where such a bug would live.
-    """
-    # Asserted by driving the lifespan rather than by naming Starlette's private default class,
-    # which an upgrade could rename with no defect present. The risk this guards is real: a
-    # startup hook that opened a browser would fire for every importer, including the test suite
-    # and --build-demo.
+    """A startup hook that opened a browser would fire for every importer, including CI and --build-demo."""
+    # Driven through the lifespan rather than naming Starlette's _DefaultLifespan, which an upgrade could rename.
     import webbrowser
 
     from starlette.testclient import TestClient
@@ -62,18 +55,12 @@ def test_async_client_is_constructed_in_one_place():
     assert offenders == [], f"AsyncClient built outside fetchers/http.py: {offenders}"
 
 
-# Numbers reserved for fiction, and the only ones a fixture may use.
-# AU: ACMA reserves 5550 xxxx in each geographic area code. NANP: 555-0100 to 555-0199.
+# Fiction-only ranges: ACMA reserves 5550 xxxx per AU area code; NANP reserves 555-0100 to 555-0199.
 RESERVED_PHONE = re.compile(r"^(?:61[2378]5550\d{4}|0?[2378]5550\d{4}|1?\d{3}55501\d{2})$")
 
 
 def test_no_fixture_uses_a_dialable_real_phone_number():
-    """A test number must not be able to ring a real person or organisation.
-
-    The suite is full of digit strings that are not phone numbers (IMO, MMSI, dates, ports), so
-    the filter is: anything casefile itself reads as a phone AND is long enough to be a real
-    subscriber number has to come from a reserved fiction range.
-    """
+    """A test number must not ring anyone: anything casefile reads as a phone with 10+ digits must be reserved."""
     offenders = []
     for path in sorted(Path(__file__).parent.glob("*.py")):
         for node in ast.walk(ast.parse(path.read_text())):
@@ -96,10 +83,7 @@ REGISTRABLE = re.compile(r"\.(com|net|org|io|dev|co|uk|au|me|app|sh|lu|info|biz|
 
 
 def _hosts_the_project_targets() -> set[str]:
-    """Hosts casefile genuinely reaches: the catalogue, the fetchers, and its own project links.
-
-    Derived rather than hand-listed, so adding a catalogue entry never means editing this test.
-    """
+    """Hosts casefile genuinely reaches, derived rather than hand-listed so a catalogue entry never edits this test."""
     from casefile.catalog import load_catalog
 
     hosts = {urlsplit(source.url).hostname for source in load_catalog()}
@@ -111,19 +95,12 @@ def _hosts_the_project_targets() -> set[str]:
 
 
 def test_no_fixture_or_doc_names_a_real_world_host():
-    """Fixtures must be synthetic. This is the check that was missing when a real investigation
-    target was transcribed into the test suite of a public OSINT repo.
-
-    A registrable host in a test or in the README must be one the project legitimately targets.
-    Anything else belongs to somebody, and an OSINT repo is the worst place to publish it.
-    """
+    """A registrable host in a test or README belongs to somebody: an OSINT repo is the worst place to publish it."""
     allowed = _hosts_the_project_targets()
     offenders = set()
     files = [*Path(__file__).parent.glob("*.py"), Path(__file__).resolve().parents[1] / "README.md"]
     for path in files:
-        # Escapes are decoded first: a source file holding an escaped newline inside a
-        # string otherwise yields a host glued to the letter that follows it, which is a
-        # tokenising artifact rather than a finding.
+        # Escapes are decoded first: an escaped newline inside a string otherwise glues a host to the next letter.
         text = path.read_text().replace("\\n", "\n").replace("\\t", "\t")
         for raw in re.findall(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+", text):
             host = raw.rstrip(".").lower()

@@ -5,7 +5,6 @@ from casefile.cases import list_cases, load_case
 
 
 def _saved_case_id():
-    """Case ids are opaque now, so a test finds the case rather than reconstructing its id."""
     (case,) = list_cases()
     return case.id
 
@@ -15,8 +14,7 @@ STAR = {"t": "domain", "v": "example.com", "source_id": "dns", "label": "A", "va
 
 
 def test_star_refuses_a_request_with_no_sec_fetch_site():
-    """Only this app's own page may write. A browser always sends the header, so its absence
-    means the caller is not one."""
+    """A browser always sends the header, so its absence means the caller is not one."""
     assert bare_client.post("/star", data=STAR).status_code == 403
 
 
@@ -27,14 +25,13 @@ def test_star_is_not_reachable_by_get():
 def test_starring_then_unstarring_round_trips():
     first = client.post("/star", data=STAR, headers=SAME)
     assert first.status_code == 200
-    assert "★" in first.text  # filled star
+    assert "★" in first.text
     assert len(list_cases()) == 1
 
     # The button declares intent rather than toggling, so a stale tab cannot un-save silently.
     second = client.post("/star", data=dict(STAR, action="unstar"), headers=SAME)
-    assert "☆" in second.text  # hollow again
-    # The case stays: it holds the identifier, and changing your mind about one finding is not
-    # the same as abandoning the investigation. Removing the identifier is what closes it.
+    assert "☆" in second.text
+    # The case stays: it holds the identifier, and removing that is what closes it.
     (case,) = list_cases()
     assert case.star_count == 0
     assert [t.value for t in case.targets] == ["example.com"]
@@ -43,7 +40,7 @@ def test_starring_then_unstarring_round_trips():
 def test_a_stale_tab_cannot_unsave_by_re_saving():
     """Two tabs on the same page: clicking save twice must not cascade the case away."""
     client.post("/star", data=STAR, headers=SAME)
-    client.post("/star", data=STAR, headers=SAME)  # a stale tab repeating "save"
+    client.post("/star", data=STAR, headers=SAME)
     assert len(list_cases()) == 1
 
 
@@ -55,11 +52,9 @@ def test_deleting_a_case_removes_it():
 
 
 def test_a_foreign_host_is_refused_on_every_route_even_when_same_origin():
-    """Sec-Fetch-Site alone does not survive DNS rebinding, so Host is pinned too.
+    """Sec-Fetch-Site alone does not survive DNS rebinding, so Host is pinned in middleware for every route.
 
-    Asserted across every route rather than the two that used to carry a hand-pasted guard:
-    the pin is middleware now precisely so a new route cannot quietly opt out of it. /panel is
-    in the list on purpose, being the only route that makes outbound requests from your IP.
+    /panel is the highest-risk entry below: it is the one route that spends outbound egress from the user's IP.
     """
     evil = {"host": "evil.example"}
     assert client.post("/star", data=STAR, headers={**SAME, **evil}).status_code == 400
@@ -75,11 +70,7 @@ def test_a_foreign_host_is_refused_on_every_route_even_when_same_origin():
 
 
 def test_export_filename_survives_a_unicode_target():
-    """case.value is third-party influenced and reaches a response header.
-
-    A raw unicode value used to raise UnicodeEncodeError in the header encoder, 500ing every
-    export of an ordinary internationalised email address.
-    """
+    """Unescaped, a unicode value in content-disposition raises UnicodeEncodeError and 500s an ordinary export."""
     client.post("/star", data=dict(STAR, t="email", v="a@\u65e5\u672c\u8a9e.example"), headers=SAME)
     (case,) = list_cases()
     resp = client.get(f"/case/{case.id}/export.md")
@@ -137,8 +128,7 @@ def test_export_rejects_an_unknown_format():
 
 
 def test_an_unwritable_store_shows_the_failure_on_the_button(tmp_path, monkeypatch):
-    """htmx does not swap a 5xx, so a save that failed must come back as a visibly failed button
-    rather than as a status code the page silently ignores."""
+    """htmx does not swap a 5xx, so a failed save must come back as a 200 with a visibly failed button."""
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
     from casefile.cases import cases_path
 
@@ -161,7 +151,6 @@ SAVE = {"t": "username", "v": "acme-example"}
 
 
 def test_save_this_search_creates_a_case_with_nothing_starred():
-    """The gap: a search worth keeping before anything on it is worth starring."""
     resp = client.post("/save", data=SAVE, headers=SAME, follow_redirects=False)
     assert resp.status_code == 303
     (case,) = list_cases()
@@ -206,8 +195,7 @@ def test_removing_a_target_from_the_result_page():
 
 
 def test_the_save_control_does_not_nest_a_form_inside_a_paragraph():
-    """Browsers close a <p> when a <form> opens inside it, which broke the control onto its own
-    line. Invalid nesting renders acceptably right up until it does not."""
+    """A browser closes an open <p> when a <form> starts inside it, which broke the control onto its own line."""
     import re
 
     client.post("/save", data=SAVE, headers=SAME)
@@ -217,8 +205,7 @@ def test_the_save_control_does_not_nest_a_form_inside_a_paragraph():
 
 
 def test_one_finding_can_be_removed_from_the_case_page():
-    """A source that has since changed cannot be un-starred from a result page, and deleting the
-    whole identifier to drop one row is too blunt."""
+    """A source that has since changed cannot be un-starred from a result page."""
     client.post("/star", data=STAR, headers=SAME)
     client.post("/star", data=dict(STAR, label="MX", value="0 ."), headers=SAME)
     cid = _saved_case_id()
@@ -239,7 +226,6 @@ def test_the_case_page_offers_a_remove_control_per_finding():
 
 
 def test_the_case_page_shows_the_timestamps_the_store_already_keeps():
-    """created_at, updated_at and starred_at were all written and none were ever displayed."""
     client.post("/star", data=STAR, headers=SAME)
     text = client.get(f"/case/{_saved_case_id()}").text
     assert "opened" in text and "last change" in text
@@ -247,16 +233,13 @@ def test_the_case_page_shows_the_timestamps_the_store_already_keeps():
 
 
 def test_a_finding_that_is_itself_an_identifier_offers_a_pivot():
-    """The whole workflow is paste, scan, follow the lead, and findings were dead ends."""
     client.post("/star", data=STAR, headers=SAME)
     text = client.get(f"/case/{_saved_case_id()}").text
     assert 'class="pivot" href="/q?v=192.0.2.10"' in text
 
 
 def test_the_star_button_id_matches_across_both_render_paths():
-    """htmx restores focus after an outerHTML swap only when the element carried an id, and only
-    if the replacement carries the same one. The button is rendered from two places: inside a
-    panel, and on its own by /star. A mismatch loses focus exactly as having no id did."""
+    """htmx re-focuses after an outerHTML swap only if the replacement carries the same id, and two paths render it."""
     import re
 
     from helpers import stub_result
@@ -278,8 +261,7 @@ def test_the_star_button_id_matches_across_both_render_paths():
 
 
 def test_the_star_buttons_accessible_name_does_not_change_with_its_state():
-    """aria-pressed carries the state. A name that flips too makes a screen reader announce
-    "Remove from your saved case, pressed", which reads as contradictory."""
+    """aria-pressed carries the state, so a name that flipped too would announce 'Remove..., pressed': contradictory."""
     saved = client.post("/star", data=STAR, headers=SAME).text
     unsaved = client.post("/star", data=dict(STAR, action="unstar"), headers=SAME).text
     for text in (saved, unsaved):
@@ -289,8 +271,7 @@ def test_the_star_buttons_accessible_name_does_not_change_with_its_state():
 
 
 def test_removing_the_last_identifier_warns_and_lands_where_the_loss_is_visible():
-    """One unguarded click used to destroy a named case and every finding in it, then drop you on
-    a search page showing no sign anything had happened."""
+    """One unguarded click destroyed a named case and left you on a page showing no sign it had happened."""
     client.post("/save", data=SAVE, headers=SAME)
     cid = _saved_case_id()
     client.post(f"/case/{cid}/rename", data={"name": "Tuesday intrusion"}, headers=SAME)
@@ -306,8 +287,7 @@ def test_removing_the_last_identifier_warns_and_lands_where_the_loss_is_visible(
 
 
 def test_a_case_name_is_bounded():
-    """Unbounded, a name reached the "add to" select on every result page and stretched the
-    layout past four thousand pixels."""
+    """Unbounded, a name reached the add-to select on every result page and stretched the layout past 4000px."""
     from casefile.cases import CaseStoreError, rename_case
 
     client.post("/save", data=SAVE, headers=SAME)
@@ -337,21 +317,18 @@ def test_a_blank_identifier_is_refused():
 
 
 def test_the_dashboard_does_not_print_a_case_name_twice():
-    """A case auto-named after its only identifier used to render "example.com example.com"."""
     client.post("/save", data=SAVE, headers=SAME)
     text = client.get("/cases").text
     assert text.count("acme-example") == 1
 
 
 def test_one_save_control_per_page_not_one_per_reading():
-    """Per reading, saving example.com four ways made four dashboard rows all called
-    "example.com" with nothing to tell them apart."""
+    """Per reading, saving example.com four ways made four dashboard rows nothing could tell apart."""
     assert client.get("/q", params={"v": "example.com"}).text.count("Save this identifier") == 1
 
 
 def test_the_dashboard_distinguishes_cases_that_share_a_name():
-    """A username and a company can be the same word and different subjects, so the reading is
-    what tells the rows apart."""
+    """A username and a company can be the same word, so the reading is what tells the rows apart."""
     for t in ("username", "company"):
         client.post("/save", data={"t": t, "v": "smith"}, headers=SAME)
     text = client.get("/cases").text
@@ -372,8 +349,7 @@ def test_removing_an_identifier_from_a_case_page_returns_to_that_case():
 
 
 def test_deleting_a_case_that_does_not_exist_says_so():
-    """Reporting a delete that never happened is the same class of lie as a source reporting
-    "nothing found" for a lookup it never made."""
+    """Reporting a delete that never happened is the same lie as 'nothing found' for a lookup never made."""
     resp = client.post("/case/never-existed/delete", headers=SAME, follow_redirects=False)
     assert resp.status_code == 200
     assert "no longer exists" in resp.text
@@ -386,9 +362,7 @@ def test_the_unrecognised_page_has_a_heading_and_a_way_out():
 
 
 def test_a_new_write_route_is_guarded_without_remembering_to_guard_it():
-    """The reason the origin check is middleware and not a per-route line: applied per route, the
-    fifth POST someone adds arrives unguarded, which is exactly how /panel became the one egress
-    route without the Host pin."""
+    """Middleware, not a per-route line: applied per route, the fifth POST someone adds arrives unguarded."""
     from starlette.responses import PlainTextResponse
     from starlette.routing import Route
 

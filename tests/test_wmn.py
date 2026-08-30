@@ -9,9 +9,7 @@ from casefile.types import EntityType
 
 def test_dataset_loads_with_many_sites():
     sites = load_sites()
-    # Tight window rather than a loose floor: a loose ">600" check would not notice the loader
-    # silently dropping 90 sites. 687 is the real post-https-filter count; an upstream dataset
-    # format change should fail this test rather than pass silently.
+    # Tight window, not a loose floor: 687 is the real post-https-filter count, and >600 would miss 90 dropped sites.
     assert 667 <= len(sites) <= 707
 
 
@@ -49,9 +47,9 @@ def _site(**kw):
 @pytest.mark.parametrize(
     ("status", "body", "expected"),
     [
-        (200, "prefix found-me suffix", True),  # code and string both match
+        (200, "prefix found-me suffix", True),
         (200, "nothing here", False),  # right code, wrong body: the classic false positive
-        (404, "found-me", False),  # wrong code
+        (404, "found-me", False),
         (500, "found-me", False),  # server error is not existence
     ],
 )

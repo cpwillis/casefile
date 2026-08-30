@@ -1,4 +1,3 @@
-// All of casefile's JavaScript: the link filter, the / shortcut and the copy buttons.
 // Every handler is delegated, so panels htmx swaps in later are covered without rebinding.
 document.addEventListener("input", (event) => {
   const input = event.target.closest(".filter");
@@ -11,8 +10,6 @@ document.addEventListener("input", (event) => {
     item.hidden = needle !== "" && !item.textContent.toLowerCase().includes(needle);
     if (!item.hidden) shown++;
   }
-  // Counted in the same pass that hides them. Two listeners meant the count was right only
-  // because they happened to fire in registration order.
   let status = input.parentElement.querySelector(".filter-status");
   if (!status) {
     status = document.createElement("span");
@@ -23,7 +20,6 @@ document.addEventListener("input", (event) => {
   status.textContent = needle === "" ? "" : shown ? `${shown} of ${list.children.length}` : "nothing matches";
 });
 
-// "/" focuses the search box, unless you are already typing in or choosing from a control.
 document.addEventListener("keydown", (event) => {
   if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
   const tag = (event.target.tagName || "").toLowerCase();
@@ -35,7 +31,6 @@ document.addEventListener("keydown", (event) => {
   box.select();
 });
 
-// Copy a finding's value. Delegated, so it also works on panels htmx swaps in later.
 document.addEventListener("click", (event) => {
   const button = event.target.closest(".copy");
   if (!button || !navigator.clipboard) return;
@@ -46,10 +41,7 @@ document.addEventListener("click", (event) => {
   });
 });
 
-// htmx swaps nothing when a request never completes, so a panel whose request was blocked or
-// dropped just sits there looking idle, which is indistinguishable from a dead button. Content
-// blockers are the usual cause: they match on URL patterns and a local tool's paths are not
-// exempt. Say what happened instead of looking broken.
+// htmx swaps nothing when a request never completes, so a blocked panel just sits there looking idle.
 function panelFailed(event, reason) {
   const panel = event.detail.elt.closest(".panel");
   if (!panel) return;
@@ -76,11 +68,8 @@ document.addEventListener("htmx:sendError", (event) =>
 );
 document.addEventListener("htmx:timeout", (event) => panelFailed(event, "this request timed out."));
 
-// A panel replaces itself, so the button you pressed no longer exists for htmx to re-focus. Move
-// focus to the panel instead, which is the thing you were acting on and now carries the answer.
 document.addEventListener("htmx:afterSwap", (event) => {
-  // With outerHTML, detail.target is the element that was replaced and is now detached, so
-  // focusing it does nothing. The replacement carries the same id, so look it back up.
+  // With outerHTML the swapped-out target is detached, so focusing it does nothing; look the id back up.
   const id = event.detail.target?.id;
   if (!id) return;
   const panel = document.getElementById(id);
@@ -89,8 +78,7 @@ document.addEventListener("htmx:afterSwap", (event) => {
 
 
 
-// A rail link can point at a heading inside a folded group. Open the group first, or the click
-// scrolls to a collapsed summary and looks like it did nothing.
+// A rail link can target a heading inside a folded <details>, so open its ancestors before scrolling.
 function revealHashTarget() {
   const id = decodeURIComponent(location.hash.slice(1));
   if (!id) return;

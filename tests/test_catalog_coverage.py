@@ -1,8 +1,7 @@
 from casefile.catalog import load_catalog, sources_for
 from casefile.types import EntityType
 
-# The 1.0.0 bar was 250, but six of those slots were the same URL listed twice under two names,
-# which was never coverage. Re-based once the loader started rejecting duplicate URLs.
+# Was 250; six slots were one URL listed twice, so re-based when the loader started rejecting duplicate URLs.
 MINIMUM_SLOTS = 240
 FLOOR_PER_TYPE = 3
 EXEMPT = {EntityType.USERNAME}  # WhatsMyName covers username, so it needs no catalogue floor

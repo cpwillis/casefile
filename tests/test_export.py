@@ -50,8 +50,7 @@ def test_every_format_has_both_a_renderer_and_a_media_type(fmt):
 
 
 def test_an_uppercase_scheme_is_treated_the_same_everywhere():
-    """The templates used to re-express this rule without the casefold, so HTTPS:// linked in an
-    export and rendered as plain text in the app. One shared filter now decides."""
+    """One shared filter decides: a re-expressed rule without the casefold dropped HTTPS:// in the app."""
     from casefile.export import safe_url
 
     assert safe_url("HTTPS://EXAMPLE.COM/x") == "HTTPS://EXAMPLE.COM/x"
@@ -86,7 +85,7 @@ def test_json_is_parseable_and_stable():
 def test_html_is_self_contained():
     out = export_case(CASE, "html")
     assert out.lstrip().startswith("<!doctype html>")
-    assert "<style>" in out  # inline css, no external assets
+    assert "<style>" in out
     assert "<link" not in out
     assert "<script" not in out
 
@@ -124,11 +123,7 @@ def test_unknown_format_is_rejected():
 
 
 def test_export_never_includes_anything_unstarred():
-    """Export renders what you kept, not a fresh scrape. Nothing else may leak in.
-
-    Asserted as a set rather than as absent strings: naming two sources that happen not to be
-    in the fixture would still pass if export invented a third.
-    """
+    """Export renders what you kept. Asserted as a set: naming absent sources still passes if export invented one."""
     import re
 
     out = export_case(CASE, "md")
@@ -149,8 +144,7 @@ WMN_CASE = Case(
 
 @pytest.mark.parametrize("fmt", ["md", "json", "html"])
 def test_a_whatsmyname_finding_carries_its_licence_credit(fmt):
-    """CC BY-SA asks for attribution where the material is used. An exported file is the one
-    artifact that leaves the machine without vendor/WMN-LICENCE.txt beside it."""
+    """CC BY-SA asks for attribution, and an export is the artifact that leaves without WMN-LICENCE.txt beside it."""
     out = export_case(WMN_CASE, fmt)
     assert "WhatsMyName" in out
     assert "CC BY-SA 4.0" in out
@@ -164,8 +158,7 @@ def test_an_export_with_no_whatsmyname_finding_carries_no_credit(fmt):
 
 @pytest.mark.parametrize("fmt", ["md", "json", "html"])
 def test_a_joined_case_names_every_identifier_and_attributes_every_finding(fmt):
-    """A case spans identifiers, so an export that flattened them would put a domain's DNS
-    records beside a username's profile hits with nothing saying which was which."""
+    """A flattened export would put a domain's DNS records beside a username's profile hits, unattributed."""
     out = export_case(JOINED, fmt)
     assert "acme.example" in out
     assert "Acme-Example" in out
@@ -174,9 +167,7 @@ def test_a_joined_case_names_every_identifier_and_attributes_every_finding(fmt):
 
 
 def test_markdown_escapes_a_hostile_finding_value():
-    """The only thing stopping a third-party value from injecting raw HTML into an exported .md
-    and retargeting the link it sits in. Nothing covered it: _md could be replaced with the
-    identity function and the whole suite stayed green."""
+    """_md could be the identity function with the suite green: a value can retarget the link it sits in."""
     hostile = Case(
         id="hostile",
         name="x.example",

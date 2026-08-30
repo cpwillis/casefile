@@ -10,7 +10,6 @@ a { color: var(--accent); }
 .muted { color: var(--muted); }
 .topbar { border-bottom: 1px solid var(--line); padding: 12px 16px; }
 .search { display: flex; gap: 8px; max-width: 1200px; margin: 0 auto; }
-/* Every control shares its chrome; only size and padding differ. */
 .search input, .search button, .filter, .panel-run, .rename input, .rename button, .save-state select
   { border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); }
 .search input { flex: 1; padding: 8px 10px; }
@@ -30,8 +29,7 @@ a { color: var(--accent); }
 .region > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
                border-bottom: 1px solid var(--line); padding-bottom: 6px; margin: 0 0 4px; }
 .region-note { font-size: 12px; margin: 0 0 16px; }
-/* Only the type name is a label. The identifier beside it is data, and uppercasing it showed
-   Acme-Example as ACME-EXAMPLE, which is a different string for a case-sensitive handle. */
+/* Identifiers are data: uppercasing turned Acme-Example into ACME-EXAMPLE, a different case-sensitive handle. */
 .reading .muted { text-transform: none; letter-spacing: 0; }
 .reading { text-transform: uppercase; letter-spacing: .04em; font-size: 14px; scroll-margin-top: 16px;
            margin: 22px 0 8px; }
@@ -82,8 +80,7 @@ a { color: var(--accent); }
 .panel-refresh { background: none; border: 0; cursor: pointer; color: var(--muted); font-size: 12px; padding: 0; }
 .panel-refresh:hover { color: var(--accent); }
 .panel-refresh[disabled] { cursor: progress; opacity: .5; }
-/* htmx puts .htmx-request on whatever hx-indicator points at, for exactly as long as the
-   request is in flight. Without this the only feedback on a 30-to-60 second check was none. */
+/* htmx sets .htmx-request on the hx-indicator target while in flight; a 30-60s check otherwise showed nothing. */
 .panel-running { display: none; font-size: 12px; margin: 6px 0 0; }
 .panel.htmx-request .panel-running { display: block; }
 .panel.htmx-request .panel-run, .panel.htmx-request .findings { opacity: .5; }

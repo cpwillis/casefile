@@ -1,5 +1,4 @@
-{# `demo` switches this from the live app to the static build. The demo renders through the real
-   templates rather than copies of them, so it cannot drift from what casefile actually does. #}
+{# `demo` renders the static build through these same templates, so it cannot drift from the live app. #}
 {% set assets = 'static' if demo else '/static' %}
 <!doctype html>
 <html lang="en">
@@ -37,8 +36,7 @@
 </div>
 {% endif %}
 {% block content %}{% endblock %}
-{# htmx is the largest asset in the wheel, so it loads only on the page that swaps. The demo
-   never swaps at all. casefile.js is everywhere: the copy buttons and link filter are on both. #}
+{# htmx is the biggest asset in the wheel, so it loads only on pages that swap; casefile.js is on all of them. #}
 {% if htmx and not demo %}<script src="/static/htmx.min.js" defer></script>{% endif %}
 <script src="{{ assets }}/casefile.js" defer></script>
 </body>

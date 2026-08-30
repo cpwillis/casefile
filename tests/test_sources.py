@@ -107,7 +107,7 @@ async def test_dns_value_cannot_inject_an_extra_type_param():
     assert seen  # dns() fans out over 5 record types; each call must be clean
     for url in seen:
         assert url.params.get_list("name") == ["example.com&type=ANY&x=evil"]
-        assert len(url.params.get_list("type")) == 1  # never two, however the value is crafted
+        assert len(url.params.get_list("type")) == 1
     types_seen = {url.params["type"] for url in seen}
     assert types_seen == {"A", "AAAA", "MX", "TXT", "NS"}  # casefile's own types, untouched
 
@@ -124,7 +124,7 @@ async def test_crtsh_value_cannot_inject_an_extra_output_param():
         await crtsh("example.com&output=html", EntityType.DOMAIN, client)
     url = seen["url"]
     assert url.params.get_list("q") == ["example.com&output=html"]
-    assert url.params.get_list("output") == ["json"]  # exactly one, and it's ours
+    assert url.params.get_list("output") == ["json"]
 
 
 async def test_rdap_value_cannot_traverse_the_path_or_add_a_query():
@@ -139,15 +139,14 @@ async def test_rdap_value_cannot_traverse_the_path_or_add_a_query():
         await rdap("../../secret?x=1", EntityType.DOMAIN, client)
     url = seen["url"]
     assert url.host == "rdap.org"
-    assert url.params == httpx.QueryParams()  # no query injected
-    # url.path is decoded back to its logical form; raw_path is what's actually sent on the
-    # wire, which is what matters for whether '/' and '?' stayed literal (ie exploitable).
+    assert url.params == httpx.QueryParams()
+    # url.path is decoded; raw_path is what goes on the wire, which is what decides whether '/' and '?' stayed literal.
     segment = url.raw_path.removeprefix(b"/domain/")
-    assert b"/" not in segment  # no extra path segments introduced on the wire
-    assert b"?" not in segment  # no query separator smuggled into the path
+    assert b"/" not in segment
+    assert b"?" not in segment
     from urllib.parse import unquote
 
-    assert unquote(segment.decode()) == "../../secret?x=1"  # the raw value round-trips out
+    assert unquote(segment.decode()) == "../../secret?x=1"
 
 
 async def test_internetdb_lists_ports_and_hostnames():
@@ -173,19 +172,14 @@ async def test_internetdb_404_is_empty_not_error():
 
 @pytest.mark.parametrize("addr", ["10.0.0.1", "100.64.0.1", "fc00::1", "192.0.2.10", "169.254.1.1"])
 async def test_internetdb_never_queries_a_non_global_address(addr):
-    """RFC1918, CGNAT, IPv6 private space and the documentation ranges all count.
-
-    Verified live before the rule was written: 10.0.0.1 returns 200 with junk (ports: [161]),
-    so the guard is about a wrong answer, not a wasted request.
-    """
+    """Verified live: 10.0.0.1 answers 200 with junk (ports: [161]), so the guard prevents a wrong answer, not waste."""
 
     def handler(request):
         raise AssertionError("no request should be made for a non-global address")
 
     async with mock_client(handler) as client:
         result = await run_fetcher("internetdb", addr, EntityType.IP, client)
-    # It says it was skipped. "empty" would claim InternetDB answered and had nothing, which is
-    # a different and wrong conclusion about a host nobody asked about.
+    # Skipped, not "empty": empty would claim InternetDB answered and had nothing about a host it never saw.
     assert result.state == "ok"
     (note,) = result.findings
     assert note.label == "note"
@@ -315,7 +309,7 @@ async def test_hashlookup_picks_the_endpoint_by_hash_length():
 async def test_malwarebazaar_without_a_key_is_needs_key(monkeypatch):
     monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: None)
 
-    def handler(request):  # must never be called
+    def handler(request):
         raise AssertionError("no request should be made without a key")
 
     async with mock_client(handler) as client:
@@ -392,12 +386,7 @@ async def test_phone_meta_makes_no_network_call():
 
 
 async def test_phone_meta_distinguishes_no_country_code_from_unparseable():
-    """Both raise the same INVALID_COUNTRY_CODE from phonenumbers, so the branch keys off the
-    missing + prefix rather than the library's prose.
-
-    "Cannot tell without a country code" is not "found nothing", and saying so is the point:
-    a bare empty panel would read as "this number has no records".
-    """
+    """Both raise INVALID_COUNTRY_CODE, so the branch keys off the missing + rather than the library's prose."""
     (note,) = await phone_meta("0255500000", EntityType.PHONE, client=None)
     assert note.label == "note"
     assert "country code" in note.value
@@ -405,8 +394,7 @@ async def test_phone_meta_distinguishes_no_country_code_from_unparseable():
 
 
 async def test_dns_servfail_is_an_error_not_an_empty_answer():
-    """DoH answers HTTP 200 for SERVFAIL, so reading only the Answer section turned a resolver
-    failure into "this domain has no records" and cached it for a day."""
+    """DoH answers 200 for SERVFAIL, so reading only the Answer section caches a resolver failure as no records."""
 
     async with responder(200, json={"Status": 2, "Comment": ["EDE(9): DNSKEY Missing"]}) as client:
         result = await run_fetcher("dns", "broken.example", EntityType.DOMAIN, client)
@@ -415,8 +403,7 @@ async def test_dns_servfail_is_an_error_not_an_empty_answer():
 
 
 async def test_dns_nxdomain_is_reported_as_a_finding_not_as_silence():
-    """ "The name does not exist" is a positive result, and distinct from "it exists with no
-    records of the types we asked for"."""
+    """NXDOMAIN is a positive result, distinct from existing with none of the record types asked for."""
 
     async with responder(200, json={"Status": 3}) as client:
         result = await run_fetcher("dns", "nope.example", EntityType.DOMAIN, client)
@@ -434,9 +421,6 @@ async def test_dns_no_records_of_these_types_stays_empty():
 
 
 async def test_rdap_surfaces_ownership_netblock_and_delegation():
-    """rdap used to keep a handle and four dates and discard the rest, which is most of what
-    rdap is for."""
-
     def handler(request):
         return httpx.Response(
             200,
@@ -469,8 +453,7 @@ async def test_rdap_surfaces_ownership_netblock_and_delegation():
 
 
 async def test_rdap_survives_a_malformed_vcard():
-    """Third-party JSON, and jCard is a nested array rather than an object, so the shape has to
-    be checked rather than trusted."""
+    """jCard is a nested array rather than an object, so the shape has to be checked rather than trusted."""
 
     def handler(request):
         return httpx.Response(
@@ -497,8 +480,7 @@ async def test_rdap_asn_reports_its_range():
 
 
 async def test_crtsh_caps_its_output_and_says_that_it_did():
-    """Unbounded this became a multi-megabyte cache row and a panel with a store read per line.
-    The note is the load-bearing half: a silent slice would report 500 names as if that were all."""
+    """The note is the load-bearing half: a silent slice would report 500 names as if that were all there is."""
 
     def handler(request):
         names = "\n".join(f"sub{i}.example.com" for i in range(20000))
@@ -517,12 +499,8 @@ async def test_crtsh_adds_no_note_when_nothing_was_cut():
     assert [f.label for f in findings] == ["subdomain", "subdomain"]
 
 
-# The three traps the live verification turned up, each of which would report a wrong answer.
-
-
 async def test_nvd_reads_an_unassigned_cve_off_the_body_not_the_status():
-    """NVD answers 200 with an empty result set for a well-formed but unassigned id. Branching on
-    status alone would report every unknown CVE as an error rather than as no such record."""
+    """NVD answers 200 with an empty result set for an unassigned id, so status alone reports it as an error."""
 
     async with responder(200, json={"totalResults": 0, "vulnerabilities": []}) as client:
         result = await run_fetcher("nvd-cve", "CVE-1999-99999", EntityType.CVE, client)
@@ -530,8 +508,7 @@ async def test_nvd_reads_an_unassigned_cve_off_the_body_not_the_status():
 
 
 async def test_nvd_takes_the_newest_cvss_generation_present():
-    """Four CVSS generations are live in NVD at once. A reader hardcoded to V31 shows no severity
-    at all on freshly published CVEs, which is when severity matters most."""
+    """Four CVSS generations are live in NVD at once, so a reader hardcoded to V31 shows nothing on new CVEs."""
 
     def handler(request):
         return httpx.Response(
@@ -557,8 +534,7 @@ async def test_nvd_takes_the_newest_cvss_generation_present():
 
 
 async def test_mempool_tx_does_not_parse_a_text_plain_miss_as_json():
-    """404 and 400 come back as text/plain, so touching json() before checking the status turns a
-    clean miss into a decode error."""
+    """404 and 400 come back as text/plain, so touching json() before the status turns a miss into a decode error."""
 
     async with responder(404, text="Transaction not found") as client:
         result = await run_fetcher("mempool-space-tx", "0" * 64, EntityType.TX_HASH, client)
@@ -577,8 +553,7 @@ async def test_mempool_tx_reads_an_unconfirmed_transaction_without_block_keys():
 
 
 async def test_an_unused_bitcoin_address_says_unused_rather_than_not_found():
-    """There is no 404 for an address: every valid one exists implicitly. Rendering zero activity
-    as "nothing found" would imply the address is unknown rather than simply never used."""
+    """There is no 404 for an address: rendering zero activity as nothing-found implies it is unknown, not unused."""
 
     def handler(request):
         return httpx.Response(
@@ -632,8 +607,7 @@ async def test_an_ethereum_value_is_exact(wei, expected):
 
 @pytest.mark.parametrize("status", [404, 422])
 async def test_blockscout_miss_is_empty_not_error(status):
-    """404 is no such transaction, 422 is a malformed hash. Neither is an error, and a Bitcoin
-    hash asked of the Ethereum panel takes this path on every search."""
+    """404 is no such transaction, 422 a malformed hash, and a Bitcoin hash on the Ethereum panel hits 422 often."""
     async with responder(status, json={"message": "Not found"}) as client:
         result = await run_fetcher("blockscout-tx", "b" * 64, EntityType.TX_HASH, client)
     assert result.state == "empty"

@@ -82,8 +82,7 @@ def test_whatsmyname_panel_renders_the_required_attribution(monkeypatch):
 
 @pytest.mark.parametrize("header", [None, "", "cross-site", "same-site", "none", "Cross-Site"])
 def test_panel_refuses_anything_but_its_own_page(header):
-    """An allowlist, not a denylist: /panel is the route that spends egress from your IP, and a
-    denylist on the literal "cross-site" let same-site and a missing header straight through."""
+    """An allowlist, not a denylist: a denylist on the literal cross-site let same-site and a missing header through."""
     headers = {} if header is None else {"sec-fetch-site": header}
     text = bare_client.get("/panel/dns", params={"v": "example.com", "t": "domain"}, headers=headers).text
     assert 'data-state="error"' in text
@@ -91,8 +90,7 @@ def test_panel_refuses_anything_but_its_own_page(header):
 
 
 def test_a_pivotable_finding_gets_a_search_link_and_a_free_form_one_does_not(monkeypatch):
-    """An IP is the next query; a WhatsMyName site category is not, and putting an arrow on every
-    row would make the affordance meaningless."""
+    """An IP is the next query; a site category is not, and an arrow on every row means nothing."""
     monkeypatch.setattr(
         "casefile.web.app.run_cached",
         stub_result(Finding("A", "192.0.2.10"), Finding("category", "coding")),
@@ -103,8 +101,7 @@ def test_a_pivotable_finding_gets_a_search_link_and_a_free_form_one_does_not(mon
 
 
 def test_a_panel_asks_the_store_once_regardless_of_how_many_findings_it_has(monkeypatch):
-    """Star state used to cost one sqlite connection per finding row, which is linear in a
-    number no source is obliged to keep small. crtsh can return tens of thousands."""
+    """One sqlite connection per finding row is linear in a number crtsh can push to tens of thousands."""
     import sqlite3
 
     from casefile.cases import Star, star
@@ -129,8 +126,7 @@ def test_a_panel_asks_the_store_once_regardless_of_how_many_findings_it_has(monk
 
 
 def test_a_long_finding_list_gets_a_filter_and_a_short_one_does_not(monkeypatch):
-    """The volume is in the findings, not the links: crtsh returns up to 500 subdomains and a
-    WhatsMyName run returns hundreds of hits, and neither could be narrowed down."""
+    """crtsh returns up to 500 subdomains and WhatsMyName hundreds of hits, so the findings need narrowing."""
     monkeypatch.setattr("casefile.web.app.run_cached", stub_result(*(Finding("A", f"v{i}") for i in range(30))))
     long = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
     assert 'class="filter findings-filter"' in long
@@ -142,8 +138,7 @@ def test_a_long_finding_list_gets_a_filter_and_a_short_one_does_not(monkeypatch)
 
 
 def test_the_findings_filter_targets_its_own_list(monkeypatch):
-    """Two panels on a page must not filter each other, so the id is derived from the target and
-    the source rather than from the source alone."""
+    """Two panels on a page must not filter each other, so the id derives from the target as well as the source."""
     import re
 
     monkeypatch.setattr("casefile.web.app.run_cached", stub_result(*(Finding("A", f"v{i}") for i in range(30))))
@@ -153,8 +148,7 @@ def test_the_findings_filter_targets_its_own_list(monkeypatch):
 
 
 def test_a_panel_is_named_and_carries_its_caveat(monkeypatch):
-    """A source id is not a name, and polarity is not self-evident: a hit in a known-good corpus
-    and a hit in a malware corpus look identical and mean opposite things."""
+    """A hit in a known-good corpus and a hit in a malware corpus look identical and mean opposite things."""
     monkeypatch.setattr("casefile.web.app.run_cached", stub_result(Finding("known good file", "x")))
     text = client.get("/panel/hashlookup", params={"v": "d" * 32, "t": "hash"}).text
     assert "CIRCL hashlookup" in text
@@ -162,17 +156,15 @@ def test_a_panel_is_named_and_carries_its_caveat(monkeypatch):
 
 
 def test_a_panel_can_be_focused_after_its_own_swap(monkeypatch):
-    """refresh and Run destroy the button that triggered them, so htmx has nothing to re-focus.
-    The panel carries the id and the tabindex instead."""
+    """refresh and Run destroy the button that triggered them, so the panel carries the id and tabindex instead."""
     monkeypatch.setattr("casefile.web.app.run_cached", stub_result(Finding("A", "192.0.2.10")))
     text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
     assert 'tabindex="-1"' in text
-    assert 'id="star-' in text  # the same derived id the result page renders
+    assert 'id="star-' in text
 
 
 def test_casefiles_own_notes_are_not_starrable_or_pivotable(monkeypatch):
-    """A note is the tool's remark about the lookup, not something a source reported. Starring it
-    would put casefile's own commentary into an exported case as third-party evidence."""
+    """Starring a note would put casefile's own commentary into an export as third-party evidence."""
     monkeypatch.setattr(
         "casefile.web.app.run_cached",
         stub_result(
@@ -187,8 +179,7 @@ def test_casefiles_own_notes_are_not_starrable_or_pivotable(monkeypatch):
 
 
 def test_a_value_is_never_shown_in_a_different_case_than_it_is_stored(monkeypatch):
-    """.reading uppercased the identifier as well as the type label, so a case-sensitive handle
-    was displayed as a different string than the one saved."""
+    """text-transform on .reading uppercased the identifier too, so a handle displayed differently than it is stored."""
     from pathlib import Path
 
     css = (Path(__file__).resolve().parents[1] / "src/casefile/web/static/casefile.css").read_text()
@@ -198,9 +189,7 @@ def test_a_value_is_never_shown_in_a_different_case_than_it_is_stored(monkeypatc
 
 
 async def test_a_cached_panel_paints_with_the_page_instead_of_self_loading():
-    """Runs the real run_cached, not a stub. Two mutations survived the whole suite before this:
-    stubbing cached_result to None killed the prefill entirely, and dropping `refresh` turned the
-    refresh button into a no-op returning the stale answer."""
+    """Runs the real run_cached: two mutations (no prefill, no refresh) survived the whole suite before this."""
     from casefile.fetchers import Finding, fetcher
     from casefile.types import EntityType
 

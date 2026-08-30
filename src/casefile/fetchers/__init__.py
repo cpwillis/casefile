@@ -31,9 +31,7 @@ class Finding:
     label: str
     value: str
     url: str | None = None
-    # casefile's own remark about the lookup ("this name does not exist", "showing the first
-    # 500"), not something a source reported. It is not starrable and not a pivot: an exported
-    # case must not carry the tool's commentary as though a third party had said it.
+    # casefile's own remark, not a source's: not starrable, not a pivot, never exported as a third-party claim.
     note: bool = False
 
 
@@ -54,9 +52,7 @@ class Registered:
     func: Callable
     on_demand: bool = False
     cost_note: str | None = None
-    # What the panel is called, and what a reader has to know to read its result correctly.
-    # `note` exists because polarity is not self-evident: a hit in a known-good corpus and a hit
-    # in a malware corpus look identical on screen and mean opposite things.
+    # `note`: polarity is not self-evident, a known-good corpus hit and a malware hit look identical on screen.
     name: str = ""
     note: str | None = None
 
@@ -107,13 +103,10 @@ def registered_fetcher(source_id: str) -> Registered | None:
 
 
 def fetched_ids() -> frozenset[str]:
-    """Every source id that has a fetcher, for callers deciding what to render as a link."""
     return frozenset(_REGISTRY)
 
 
 def fetchers_for(entity_type: EntityType) -> tuple[Registered, ...]:
-    """The registry rows that accept this type. Rows, not ids: both callers want on_demand and
-    cost_note off them, and returning ids only made each one look the row up again."""
     return tuple(r for r in _REGISTRY.values() if entity_type in r.accepts)
 
 
@@ -138,12 +131,7 @@ async def run_fetcher(source_id, value, entity_type, client) -> "SourceResult":
 
 
 def _reason(exc: Exception) -> str:
-    """A short sentence for a panel, not the exception's repr.
-
-    httpx stringifies a bad status as a paragraph ending in a link to MDN, which is a stack
-    trace pasted into the UI. The host and the code are the useful part; anything unrecognised
-    falls back to the class name so the panel still says something rather than nothing.
-    """
+    """Panel-sized reason, not repr: httpx stringifies a bad status into a paragraph ending in an MDN link."""
     if isinstance(exc, httpx.HTTPStatusError):
         return f"{exc.request.url.host} returned {exc.response.status_code}"
     if isinstance(exc, httpx.TransportError):

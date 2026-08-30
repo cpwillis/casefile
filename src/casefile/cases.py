@@ -1,17 +1,7 @@
 """Saved cases: an investigation, the identifiers in it, and the findings starred against them.
 
-A case is not a target. One investigation routinely spans several identifiers that are the same
-subject to you and nothing alike to a detector, so `acme-example` the username and `acme.example`
-the domain belong in one case rather than as two rows that merely look similar.
-
-This is the only place casefile records what you searched, and it records it only when you ask.
-It lives under XDG_DATA_HOME rather than XDG_CACHE_HOME because it is not disposable: the
-response cache can be thrown away at any time, your saved work cannot. `--clear-cache` must
-never touch this file.
-
-Read paths never raise, because they sit on the hot path of a search that never depended on
-them. Write paths do raise, because silently failing to save is worse than saying the save
-failed.
+One case spans several identifiers: `acme-example` the username and `acme.example` the domain are one case.
+Lives under XDG_DATA_HOME, not XDG_CACHE_HOME: saved work is not disposable and `--clear-cache` must not touch it.
 """
 
 import os
@@ -54,8 +44,7 @@ CREATE TABLE IF NOT EXISTS stars (
     starred_at   REAL NOT NULL,
     PRIMARY KEY (case_id, target_type, target_value, source_id, label, value)
 );
--- An identifier belongs to at most one case, which is what makes "is this search already saved?"
--- a single indexed lookup from a page that only knows the target.
+-- An identifier belongs to at most one case, so "already saved?" is one indexed lookup from a target alone.
 CREATE UNIQUE INDEX IF NOT EXISTS targets_unique ON targets (entity_type, value);
 """
 
@@ -102,12 +91,7 @@ def _connect() -> sqlite3.Connection:
 
 
 def _read(default, query):
-    """Run a read, or hand back `default` if there is no usable store.
-
-    Both halves of the read policy live here so a reader added later cannot omit one: browsing
-    never brings the store into being (only saving does), and a missing or corrupt store reads
-    as "nothing saved" rather than breaking a search that never depended on it.
-    """
+    """Run a read, returning `default` when there is no usable store. Browsing never creates one; only saving does."""
     if not cases_path().exists():
         return default
     try:
@@ -130,9 +114,7 @@ def _touch(conn, case_id: str) -> None:
 
 
 def _drop_if_empty(conn, case_id: str) -> None:
-    """A case with no identifiers left has nothing to be about, so it goes rather than sitting on
-    the dashboard as a husk. Losing its last *star* does not do this: that is a change of mind
-    about one row, not the end of the investigation."""
+    """Drop a case with no identifiers left. Losing its last star does not: that is one row, not the investigation."""
     if conn.execute("SELECT 1 FROM targets WHERE case_id = ? LIMIT 1", (case_id,)).fetchone() is None:
         conn.execute("DELETE FROM cases WHERE id = ?", (case_id,))
 
@@ -143,18 +125,14 @@ def _case_of(conn, target: tuple[str, str]) -> str | None:
 
 
 def _new_case(conn, name: str, now: float) -> str:
-    # An opaque id, not a derived one. A case outlives the target it started from: it gets
-    # renamed and gains targets, so anything derived from the first one goes stale or misleads.
+    # Opaque, not derived from the first target: a case gets renamed and gains targets, so a derived id misleads.
     cid = secrets.token_hex(6)
     conn.execute("INSERT INTO cases (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)", (cid, name, now, now))
     return cid
 
 
 def case_for_target(entity_type: EntityType, value: str) -> Case | None:
-    """The case this identifier already belongs to, if any. Never raises.
-
-    Every result page asks this, so it is one indexed lookup and it has to be safe.
-    """
+    """The case this identifier belongs to, if any. Every result page asks, so: one indexed lookup, never raises."""
 
     def query(conn):
         cid = _case_of(conn, (str(entity_type), value))
@@ -164,12 +142,7 @@ def case_for_target(entity_type: EntityType, value: str) -> Case | None:
 
 
 def save_target(entity_type: EntityType, value: str, case_id: str | None = None, name: str = "") -> str:
-    """Put an identifier in a case, creating the case when `case_id` is None. Returns the case id.
-
-    This is what both "save this search" and "add this search to that case" call. Saving a target
-    that is already saved moves it, findings and all, so joining two searches is one call rather
-    than a remove and an add that could half-fail between them.
-    """
+    """Add an identifier to a case, new one when case_id is None. Re-saving moves it, stars and all. Returns the id."""
 
     if not value.strip():
         raise CaseStoreError("an identifier cannot be blank")
@@ -220,8 +193,7 @@ NAME_LIMIT = 120
 
 
 def rename_case(case_id: str, name: str) -> None:
-    """A name is a label, not a document. Unbounded, it reached the "add to" select on every
-    result page and stretched the layout past four thousand pixels."""
+    """Rename a case. Bounded: unbounded, a name stretched the "add to" select past 4000px on every result page."""
     name = name.strip()
     if not name:
         raise CaseStoreError("a case needs a name")
@@ -235,10 +207,7 @@ def rename_case(case_id: str, name: str) -> None:
 
 
 def star(entity_type: EntityType, value: str, finding: Star) -> str:
-    """Keep one finding, saving the target first if it was not saved. Returns the case id.
-
-    Starring alone is still enough to start a case, so the quick path stays one click.
-    """
+    """Keep one finding, saving the target first if it was not saved. Returns the case id."""
 
     def query(conn):
         now = time.time()
@@ -262,8 +231,7 @@ def star(entity_type: EntityType, value: str, finding: Star) -> str:
 
 
 def unstar(entity_type: EntityType, value: str, finding: Star) -> None:
-    """Drop one finding. The case and the target stay: a case you saved on purpose does not
-    vanish because you changed your mind about one row."""
+    """Drop one finding. Unlike remove_target, the case and target stay even if this was the last star."""
 
     def query(conn):
         target = (str(entity_type), value)
@@ -281,11 +249,7 @@ def unstar(entity_type: EntityType, value: str, finding: Star) -> None:
 
 
 def starred_keys(entity_type: EntityType, value: str) -> frozenset[tuple[str, str, str]]:
-    """Every starred (source, label, value) for one target, in a single query.
-
-    A panel asks once and answers for all of its rows. Asking per row was one sqlite connection
-    per finding, which is linear in a number no source is obliged to keep small.
-    """
+    """Every starred (source, label, value) for one target in one query: per row was a connection per finding."""
     return _read(
         frozenset(),
         lambda conn: frozenset(
@@ -329,8 +293,6 @@ def load_case(case_id: str) -> Case | None:
 
 
 def list_cases() -> tuple[Case, ...]:
-    """Every saved case, most recently updated first, each with its targets."""
-
     def query(conn):
         ids = [r[0] for r in conn.execute("SELECT id FROM cases ORDER BY updated_at DESC, id").fetchall()]
         return tuple(case for cid in ids if (case := _load(conn, cid)) is not None)
@@ -339,7 +301,6 @@ def list_cases() -> tuple[Case, ...]:
 
 
 def forget_all() -> int:
-    """Delete every saved case by removing the file. Returns how many cases went."""
     return store.purge(cases_path(), "cases")
 
 

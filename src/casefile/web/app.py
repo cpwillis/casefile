@@ -49,48 +49,32 @@ from casefile.fetchers.http import shared_client
 from casefile.linkcheck import check_links, tally
 from casefile.types import Candidate, EntityType
 
-# A value-keyed lookup instead of EntityType(value) in a try/except at every route: this is a
-# dict get, and four copies of exception-as-control-flow is how the shape spreads.
 _TYPES = {t.value: t for t in EntityType}
 
 HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.globals["export_formats"] = FORMATS
-# The set of starred findings for the target a panel is about, looked up once per panel rather
-# than once per row. Empty by default so the demo, which has no store behind it, renders fine.
+# Empty default so the demo, which has no store behind it, renders; live panels pass the real set.
 templates.env.globals["starred_keys"] = frozenset()
 templates.env.globals["source_name"] = source_name
 templates.env.globals["source_note"] = source_note
-# A finding that is itself an identifier is the next query, so the page offers it as one.
 templates.env.globals["is_pivotable"] = is_pivotable
-# Every timestamp the store keeps was invisible in the UI while the exports carried them.
 templates.env.filters["when"] = lambda ts: when(ts) if ts else "unknown"
-# htmx restores focus after an outerHTML swap only if the element that had it carried an id, so
-# without this every star sent focus to <body> and a keyboard user re-tabbed from the top.
+# htmx only restores focus after an outerHTML swap if the element had an id; without one it falls to <body>.
 templates.env.filters["dom_id"] = lambda parts: (
     "star-" + hashlib.blake2s("\x00".join(parts).encode("utf-8", "surrogatepass"), digest_size=8).hexdigest()
 )
 templates.env.globals["wmn"] = {"id": wmn.SOURCE_ID, "credit": wmn.CREDIT, "url": wmn.CREDIT_URL}
-# One scheme allowlist for findings, shared with export rather than re-expressed per template.
 templates.env.filters["safe_url"] = safe_url
 
 
 def sections_for(raw: str, results: dict | None = None) -> list[dict]:
-    """The result page's data shape, one entry per reading of the input.
+    """One entry per reading. `results` prefills the demo's panels; live, a cache hit prefills the same way.
 
-    `results` prefills panels for the static demo build. Live, anything already in the cache is
-    prefilled the same way, so reopening a search you have already run paints with the page
-    instead of round-tripping, and only genuinely unknown sources self-load. That is also what
-    keeps an on-demand result on the page across reloads: consent is for the egress, and a cache
-    hit spends none.
-
-    Sharing this with the demo is what stops the two pages drifting: the link filtering, the
-    ordering and the panel set are decided once, here.
+    That is what keeps an on-demand result on the page across reloads: consent is for the egress, and a hit spends none.
     """
     candidates = detect(raw)
-    # A free-form reading is only speculative when something structured is also on offer. For a
-    # bare word there is nothing but free-form readings, and demoting all of them would leave the
-    # page with nothing on it.
+    # Free-form is speculative only if something structured also matched, else a bare word demotes everything.
     structured = any(c.type not in FREE_FORM for c in candidates)
     sections = []
     for candidate in candidates:
@@ -121,27 +105,24 @@ async def index(request: Request) -> HTMLResponse:
 async def result(request: Request) -> HTMLResponse:
     raw = request.query_params.get("v", "").strip()
     if not raw:
-        return RedirectResponse("/")  # one homepage, rather than a second render without its context
+        return RedirectResponse("/")
     sections = sections_for(raw)
     return templates.TemplateResponse(
         request,
         "result.html",
-        # every case, so a reading can be joined onto an investigation that already exists
         {"raw": raw, "sections": sections, "all_cases": list_cases()},
     )
 
 
 def _dead_panel(request: Request, source_id: str, detail: str) -> HTMLResponse:
-    """A refused panel is still a rendered panel: htmx will not swap a 4xx, so a status code
-    would leave the tile stuck on "loading…" with no reason shown."""
+    """htmx will not swap a 4xx, so refusals render as a panel; a status code leaves the tile on "loading…"."""
     result = SourceResult(source_id, State.ERROR, detail=detail)
     return templates.TemplateResponse(request, "panel.html", {"result": result})
 
 
 async def panel(request: Request) -> HTMLResponse:
     source_id = request.path_params["source_id"]
-    # Allowlist, matching the write middleware. A denylist on "cross-site" let same-site and a
-    # missing header through, on the two routes that spend egress from the user's own IP.
+    # Allowlist, like the write middleware: a "cross-site" denylist lets same-site and a missing header through.
     if request.headers.get("sec-fetch-site") != "same-origin":
         return _dead_panel(request, source_id, "request must come from casefile's own page")
     value = request.query_params.get("v", "")
@@ -151,8 +132,6 @@ async def panel(request: Request) -> HTMLResponse:
     rec = registered_fetcher(source_id)
     if rec is not None and entity_type not in rec.accepts:
         return _dead_panel(request, source_id, f"{source_id} does not accept {entity_type}")
-    # refresh=1 is the panel's own re-run control: ignore what is stored, but replace it, so the
-    # answer you just asked for is the one the next page load shows.
     refresh = request.query_params.get("refresh") == "1"
     result = await run_cached(source_id, value, entity_type, shared_client(), refresh=refresh)
     return templates.TemplateResponse(
@@ -171,18 +150,12 @@ _UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def _filename_for(case, fmt: str) -> str:
-    """A latin-1-safe, quote-free, newline-free download name.
-
-    case.name defaults to a third-party-influenced value. A raw unicode name raises
-    UnicodeEncodeError in the header encoder, a CRLF injects a header, and a quote corrupts the
-    filename, so it is reduced to a conservative ASCII slug rather than escaped.
-    """
+    """ASCII slug for content-disposition: a unicode name breaks the header encoder, CRLF and quotes inject."""
     slug = _UNSAFE_FILENAME.sub("-", case.name).strip("-")
     return f"{slug[:80] or 'case'}.{fmt}"
 
 
 async def star_route(request: Request) -> Response:
-    """Star or unstar one finding, returning the button's replacement."""
     form = await _form(request)
     entity_type = _TYPES.get(form.get("t", ""))
     if entity_type is None:
@@ -196,8 +169,7 @@ async def star_route(request: Request) -> Response:
     )
     if not value or not finding.source_id:
         return PlainTextResponse("missing target or source", status_code=400)
-    # The button states its intent rather than toggling server state. A second tab showing a
-    # stale page would otherwise un-save rows it never saved, cascading the case away silently.
+    # Intent, not toggle: a stale second tab would otherwise un-save rows it never saved.
     action = form.get("action", "star")
     back = form.get("back", "")
     error = None
@@ -207,8 +179,7 @@ async def star_route(request: Request) -> Response:
         else:
             star(entity_type, value, finding)
     except CaseStoreError as exc:
-        # Shown on the button rather than 500ing. htmx does not swap 5xx, so a silent non-save
-        # would look identical to a successful one.
+        # htmx does not swap 5xx, so a silent non-save would look identical to a save; show it on the button.
         error = str(exc)
     if back:  # posted from a case page, which has no button to swap
         return RedirectResponse(f"/case/{quote(back)}", status_code=303)
@@ -228,11 +199,7 @@ async def star_route(request: Request) -> Response:
 
 
 async def link_check(request: Request) -> Response:
-    """Probe one reading's links and re-render the list with what came back.
-
-    On demand, never on page load: it is one request per link from your IP, which is the same
-    consent question the WhatsMyName checker asks.
-    """
+    """On demand, never on page load: one request per link from the user's own IP."""
     if request.headers.get("sec-fetch-site") != "same-origin":
         return PlainTextResponse("request must come from casefile's own page", status_code=403)
     value = request.query_params.get("v", "")
@@ -248,19 +215,13 @@ async def link_check(request: Request) -> Response:
 
 
 async def _form(request: Request) -> dict:
-    """Parsed with stdlib rather than request.form(), which pulls in python-multipart. htmx posts
-    hx-vals as urlencoded, so parse_qs is all that is needed and the dependency budget holds."""
+    """parse_qs, not request.form(): htmx posts hx-vals urlencoded and request.form() drags in python-multipart."""
     body = (await request.body()).decode("utf-8", "replace")
     return {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
 
 
 async def save_route(request: Request) -> Response:
-    """Save one reading into a case: a new one, or an existing one picked by id.
-
-    This is the thing that was missing: until now a case could only come into being as a side
-    effect of starring a finding, so a search worth keeping but with nothing yet worth starring
-    could not be kept at all.
-    """
+    """Save one reading into a case: a new one, or an existing one picked by id."""
     form = await _form(request)
     entity_type = _TYPES.get(form.get("t", ""))
     if entity_type is None:
@@ -272,11 +233,9 @@ async def save_route(request: Request) -> Response:
         if form.get("action") == "remove":
             held_by = case_for_target(entity_type, value)
             remove_target(entity_type, value)
-            # Removing the last identifier destroys the case. Landing back on a search page would
-            # show no sign of that, so go where the consequence is visible.
+            # Removing the last identifier destroys the case, so land where that is visible.
             if held_by and len(held_by.targets) == 1:
                 return RedirectResponse("/cases", status_code=303)
-            # Posted from a case page: go back to the case, not to a search for what you discarded.
             if back := form.get("back"):
                 return RedirectResponse(f"/case/{quote(back)}", status_code=303)
         else:
@@ -287,7 +246,6 @@ async def save_route(request: Request) -> Response:
 
 
 def _mutation_error(request: Request, message: str) -> Response:
-    """A failed write is still a page, not a bare text/plain dead end with no way back."""
     return templates.TemplateResponse(
         request, "cases.html", {"cases": list_cases(), "problem": message}, status_code=400
     )
@@ -331,26 +289,16 @@ async def case_export(request: Request) -> Response:
 
 async def case_delete(request: Request) -> Response:
     if not delete_case(request.path_params["case_id"]):
-        # Reporting a delete that never happened is the same class of lie as a source that
-        # reports "nothing found" for a lookup it never made.
         return templates.TemplateResponse(request, "cases.html", {"cases": list_cases(), "missing": True})
     return RedirectResponse("/cases", status_code=303)
 
 
-# Pinning Host is what survives DNS rebinding: Sec-Fetch-Site cannot help, because to the
-# browser a rebound name is same-origin. Applied as middleware rather than per route so that a
-# new route cannot be added unguarded, which is how /panel, the one route with outbound egress,
-# ended up as the only sensitive route without the pin.
+# Host pin is what stops DNS rebinding, which Sec-Fetch-Site cannot: a rebound name is same-origin to the browser.
 _TRUSTED_HOSTS = ["127.0.0.1", "localhost"]
 
 
 class _RevalidatedStatics(StaticFiles):
-    """Assets are versioned by the release, not by their URL.
-
-    Starlette sends etag and last-modified but no cache-control, so a browser applies a heuristic
-    freshness lifetime and can serve the previous version's casefile.js against a freshly upgraded
-    server. The etag is already there, so forcing revalidation costs one 304 over loopback.
-    """
+    """Starlette sends etag but no cache-control, so a browser can serve the old casefile.js after an upgrade."""
 
     def file_response(self, *args, **kwargs):
         response = super().file_response(*args, **kwargs)
@@ -359,13 +307,7 @@ class _RevalidatedStatics(StaticFiles):
 
 
 class _SameOriginWrites(BaseHTTPMiddleware):
-    """Every write demands same-origin, on top of the Host pin.
-
-    Middleware for the same reason the Host pin is: applied per route, the fifth POST someone
-    adds arrives unguarded, which is exactly how /panel became the one egress route without the
-    pin. A missing Sec-Fetch-Site is refused too, because the only legitimate caller of a write
-    is this app's own page and every browser that can reach it sends the header.
-    """
+    """Every write demands same-origin; middleware, not per route, so a new POST cannot arrive unguarded."""
 
     async def dispatch(self, request, call_next):
         if request.method not in ("GET", "HEAD") and request.headers.get("sec-fetch-site") != "same-origin":
@@ -396,8 +338,7 @@ app = Starlette(
 
 
 def serve(port: int = 8765, host: str = "127.0.0.1", open_browser: bool = True) -> int:
-    # Both only ever used here, and uvicorn alone is ~70ms of import. Nothing that merely renders
-    # a page, builds the demo or runs the CLI should pay for the server it is not starting.
+    # Local imports: uvicorn alone is ~70ms, and the CLI, demo build and renderer never start a server.
     import webbrowser
 
     import uvicorn
@@ -406,8 +347,7 @@ def serve(port: int = 8765, host: str = "127.0.0.1", open_browser: bool = True) 
     print(f"casefile is running at {url}")
     print("press ctrl-c to stop")
     if open_browser:
-        # ponytail: fixed 0.5s delay rather than a uvicorn startup hook, so tests that exercise
-        # `app` can never launch a browser. Raise it if a cold browser ever races the bind.
+        # ponytail: fixed 0.5s, not a uvicorn hook, so tests importing `app` never open a browser; raise if racy.
         threading.Timer(0.5, webbrowser.open, [url]).start()
     uvicorn.run(app, host=host, port=port, log_level="warning")
     return 0

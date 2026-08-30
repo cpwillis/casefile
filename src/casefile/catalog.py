@@ -62,8 +62,7 @@ def load_catalog(directory: Path | None = None) -> tuple[Source, ...]:
             source = _parse_source(raw, path)
             if source.id in seen:
                 raise CatalogError(f"{path.name}: duplicate id {source.id}, already in {seen[source.id].name}")
-            # Two ids pointing at one URL for the same type render as two rows going to one page,
-            # which reads as a difference that is not there and costs a second visit.
+            # Two ids on one url for a type render as two rows going to one page: a difference that is not there.
             for entity_type in source.accepts:
                 key = (entity_type, source.url)
                 if key in by_url:
@@ -93,12 +92,7 @@ class Link:
 
 
 def links_for(candidate, exclude: frozenset[str] = frozenset()) -> tuple[Link, ...]:
-    """Every catalogue link for a candidate, minus `exclude`.
-
-    `exclude` carries the ids a caller renders some other way. The web page passes the ids that
-    have a fetcher, because a source shown as a panel listed again as a link is the same source
-    twice. It lives here rather than in the caller so every surface can apply the same rule.
-    """
+    """Every catalogue link for a candidate, minus `exclude`: the ids a caller already renders some other way."""
     catalog = load_catalog()
     return tuple(
         Link(s.id, s.name, build_url(s, candidate.value), s.notes)

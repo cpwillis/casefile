@@ -1,4 +1,4 @@
-"""Concrete keyless fetchers. Importing this module registers them."""
+"""Concrete fetchers. Importing this module registers them; one of them needs a key."""
 
 import ipaddress
 from urllib.parse import quote
@@ -12,9 +12,7 @@ from casefile.fetchers import Finding, NeedsKey, fetcher, http
 from casefile.types import EntityType
 
 _DNS_TYPES = {1: "A", 28: "AAAA", 15: "MX", 16: "TXT", 2: "NS"}
-# DNS response codes. 0 is an answer and 3 is an authoritative "no such name", which is itself a
-# finding. Everything else means the resolver could not tell us, which is not the same as "no
-# records" and must never render as one.
+# 0 is an answer, 3 is an authoritative "no such name"; anything else means the resolver could not tell us.
 _DNS_RCODES = {1: "FORMERR", 2: "SERVFAIL", 4: "NOTIMP", 5: "REFUSED", 9: "NOTAUTH"}
 
 
@@ -38,7 +36,7 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
         )
         data = resp.json()
         status = data.get("Status", 0)
-        if status == 3:  # NXDOMAIN: the name does not exist, which is an answer worth reporting
+        if status == 3:
             absent += 1
         elif status != 0:
             # DoH answers 200 for SERVFAIL, so without this a broken zone renders as "no records"
@@ -52,11 +50,7 @@ async def dns(value: str, entity_type: EntityType, client: httpx.AsyncClient) ->
 
 
 def _vcard_name(entity: dict) -> str | None:
-    """The display name out of an RDAP entity's jCard, which is a nested array, not an object.
-
-    Shape is ["vcard", [["fn", {}, "text", "Some Org"], ...]], so the name has to be dug out
-    positionally rather than by key.
-    """
+    """jCard is a nested array: ["vcard", [["fn", {}, "text", "Some Org"]]], so the name is dug out positionally."""
     vcard = entity.get("vcardArray")
     if not (isinstance(vcard, list) and len(vcard) == 2 and isinstance(vcard[1], list)):
         return None
@@ -80,8 +74,6 @@ async def rdap(value: str, entity_type: EntityType, client: httpx.AsyncClient) -
     findings: list[Finding] = []
     if handle := data.get("handle"):
         findings.append(Finding(label="handle", value=str(handle)))
-    # The parts that make rdap worth querying at all: who holds it, what range it sits in, and
-    # where it is delegated. Previously all three were parsed out and dropped.
     if name := data.get("name"):
         findings.append(Finding(label="name", value=str(name)))
     if country := data.get("country"):
@@ -108,8 +100,7 @@ async def rdap(value: str, entity_type: EntityType, client: httpx.AsyncClient) -
     return findings
 
 
-# A wildcard-heavy domain returns tens of thousands of names. Unbounded, that became one
-# multi-megabyte cache row and a panel with a star button and a store read on every line.
+# A wildcard-heavy domain returns tens of thousands of names: one multi-megabyte cache row, unbounded.
 _CRTSH_LIMIT = 500
 
 
@@ -130,8 +121,6 @@ async def crtsh(value: str, entity_type: EntityType, client: httpx.AsyncClient) 
     shown = sorted(names)[:_CRTSH_LIMIT]
     findings = [Finding(label="subdomain", value=n, url=f"https://{n}") for n in shown]
     if len(names) > len(shown):
-        # Said out loud, never a silent slice: "247 subdomains" that quietly became 500 is the
-        # same confident-wrong-answer class as an unqueried source rendering as empty.
         note = f"{len(names)} names found, showing the first {len(shown)} in order"
         findings.insert(0, Finding(label="note", value=note, note=True))
     return findings
@@ -146,11 +135,9 @@ async def crtsh(value: str, entity_type: EntityType, client: httpx.AsyncClient) 
 async def internetdb(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     """Keyless Shodan InternetDB. A 200 always carries the full object; 404 is the only miss."""
     address = ipaddress.ip_address(value)
-    # is_global is True only for publicly routable addresses. False covers private, loopback,
-    # link-local, CGNAT and the RFC 5737/3849 documentation ranges, for both v4 and v6.
+    # is_global is False for private, loopback, link-local, CGNAT and the documentation ranges, v4 and v6.
     if not address.is_global:
-        # Skipped, not empty. Verified: 10.0.0.1 answers 200 with junk, so asking is worse than
-        # useless, but rendering that as "responded, nothing found" claims an answer we never got.
+        # Skipped, not empty: 10.0.0.1 answers 200 with junk, and "nothing found" would claim an answer we never got.
         return [Finding(label="note", value="not a public address, so InternetDB was not queried", note=True)]
     resp = await http.fetch(
         client,
@@ -238,7 +225,6 @@ _HASHLOOKUP_PATHS = {32: "md5", 40: "sha1", 64: "sha256"}
     note="A known-GOOD corpus (NSRL). A hit means the file is a recognised legitimate one, not a malicious one.",
 )
 async def hashlookup(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
-    """CIRCL hashlookup: known-GOOD (NSRL) data, so a hit means a recognised legitimate file."""
     kind = _HASHLOOKUP_PATHS.get(len(value))
     if kind is None:
         return []
@@ -318,16 +304,13 @@ _PHONE_TYPES = {
 )
 async def phone_meta(value: str, entity_type: EntityType, client) -> list[Finding]:
     """Offline. libphonenumber metadata only; makes no network request at all."""
-    # Imported here, not at module scope: the geocoding and carrier tables are ~160ms to load,
-    # which every casefile run and every server start was paying for one panel most searches
-    # never reach. PhoneNumberFormat stays up top because _PHONE_TYPES needs it at import.
+    # Local import: the geocoding and carrier tables cost ~160ms to load, paid on every run otherwise.
     from phonenumbers import carrier, geocoder, timezone
 
     try:
         parsed = phonenumbers.parse(value, None)
     except phonenumbers.NumberParseException:
-        # The _phone detector only yields digit strings, so a parse failure with no leading
-        # "+" is always the missing-country-code case, whatever libphonenumber calls it.
+        # The _phone detector only yields digit strings, so a parse failure without "+" is a missing country code.
         if not value.strip().startswith("+"):
             return [
                 Finding(
@@ -357,9 +340,7 @@ async def phone_meta(value: str, entity_type: EntityType, client) -> list[Findin
 
 from casefile.fetchers import wmn  # noqa: E402,F401 -- registers the whatsmyname fetcher
 
-# CVSS has four generations live in NVD at once and which one a record carries depends on when
-# it was filed, so the newest present wins. Reading only cvssMetricV31 shows no severity at all
-# on freshly published CVEs, which is exactly when severity matters most.
+# NVD carries four CVSS generations at once, so the newest present wins; V31-only shows nothing on new CVEs.
 _CVSS_KEYS = ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2")
 
 
@@ -379,9 +360,7 @@ async def nvd_cve(value: str, entity_type: EntityType, client: httpx.AsyncClient
     if resp.status_code == 404:  # a malformed id, as distinct from an unassigned one
         return []
     data = resp.json()
-    # An unassigned but well-formed id answers 200 with an empty result set, not a 404, so the
-    # miss has to be read off the body. Branching on status alone would report every unknown CVE
-    # as an error instead of as "no such record".
+    # An unassigned but well-formed id answers 200 with an empty result set, not a 404, so read the miss off the body.
     entries = data.get("vulnerabilities") or []
     if not entries:
         return []
@@ -402,7 +381,6 @@ async def nvd_cve(value: str, entity_type: EntityType, client: httpx.AsyncClient
                 findings.append(Finding(label="cvss vector", value=str(vector)))
             break
     if kev := cve.get("cisaExploitAdd"):
-        # Known exploited in the wild, which is the single most actionable field NVD carries.
         findings.append(Finding(label="CISA KEV since", value=str(kev)))
     for weakness in cve.get("weaknesses", []):
         for description in weakness.get("description", []):
@@ -426,10 +404,8 @@ def _sats(value: int) -> str:
     note="Bitcoin only. An Ethereum hash reads as nothing found here; see the Ethereum panel.",
 )
 async def mempool_tx(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
-    """Bitcoin transaction via the keyless Esplora API. A hash that is not Bitcoin's reads empty."""
     resp = await http.fetch(client, f"https://mempool.space/api/tx/{quote(value, safe='')}", allow=(404, 400))
-    # 404 and 400 come back as text/plain, so the status has to be checked before json() is
-    # touched. 400 is "not 64 hex" and 404 is "no such transaction"; neither is an error.
+    # 400 ("not 64 hex") and 404 come back as text/plain, so check the status before touching json().
     if resp.status_code in (400, 404):
         return []
     data = resp.json()
@@ -460,8 +436,7 @@ async def mempool_tx(value: str, entity_type: EntityType, client: httpx.AsyncCli
     note="Ethereum only. A Bitcoin hash reads as nothing found here; see the Bitcoin panel.",
 )
 async def blockscout_tx(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
-    """Ethereum transaction via Blockscout. Paired with the Bitcoin one because a bare 64-hex
-    hash does not say which chain it belongs to, so both are asked and the misses read empty."""
+    """Ethereum transaction via Blockscout. A bare 64-hex hash names no chain, so both chains are asked."""
     tx = value if value.lower().startswith("0x") else f"0x{value}"
     resp = await http.fetch(
         client,
@@ -479,8 +454,7 @@ async def blockscout_tx(value: str, entity_type: EntityType, client: httpx.Async
         if address := (data.get(key) or {}).get("hash"):
             findings.append(Finding(label=label, value=str(address)))
     if (wei := data.get("value")) is not None:
-        # Integer arithmetic: 18 decimals does not survive a float, so 0.1 ETH rendered as
-        # 0.100000000000000006 and 3.3 as 3.299999999999999822.
+        # Integer arithmetic: 18 decimals do not survive a float, which rendered 0.1 ETH as 0.100000000000000006.
         whole, frac = divmod(int(wei), 10**18)
         amount = f"{whole}.{frac:018d}".rstrip("0").rstrip(".") or "0"
         findings.append(Finding(label="value", value=f"{amount} ETH"))
@@ -493,7 +467,6 @@ async def blockscout_tx(value: str, entity_type: EntityType, client: httpx.Async
     name="Bitcoin address",
 )
 async def mempool_address(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
-    """Bitcoin address activity via the keyless Esplora API."""
     resp = await http.fetch(client, f"https://mempool.space/api/address/{quote(value, safe='')}", allow=(400,))
     if resp.status_code == 400:  # text/plain, and means the address itself is malformed
         return []
@@ -503,9 +476,7 @@ async def mempool_address(value: str, entity_type: EntityType, client: httpx.Asy
     received, sent = int(chain.get("funded_txo_sum") or 0), int(chain.get("spent_txo_sum") or 0)
     count = int(chain.get("tx_count") or 0)
     if not count and not int(pending.get("tx_count") or 0):
-        # Every valid address exists implicitly, so there is no such thing as "not found" here.
-        # Saying "no on-chain activity" is the truthful reading; "nothing found" would imply the
-        # address is unknown rather than simply unused.
+        # Every valid address exists implicitly, so "nothing found" would wrongly imply the address is unknown.
         return [Finding(label="note", value="valid address with no on-chain activity", note=True)]
     findings = [
         Finding(label="balance", value=_sats(received - sent)),

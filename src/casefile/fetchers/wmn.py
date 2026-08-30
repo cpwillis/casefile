@@ -1,9 +1,6 @@
-"""WhatsMyName: 687 usable vendored site definitions and the username checker over them.
+"""WhatsMyName username checker over the vendored site list.
 
-687 is a subset of the 716 entries in the upstream file: entries without a URL-embedded
-username placeholder, and entries that are not https://, are both skipped on load.
-
-Data is CC BY-SA 4.0 and vendored unmodified. See src/casefile/vendor/WMN-LICENCE.txt.
+Data is CC BY-SA 4.0, vendored unmodified. See src/casefile/vendor/WMN-LICENCE.txt.
 """
 
 import asyncio
@@ -53,8 +50,7 @@ def load_sites() -> tuple[Site, ...]:
             protection=tuple(raw.get("protection", ()) or ()),
         )
         for raw in document.get("sites", [])
-        # catalog.py hard-fails any first-party link that isn't https://; the vendored
-        # dataset must not be a loophole around that, so plaintext-HTTP sites are skipped too.
+        # catalog.py hard-fails non-https first-party links; the vendored data must not be a loophole around that.
         if PLACEHOLDER in raw.get("uri_check", "") and raw.get("uri_check", "").startswith("https://")
     )
 
@@ -63,8 +59,7 @@ def check_url(site: Site, username: str) -> str:
     return site.uri_check.replace(PLACEHOLDER, quote(username, safe=""))
 
 
-# ponytail: one panel for all 687 sites, so it returns in 30-60s rather than streaming.
-# Chunk into ~10 panels of 70 sites if that latency actually annoys anyone.
+# ponytail: one panel for all sites, so 30-60s and no streaming; chunk into ~10 panels if that annoys anyone.
 
 
 def account_exists(site: Site, status: int, body: str) -> bool:
@@ -74,7 +69,7 @@ def account_exists(site: Site, status: int, body: str) -> bool:
     if site.e_string:
         return site.e_string in body
     if site.m_string and site.m_string in body:  # noqa: SIM103 -- explicit branch reads clearer than a negation
-        return False  # the missing-marker is present, so the account is absent
+        return False
     return True
 
 
@@ -108,8 +103,7 @@ async def _check_one(site: Site, username: str, client: httpx.AsyncClient) -> Fi
 )
 async def whatsmyname(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     sites = load_sites()
-    # Its own budget, not the shared one. Several hundred checks through the global limiter meant
-    # every other panel on the page queued behind this for the full 30 to 60 seconds.
+    # Its own budget: several hundred checks through the global limiter queued every other panel behind this.
     budget = asyncio.Semaphore(_CONCURRENCY)
 
     async def check(site):
@@ -119,8 +113,7 @@ async def whatsmyname(value: str, entity_type: EntityType, client: httpx.AsyncCl
     results = await asyncio.gather(*(check(s) for s in sites))
     unreachable = sum(1 for r in results if r is _UNREACHABLE)
     if sites and unreachable == len(sites):
-        # Raising maps to state error, which is deliberately not cacheable. Returning an empty
-        # list here would cache a confident false negative about a person for a whole day.
+        # Raise, not return []: error state is not cached, and an empty list would cache a false negative for a day.
         raise RuntimeError(f"all {unreachable} site checks failed, so nothing was actually checked")
     findings = sorted((r for r in results if isinstance(r, Finding)), key=lambda f: f.label.lower())
     if unreachable:

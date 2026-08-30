@@ -22,11 +22,7 @@ REPO = "https://github.com/cpwillis/casefile"
 
 
 def _wanted(record, deep) -> bool:
-    """Whether an on-demand source runs. `deep` is either True for all of them, or a list of ids.
-
-    The browser asks per panel, so the CLI does too rather than making one expensive source an
-    all-or-nothing switch over every expensive source there will ever be.
-    """
+    """Whether an on-demand source runs. `deep` is True for all, or a list of ids: the browser asks per panel."""
     if not record.on_demand:
         return True
     return deep is True or record.id in (deep or ())
@@ -43,33 +39,21 @@ async def _fetch_all(candidates, use_cache: bool = True, deep=False):
 
 
 def _sanitize(text: str, keep: str = "") -> str:
-    """Strip non-printable characters from third-party text before it reaches a terminal.
+    """Escape non-printable characters in third-party text before a terminal sees them. `keep` names the exceptions.
 
-    Third-party findings (RDAP fields, crt.sh names) are free text we don't control; without
-    this, an ANSI escape or carriage return in a value could erase or rewrite earlier output.
-    `keep` names the control characters a multi-line document needs to survive.
-
-    Escaped, never dropped. str.isprintable() is false for zero-width, bidi and non-breaking
-    characters as well as control codes, so deleting them turned a homograph into the legitimate
-    name it was imitating: paypa\u200bl.example came out as paypal.example. In a tool whose job
-    is to notice that, the suspicious character usually *is* the finding.
+    Escaped, never dropped: deleting zero-width and bidi turns paypa<zwsp>l.example into the name it imitates.
     """
     return "".join(ch if ch.isprintable() or ch in keep else ch.encode("unicode_escape").decode("ascii") for ch in text)
 
 
 def _shown_links(candidate, results):
-    """Links for a candidate, minus the sources already printed as results above them.
-
-    Keyed on what actually ran, not on what has a fetcher: --no-fetch prints every link, and an
-    on-demand source skipped without --deep keeps its link, because nothing else represents it.
-    """
+    """Links for a candidate, minus the sources printed above them. Keyed on what ran, not on what has a fetcher."""
     fetched = {r.source_id for r in results.get((candidate.type, candidate.value), [])}
     return links_for(candidate, exclude=frozenset(fetched))
 
 
 async def _check_all(candidates):
-    """One verdict per link, for every reading. Opt-in for the same reason the web button is:
-    it is a request per link, sent from your IP."""
+    """One verdict per link, for every reading. Opt-in like the web button: a request per link, sent from your IP."""
     async with build_client() as client:
         out = {}
         for c in candidates:
@@ -100,12 +84,10 @@ def _render_text(raw, candidates, results):
             detail = f": {_sanitize(r.detail)}" if r.detail else ""
             lines.append(f"    [{r.state}] {r.source_id}{detail}")
             for f in r.findings:
-                # the url is often the whole result (a WhatsMyName hit's value is the site
-                # category; the profile link is the finding), so text mode must not drop it
+                # the url is often the whole result (a WhatsMyName hit's value is a category), so text mode must keep it
                 url = f"  {_sanitize(f.url)}" if f.url else ""
                 lines.append(f"      {_sanitize(f.label)}: {_sanitize(f.value)}{url}")
-        # notes are deliberately omitted here and carried by --json, the web and every export:
-        # 46 of 49 domain sources have one, and inline they push lines past 200 characters
+        # notes go to --json, the web and exports, not here: 46 of 49 domain sources have one and they run long
         for link in _shown_links(c, results):
             lines.append(f"    {link.name:<28} {link.url}")
     return "\n".join(lines)
@@ -199,14 +181,12 @@ def main(argv: list[str] | None = None) -> int:
         if case is None:
             print(f"no such case {args.export!r}", file=sys.stderr)
             return 1
-        # Same sanitiser the text renderer uses: exported values are third-party text and
-        # an escape sequence would otherwise rewrite the terminal.
+        # third-party text on a terminal, same as the text renderer; \n and \t survive because an export is multi-line
         print(_sanitize(export_case(case, args.format), keep="\n\t"))
         return 0
 
     if args.value is None:
-        # the one import worth deferring: starlette and uvicorn cost ~64ms that `casefile
-        # <target>` should not pay
+        # the one import worth deferring: starlette and uvicorn cost ~64ms that `casefile <target>` should not pay
         from casefile.web.app import serve
 
         return serve(port=args.port, open_browser=not args.no_browser)

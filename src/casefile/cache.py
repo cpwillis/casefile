@@ -1,8 +1,4 @@
-"""SQLite response cache. Wraps run_fetcher from outside so the fetch contract stays storage-free.
-
-The cache holds third-party data pulled from public sources, so clear_cache is a privacy
-control as much as a debugging one.
-"""
+"""SQLite response cache. Holds third-party data, so clear_cache is a privacy control as much as a debugging one."""
 
 import json
 import os
@@ -15,9 +11,7 @@ from casefile.fetchers import Finding, SourceResult, State, run_fetcher
 
 ANSWERED = (State.OK, State.EMPTY)  # a source that actually replied, whether or not it had data
 RETENTION_SECONDS = 86400.0
-# A failure keeps for minutes, not a day: long enough that reloading a page does not re-hammer a
-# source that just 502'd, short enough that a transient outage clears itself and a key you have
-# just configured takes effect without --clear-cache.
+# Minutes, not a day: long enough not to re-hammer a source that just 502'd, short enough that a new key takes effect.
 FAILURE_RETENTION = 300.0
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS responses (
@@ -38,9 +32,7 @@ def cache_path() -> Path:
 
 def _connect():
     conn = store.connect(cache_path(), _SCHEMA)
-    # Swept on every open, not on write. Retention is a privacy claim, not housekeeping: a
-    # session that fetches nothing cacheable (offline, every source erroring) would otherwise
-    # leave yesterday's search terms and payloads on disk indefinitely.
+    # Swept on open, not on write: an offline session caches nothing and would keep yesterday's terms forever.
     conn.execute("DELETE FROM responses WHERE fetched_at < ?", (time.time() - RETENTION_SECONDS,))
     return conn
 
@@ -69,8 +61,7 @@ def _load(source_id: str, entity_type, value: str) -> SourceResult | None:
         findings=findings,
         detail=data.get("detail"),
         elapsed_ms=data.get("elapsed_ms", 0),
-        # From the row, not the payload: this is when the answer was obtained, which is the one
-        # piece of provenance a panel cannot do without.
+        # From the row, not the payload: the payload carries its own fetched_at and it would be the stale one.
         fetched_at=row[0],
     )
 
@@ -90,12 +81,7 @@ def clear_cache() -> int:
 
 
 def cached_result(source_id, entity_type, value) -> SourceResult | None:
-    """A stored response if one is still fresh, making no request at all. Never raises.
-
-    This is what lets an already-run panel paint on page load instead of round-tripping, and
-    what lets an on-demand source stay on the page across reloads: consent is for the egress,
-    and a cache hit spends none.
-    """
+    """A stored response if one is still fresh, making no request. Never raises: a cache hit spends no egress."""
     try:
         return _load(source_id, entity_type, value)
     except Exception:  # noqa: BLE001 -- a broken cache must never break a render
@@ -103,23 +89,15 @@ def cached_result(source_id, entity_type, value) -> SourceResult | None:
 
 
 async def run_cached(source_id, value, entity_type, client, *, use_cache: bool = True, refresh: bool = False):
-    """run_fetcher with a SQLite read-through cache. Every outcome is stored, with a retention
-    that depends on it: see FAILURE_RETENTION.
+    """run_fetcher with a read-through cache; failures get the shorter FAILURE_RETENTION.
 
-    The two ways to skip the stored answer are not the same and must not be merged: `use_cache`
-    off means do not touch the cache at all (the CLI's --no-cache, a privacy control), while
-    `refresh` means ignore what is stored but replace it with what comes back, which is what the
-    per-panel refresh control needs. A refresh that did not write would be thrown away and the
-    next page load would show the stale answer again.
-
-    Cache failures are contained: a broken or unwritable cache degrades to an uncached lookup
-    rather than failing the request, because a 500 leaves the panel loading forever.
+    `use_cache` off means never touch the cache (privacy); `refresh` means ignore the stored answer but still write.
     """
     if use_cache and not refresh and (hit := cached_result(source_id, entity_type, value)) is not None:
         return hit
     result = await run_fetcher(source_id, value, entity_type, client)
     if use_cache:
-        try:  # noqa: SIM105 -- explicit try/except reads clearer here than contextlib.suppress
+        try:  # noqa: SIM105
             _store(result, entity_type, value)
         except Exception:  # noqa: BLE001 -- failing to cache is not failing to fetch
             pass

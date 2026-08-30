@@ -150,8 +150,7 @@ def test_on_demand_defaults_to_false_and_is_recorded():
 
 
 async def test_a_dead_source_reports_a_sentence_not_an_exception_repr():
-    """httpx stringifies a bad status as a paragraph ending in a link to MDN, which is a stack
-    trace pasted into the panel the user is reading."""
+    """httpx stringifies a bad status as a paragraph ending in an MDN link, which lands in the panel as-is."""
     import httpx as _httpx
 
     @fetcher(id="reason-probe", accepts=[EntityType.DOMAIN])

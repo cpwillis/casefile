@@ -1,10 +1,8 @@
-{# The id must be byte-identical in both render paths, the panel.html include and star_route's
-   standalone response, or htmx cannot match the element back up and focus is lost anyway. #}
+{# the id must match star_route's standalone render byte for byte, or htmx cannot re-focus after the swap #}
 <button id="{{ [t, v, sid, f.label, f.value] | dom_id }}"
         class="star{{ ' starred' if starred else '' }}"
         title="{% if error %}could not save: {{ error }}{% else %}{{ 'Remove from your saved case' if starred else 'Save this finding' }}{% endif %}"
-        {# the accessible name stays put and aria-pressed carries the state: a name that flips
-           too makes a screen reader announce "Remove…, pressed", which reads as contradictory #}
+        {# static name + aria-pressed: a name that flips too announces "Remove…, pressed", a contradiction #}
         aria-label="Save this finding"
         aria-pressed="{{ 'true' if starred else 'false' }}"
         hx-post="/star" hx-target="this" hx-swap="outerHTML"

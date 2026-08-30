@@ -22,8 +22,7 @@
   <p class="panel-note muted">{{ source_note(result.source_id) }}</p>
   {% endif %}
   {% if result.state == "ok" %}
-  {# The volume lives here, not in the link lists: crtsh returns up to 500 subdomains and a
-     WhatsMyName run returns hundreds of hits. Reuses the same delegated handler as the links. #}
+  {# crtsh returns up to 500 subdomains and wmn hundreds of hits, so long lists get the filter links have #}
   {% set findings_id = [t or '', v or '', result.source_id] | dom_id %}
   {% if result.findings | length > 8 %}
   <label class="visually-hidden" for="filter-{{ findings_id }}">Filter {{ result.source_id }} findings</label>

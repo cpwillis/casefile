@@ -83,8 +83,7 @@ def test_clear_cache_flag_reports_and_exits_zero(capsys):
 
 
 def test_no_cache_flag_disables_the_cache(monkeypatch, capsys):
-    """--no-fetch would skip _fetch_all entirely, giving --no-cache zero coverage, so this
-    case must actually reach the fetch path with --no-fetch absent."""
+    """--no-fetch would skip _fetch_all and leave --no-cache with zero coverage, so this must reach the fetch path."""
     seen_use_cache = []
 
     async def fake_run(source_id, value, entity_type, client, *, use_cache=True):
@@ -114,8 +113,7 @@ def test_deep_is_what_admits_the_on_demand_sources(monkeypatch, capsys, extra, d
 
 
 def test_text_output_keeps_a_finding_url(monkeypatch, capsys):
-    """For a WhatsMyName hit the value is the site category and the url is the actual result,
-    so a text renderer that drops urls reports a hit you cannot follow."""
+    """For a WhatsMyName hit the value is the category and the url is the result, so dropping urls loses the hit."""
 
     async def fake(source_id, value, entity_type, client, *, use_cache=True):
         return SourceResult(source_id, State.OK, (Finding("GitHub", "coding", url="https://github.example/x"),))
@@ -126,8 +124,7 @@ def test_text_output_keeps_a_finding_url(monkeypatch, capsys):
 
 
 def test_a_fetched_source_is_not_also_listed_as_a_link(monkeypatch, capsys):
-    """A source is shown once: as its result if it ran, otherwise as a link. The web page has
-    always done this; the CLI used to print crt.sh as both."""
+    """A source is shown once: as its result if it ran, otherwise as a link."""
     monkeypatch.setattr("casefile.cli.run_cached", stub_result(Finding("A", "1")))
     assert main(["example.com", "--json"]) == 0
     domain = next(c for c in json.loads(capsys.readouterr().out)["candidates"] if c["type"] == "domain")
@@ -143,18 +140,13 @@ def test_no_fetch_keeps_every_link_including_the_fetchable_ones(capsys):
 
 
 def test_the_sanitiser_shows_a_homograph_instead_of_repairing_it(monkeypatch, capsys):
-    """The failure this exists to prevent: str.isprintable() is false for zero-width and bidi
-    characters, so deleting them turned a lookalike into the name it was imitating."""
+    """str.isprintable() is false for zero-width and bidi chars, so deleting them turns a lookalike into its target."""
     from casefile.cli import _sanitize
 
     assert _sanitize("paypa\u200bl.example") == "paypa\\u200bl.example"
     assert _sanitize("a\u202eb") == "a\\u202eb"
     assert _sanitize("a\xa0b") == "a\\xa0b"
-    # and it still defuses the thing it was written for
     assert "\x1b" not in _sanitize("a\x1b[31mb")
-
-
-# The commands that had no coverage at all, one of them destructive.
 
 
 def test_cases_lists_what_is_saved_and_exits_nonzero_when_nothing_is(capsys):
@@ -217,8 +209,7 @@ def test_build_demo_writes_a_usable_site(capsys, tmp_path):
 
 
 def test_deep_accepts_a_named_source_not_only_all_of_them(monkeypatch, capsys):
-    """The browser asks per panel. All-or-nothing on the CLI made one expensive source a switch
-    over every expensive source there will ever be."""
+    """All-or-nothing made one expensive source a switch over every expensive source there will ever be."""
     seen = []
 
     async def fake(source_id, value, entity_type, client, *, use_cache=True):
