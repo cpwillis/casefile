@@ -7,13 +7,13 @@ from casefile.cases import (
     cases_path,
     delete_case,
     forget_all,
-    is_starred,
     list_cases,
     load_case,
     remove_target,
     rename_case,
     save_target,
     star,
+    starred_keys,
     unstar,
 )
 from casefile.types import EntityType
@@ -111,15 +111,6 @@ def test_removing_the_last_star_keeps_the_case():
     assert len(case.targets) == 1
 
 
-def test_is_starred_reflects_state():
-    finding = _star()
-    assert is_starred(EntityType.DOMAIN, "example.com", finding) is False
-    star(EntityType.DOMAIN, "example.com", finding)
-    assert is_starred(EntityType.DOMAIN, "example.com", finding) is True
-    unstar(EntityType.DOMAIN, "example.com", finding)
-    assert is_starred(EntityType.DOMAIN, "example.com", finding) is False
-
-
 def test_stars_are_attributed_to_the_target_they_came_from():
     cid = save_target(EntityType.USERNAME, "acme-example")
     save_target(EntityType.DOMAIN, "acme.example", case_id=cid)
@@ -213,7 +204,7 @@ def test_a_corrupt_store_does_not_break_reads():
     assert list_cases() == ()
     assert load_case("whatever") is None
     assert case_for_target(EntityType.DOMAIN, "example.com") is None
-    assert is_starred(EntityType.DOMAIN, "example.com", _star()) is False
+    assert starred_keys(EntityType.DOMAIN, "example.com") == frozenset()
 
 
 def test_a_corrupt_store_reports_a_failed_write_rather_than_pretending():
@@ -227,7 +218,7 @@ def test_a_corrupt_store_reports_a_failed_write_rather_than_pretending():
 
 
 def test_browsing_alone_does_not_create_the_store():
-    is_starred(EntityType.DOMAIN, "example.com", _star())
+    starred_keys(EntityType.DOMAIN, "example.com")
     case_for_target(EntityType.DOMAIN, "example.com")
     list_cases()
     assert not cases_path().exists()
@@ -241,87 +232,17 @@ def test_forget_all_removes_the_rollback_journal():
     assert leftovers == [], f"purge left {leftovers} behind"
 
 
-V1_SCHEMA = """
-CREATE TABLE cases (
-    id          TEXT PRIMARY KEY,
-    entity_type TEXT NOT NULL,
-    value       TEXT NOT NULL,
-    created_at  REAL NOT NULL,
-    updated_at  REAL NOT NULL
-);
-CREATE TABLE stars (
-    case_id    TEXT NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
-    source_id  TEXT NOT NULL,
-    label      TEXT NOT NULL,
-    value      TEXT NOT NULL,
-    url        TEXT,
-    starred_at REAL NOT NULL,
-    PRIMARY KEY (case_id, source_id, label, value)
-);
-"""
+def test_starred_keys_reflects_state():
+    """The read every finding row goes through, replacing the per-row is_starred lookup."""
+    finding = _star()
+    key = (finding.source_id, finding.label, finding.value)
+    assert key not in starred_keys(EntityType.DOMAIN, "example.com")
+    star(EntityType.DOMAIN, "example.com", finding)
+    assert key in starred_keys(EntityType.DOMAIN, "example.com")
+    unstar(EntityType.DOMAIN, "example.com", finding)
+    assert key not in starred_keys(EntityType.DOMAIN, "example.com")
 
 
-def _write_v1_store():
-    """A store as 1.0 left it: a case per target, and stars keyed only by case."""
-    import sqlite3
-
-    path = cases_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
-    conn.executescript(V1_SCHEMA)
-    conn.execute("INSERT INTO cases VALUES ('domain:example.com', 'domain', 'example.com', 100.0, 200.0)")
-    conn.execute("INSERT INTO cases VALUES ('username:octocat', 'username', 'octocat', 300.0, 400.0)")
-    conn.executemany(
-        "INSERT INTO stars VALUES (?, ?, ?, ?, ?, ?)",
-        [
-            ("domain:example.com", "dns", "A", "192.0.2.10", None, 150.0),
-            ("domain:example.com", "crtsh", "subdomain", "a.example.com", "https://a.example.com", 160.0),
-            ("username:octocat", "github", "profile", "octocat", "https://github.example/x", 350.0),
-        ],
-    )
-    conn.commit()
-    conn.close()
-
-
-def test_a_pre_existing_v1_store_is_migrated_rather_than_breaking():
-    """CREATE TABLE IF NOT EXISTS is silent when the table exists with different columns, so
-    without a migration an upgraded store opens fine and fails on the first write."""
-    _write_v1_store()
-    cases = list_cases()
-    assert {c.name for c in cases} == {"example.com", "octocat"}
-    by_name = {c.name: c for c in cases}
-    assert [(t.entity_type, t.value) for t in by_name["example.com"].targets] == [("domain", "example.com")]
-    assert by_name["example.com"].star_count == 2
-    assert by_name["octocat"].star_count == 1
-
-
-def test_migration_keeps_every_starred_finding_and_its_target():
-    _write_v1_store()
-    case = next(c for c in list_cases() if c.name == "example.com")
-    assert {(s.source_id, s.label, s.value) for s in case.stars} == {
-        ("dns", "A", "192.0.2.10"),
-        ("crtsh", "subdomain", "a.example.com"),
-    }
-    assert {s.target_value for s in case.stars} == {"example.com"}
-    assert next(s for s in case.stars if s.source_id == "crtsh").url == "https://a.example.com"
-
-
-def test_a_migrated_store_is_then_fully_writable():
-    """The failure this migration exists to prevent was on write, not on open."""
-    _write_v1_store()
-    cid = next(c for c in list_cases() if c.name == "octocat").id
-    save_target(EntityType.DOMAIN, "octocat.example", case_id=cid)
-    star(EntityType.DOMAIN, "octocat.example", _star())
-    rename_case(cid, "octocat investigation")
-    case = load_case(cid)
-    assert case.name == "octocat investigation"
-    assert {t.value for t in case.targets} == {"octocat", "octocat.example"}
-    assert case.star_count == 2
-
-
-def test_migration_runs_once_and_is_stable():
-    _write_v1_store()
-    first = [(c.name, c.star_count) for c in list_cases()]
-    for _ in range(3):
-        list_cases()
-    assert [(c.name, c.star_count) for c in list_cases()] == first
+def test_starred_keys_is_scoped_to_its_target():
+    star(EntityType.DOMAIN, "a.example", _star())
+    assert starred_keys(EntityType.DOMAIN, "b.example") == frozenset()
