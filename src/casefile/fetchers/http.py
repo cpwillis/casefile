@@ -42,6 +42,24 @@ JITTER = 0.25
 BACKOFF = 0.5
 
 
+_CLIENTS: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, httpx.AsyncClient] = weakref.WeakKeyDictionary()
+
+
+def shared_client() -> httpx.AsyncClient:
+    """One client per event loop, so panels reuse connections instead of renegotiating TLS.
+
+    A new AsyncClient per request built a fresh SSL context and a fresh connection to every
+    source, every time. Keyed per loop for the same reason the semaphores are, and never closed
+    on purpose: the process owns it, and a local tool's lifetime is the answer to its lifecycle.
+    """
+    loop = asyncio.get_running_loop()
+    client = _CLIENTS.get(loop)
+    if client is None or client.is_closed:
+        client = build_client()
+        _CLIENTS[loop] = client
+    return client
+
+
 @asynccontextmanager
 async def domain_slot(host: str):
     """Hold a global and a per-host slot, jittering only when there is a burst to spread.

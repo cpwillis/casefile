@@ -47,9 +47,20 @@ async def check_link(url: str, client: httpx.AsyncClient) -> str:
     return UNREACHABLE
 
 
+# Its own budget rather than the shared limiter's. A domain has ~48 links, and gathering them
+# all put 48 waiters on the global slot, so every panel on the page queued behind the check.
+_CONCURRENCY = 8
+
+
 async def check_links(links, client: httpx.AsyncClient) -> dict[str, str]:
     """One verdict per link id. Never raises: a probe that fell over is its own verdict."""
-    verdicts = await asyncio.gather(*(check_link(link.url, client) for link in links))
+    budget = asyncio.Semaphore(_CONCURRENCY)
+
+    async def one(link):
+        async with budget:
+            return await check_link(link.url, client)
+
+    verdicts = await asyncio.gather(*(one(link) for link in links))
     return dict(zip((link.id for link in links), verdicts, strict=True))
 
 

@@ -45,7 +45,7 @@ from casefile.fetchers import (
     source_note,
     wmn,
 )
-from casefile.fetchers.http import build_client
+from casefile.fetchers.http import shared_client
 from casefile.linkcheck import check_links, tally
 from casefile.types import Candidate, EntityType
 
@@ -152,8 +152,7 @@ async def panel(request: Request) -> HTMLResponse:
     # refresh=1 is the panel's own re-run control: ignore what is stored, but replace it, so the
     # answer you just asked for is the one the next page load shows.
     refresh = request.query_params.get("refresh") == "1"
-    async with build_client() as client:
-        result = await run_cached(source_id, value, entity_type, client, refresh=refresh)
+    result = await run_cached(source_id, value, entity_type, shared_client(), refresh=refresh)
     return templates.TemplateResponse(
         request,
         "panel.html",
@@ -239,8 +238,7 @@ async def link_check(request: Request) -> Response:
     if entity_type is None:
         return PlainTextResponse("unknown entity type", status_code=400)
     links = links_for(Candidate(entity_type, value), exclude=fetched_ids())
-    async with build_client() as client:
-        verdicts = await check_links(links, client)
+    verdicts = await check_links(links, shared_client())
     section = {"type": entity_type.value, "value": value, "links": links}
     return templates.TemplateResponse(
         request, "links.html", {"section": section, "verdicts": verdicts, "tally": tally(verdicts)}
