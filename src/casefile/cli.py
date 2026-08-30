@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import contextlib
 import json
 import sys
 from dataclasses import asdict
@@ -112,10 +113,10 @@ def _port(text: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):
-        try:  # third-party text is UTF-8; a latin-1 terminal would otherwise traceback mid-print
+        # third-party text is UTF-8; a latin-1 terminal would otherwise traceback mid-print. A captured or
+        # detached stream (tests, a pipe closed early) has no reconfigure, hence the suppress.
+        with contextlib.suppress(AttributeError, ValueError):
             stream.reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, ValueError):
-            pass  # a captured or already-detached stream has no reconfigure
     parser = argparse.ArgumentParser(
         prog="casefile",
         description="One input box, every relevant OSINT pivot. Runs locally.",
