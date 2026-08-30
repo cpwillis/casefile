@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS responses (
 
 
 def cache_path() -> Path:
-    base = os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")
+    base = os.environ.get("XDG_CACHE_HOME")
+    if not base or not os.path.isabs(base):  # XDG spec: a relative path is ignored, or the store scatters by cwd
+        base = Path.home() / ".cache"
     return Path(base) / "casefile" / "cache.db"
 
 

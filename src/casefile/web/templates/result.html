@@ -3,7 +3,7 @@
 {% block title %}{{ raw }} · casefile{% if demo %} demo{% endif %}{% endblock %}
 {% block content %}
 {% if not sections %}
-<main class="intro" id="pane">
+<main class="intro" id="pane" tabindex="-1">
   <h1>Nothing recognised</h1>
   <p>casefile could not read <code>{{ raw }}</code> as any identifier it knows.</p>
   <p class="muted">casefile matches on shape, so it needs something with a recognisable one. Try a
@@ -41,7 +41,7 @@
     {% endif %}
   </nav>
 
-  <main class="pane" id="pane">
+  <main class="pane" id="pane" tabindex="-1">
     <section class="region" id="results">
       <h2>Results</h2>
       {% if not sourced %}

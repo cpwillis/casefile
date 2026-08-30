@@ -212,3 +212,12 @@ async def test_a_cache_hit_reports_when_it_was_fetched_not_epoch_zero(monkeypatc
     hit = _load("dns", EntityType.DOMAIN, "example.com")
     assert hit is not None
     assert hit.fetched_at >= before  # a real timestamp, not 0.0
+
+
+def test_a_relative_xdg_path_is_ignored_not_used_verbatim(monkeypatch):
+    """A relative XDG_CACHE_HOME would put the store under whatever cwd the tool ran from; the spec says ignore it."""
+    monkeypatch.setenv("XDG_CACHE_HOME", "relative/dir")
+    assert cache_path().is_absolute()
+    from pathlib import Path
+
+    assert str(cache_path()).startswith(str(Path.home()))

@@ -82,7 +82,9 @@ class Case:
 
 
 def cases_path() -> Path:
-    base = os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")
+    base = os.environ.get("XDG_DATA_HOME")
+    if not base or not os.path.isabs(base):  # XDG spec: a relative path is ignored, or the store scatters by cwd
+        base = Path.home() / ".local" / "share"
     return Path(base) / "casefile" / "cases.db"
 
 

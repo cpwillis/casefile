@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Saved cases · casefile{% endblock %}
 {% block content %}
-<main class="intro wide" id="pane">
+<main class="intro wide" id="pane" tabindex="-1">
   <h1>Saved cases</h1>
   {% if problem %}<p class="problem">{{ problem }}</p>{% endif %}
   {% if missing %}<p class="muted">That case no longer exists.</p>{% endif %}
