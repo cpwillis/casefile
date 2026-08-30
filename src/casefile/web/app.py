@@ -202,14 +202,19 @@ async def star_route(request: Request) -> Response:
     )
 
 
+def _dead_linkset(request: Request, detail: str) -> HTMLResponse:
+    """Like _dead_panel: htmx will not swap a 4xx, so a refused link-check must come back as a rendered linkset."""
+    return templates.TemplateResponse(request, "linkset_error.html", {"detail": detail})
+
+
 async def link_check(request: Request) -> Response:
     """On demand, never on page load: one request per link from the user's own IP."""
     if request.headers.get("sec-fetch-site") != "same-origin":
-        return PlainTextResponse("request must come from casefile's own page", status_code=403)
+        return _dead_linkset(request, "request must come from casefile's own page")
     value = request.query_params.get("v", "")
     entity_type = _TYPES.get(request.query_params.get("t", ""))
     if entity_type is None:
-        return PlainTextResponse("unknown entity type", status_code=400)
+        return _dead_linkset(request, "unknown entity type")
     links = links_for(Candidate(entity_type, value), exclude=fetched_ids())
     verdicts = await check_links(links, shared_client())
     section = {"type": entity_type.value, "value": value, "links": links}

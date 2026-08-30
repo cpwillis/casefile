@@ -96,14 +96,19 @@ def test_the_check_route_renders_verdicts_against_the_links(monkeypatch):
 
 
 def test_the_check_route_rejects_an_unknown_type():
-    assert web.get("/links", params={"v": "x", "t": "not-a-type"}).status_code == 400
+    resp = web.get("/links", params={"v": "x", "t": "not-a-type"})
+    assert resp.status_code == 200  # rendered so htmx swaps it, like the panel route
+    assert "unknown entity type" in resp.text
 
 
 @pytest.mark.parametrize("header", [None, "", "cross-site", "same-site", "none", "Cross-Site"])
 def test_the_check_route_refuses_anything_but_its_own_page(header):
-    """One request per link from the user's IP, so the same allowlist the panel route uses."""
+    """One request per link from the user's IP, so the same allowlist the panel route uses. Refused as a rendered
+    200 linkset, not a bare 4xx, so htmx swaps it and the button is not left stuck; the check still never runs."""
     from helpers import bare_client
 
     headers = {} if header is None else {"sec-fetch-site": header}
     resp = bare_client.get("/links", params={"v": "example.com", "t": "domain"}, headers=headers)
-    assert resp.status_code == 403
+    assert resp.status_code == 200
+    assert "must come from" in resp.text
+    assert 'class="verdict' not in resp.text  # no link was probed

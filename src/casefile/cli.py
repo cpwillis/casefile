@@ -86,6 +86,26 @@ def _render_text(raw, candidates, results):
     return "\n".join(lines)
 
 
+def _render_links_json(raw, candidates, results, verdicts):
+    return json.dumps(
+        {
+            "input": raw,
+            "candidates": [
+                {
+                    "type": c.type.value,
+                    "value": c.value,
+                    "links": [
+                        {**asdict(link), "verdict": verdicts.get((c.type, c.value), {}).get(link.id, "")}
+                        for link in _shown_links(c, results)
+                    ],
+                }
+                for c in candidates
+            ],
+        },
+        indent=2,
+    )
+
+
 def _render_json(raw, candidates, results):
     return json.dumps(
         {
@@ -211,7 +231,10 @@ def main(argv: list[str] | None = None) -> int:
     results = {} if args.no_fetch else asyncio.run(_fetch_all(candidates, use_cache=not args.no_cache, deep=deep))
     if args.check_links:
         verdicts = asyncio.run(_check_all(candidates, results))
-        print(_render_links(candidates, results, verdicts))
+        if args.json:
+            print(_render_links_json(args.value, candidates, results, verdicts))
+        else:
+            print(_render_links(candidates, results, verdicts))
         return 0
     render = _render_json if args.json else _render_text
     print(render(args.value, candidates, results))
