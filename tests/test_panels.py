@@ -1,4 +1,5 @@
-from helpers import client, stub_result
+import pytest
+from helpers import bare_client, client, stub_result
 
 import casefile.fetchers.sources  # noqa: F401 -- register the real fetchers
 from casefile.fetchers import Finding, State, fetchers_for
@@ -71,16 +72,14 @@ def test_whatsmyname_panel_renders_the_required_attribution(monkeypatch):
     assert "CC BY-SA 4.0" in text
 
 
-def test_panel_refuses_a_cross_site_request():
-    """A page the user visits must not be able to drive hundreds of lookups from their IP."""
-    resp = client.get(
-        "/panel/dns",
-        params={"v": "example.com", "t": "domain"},
-        headers={"sec-fetch-site": "cross-site"},
-    )
-    assert resp.status_code == 200
-    assert 'data-state="error"' in resp.text
-    assert "cross-site" in resp.text
+@pytest.mark.parametrize("header", [None, "", "cross-site", "same-site", "none", "Cross-Site"])
+def test_panel_refuses_anything_but_its_own_page(header):
+    """An allowlist, not a denylist: /panel is the route that spends egress from your IP, and a
+    denylist on the literal "cross-site" let same-site and a missing header straight through."""
+    headers = {} if header is None else {"sec-fetch-site": header}
+    text = bare_client.get("/panel/dns", params={"v": "example.com", "t": "domain"}, headers=headers).text
+    assert 'data-state="error"' in text
+    assert "casefile" in text
 
 
 def test_a_pivotable_finding_gets_a_search_link_and_a_free_form_one_does_not(monkeypatch):

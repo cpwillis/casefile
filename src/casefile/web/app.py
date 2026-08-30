@@ -140,8 +140,10 @@ def _dead_panel(request: Request, source_id: str, detail: str) -> HTMLResponse:
 
 async def panel(request: Request) -> HTMLResponse:
     source_id = request.path_params["source_id"]
-    if request.headers.get("sec-fetch-site") == "cross-site":
-        return _dead_panel(request, source_id, "cross-site request refused")
+    # Allowlist, matching the write middleware. A denylist on "cross-site" let same-site and a
+    # missing header through, on the two routes that spend egress from the user's own IP.
+    if request.headers.get("sec-fetch-site") != "same-origin":
+        return _dead_panel(request, source_id, "request must come from casefile's own page")
     value = request.query_params.get("v", "")
     entity_type = _TYPES.get(request.query_params.get("t", ""))
     if entity_type is None:
@@ -231,8 +233,8 @@ async def link_check(request: Request) -> Response:
     On demand, never on page load: it is one request per link from your IP, which is the same
     consent question the WhatsMyName checker asks.
     """
-    if request.headers.get("sec-fetch-site") == "cross-site":
-        return PlainTextResponse("cross-site request refused", status_code=403)
+    if request.headers.get("sec-fetch-site") != "same-origin":
+        return PlainTextResponse("request must come from casefile's own page", status_code=403)
     value = request.query_params.get("v", "")
     entity_type = _TYPES.get(request.query_params.get("t", ""))
     if entity_type is None:

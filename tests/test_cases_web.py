@@ -1,5 +1,5 @@
 import pytest
-from helpers import client
+from helpers import bare_client, client
 
 from casefile.cases import list_cases, load_case
 
@@ -15,8 +15,9 @@ STAR = {"t": "domain", "v": "example.com", "source_id": "dns", "label": "A", "va
 
 
 def test_star_refuses_a_request_with_no_sec_fetch_site():
-    """Stricter than the read-only panel guard: only this app's own page may mutate."""
-    assert client.post("/star", data=STAR).status_code == 403
+    """Only this app's own page may write. A browser always sends the header, so its absence
+    means the caller is not one."""
+    assert bare_client.post("/star", data=STAR).status_code == 403
 
 
 def test_star_is_not_reachable_by_get():
@@ -399,7 +400,7 @@ def test_a_new_write_route_is_guarded_without_remembering_to_guard_it():
     route = Route("/probe-new-write", unguarded, methods=["POST"])
     app.router.routes.append(route)
     try:
-        assert client.post("/probe-new-write").status_code == 403
+        assert bare_client.post("/probe-new-write").status_code == 403
         assert client.post("/probe-new-write", headers={"sec-fetch-site": "cross-site"}).status_code == 403
         assert client.post("/probe-new-write", headers=SAME).status_code == 200
     finally:

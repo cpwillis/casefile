@@ -6,9 +6,11 @@ from starlette.testclient import TestClient
 from casefile.fetchers import SourceResult, State
 from casefile.web.app import app
 
-# base_url is load-bearing, not decoration: TrustedHostMiddleware pins Host, so a bare
-# TestClient(app) gets a 400 from the middleware rather than whatever the test meant to check.
-client = TestClient(app, base_url="http://127.0.0.1")
+# Both defaults model what a browser actually sends, and both are load-bearing:
+# TrustedHostMiddleware pins Host, and every route that mutates or spends egress requires
+# Sec-Fetch-Site: same-origin. Without them a test gets a 400 or a 403 rather than the thing it
+# meant to check. Tests asserting a refusal pass their own header, which overrides these.
+client = TestClient(app, base_url="http://127.0.0.1", headers={"sec-fetch-site": "same-origin"})
 
 
 def mock_client(handler) -> httpx.AsyncClient:
@@ -37,3 +39,7 @@ def stub_result(*findings, state=State.OK, detail=None):
         return SourceResult(source_id, state, tuple(findings), detail)
 
     return fake
+
+
+# The same app with no browser headers at all, for the tests that assert a refusal.
+bare_client = TestClient(app, base_url="http://127.0.0.1")

@@ -98,14 +98,15 @@ def test_the_check_route_renders_verdicts_against_the_links(monkeypatch):
     assert "nothing here was opened" in text
 
 
-def test_the_check_route_refuses_cross_site():
-    assert (
-        web.get(
-            "/links", params={"v": "example.com", "t": "domain"}, headers={"sec-fetch-site": "cross-site"}
-        ).status_code
-        == 403
-    )
-
-
 def test_the_check_route_rejects_an_unknown_type():
     assert web.get("/links", params={"v": "x", "t": "not-a-type"}).status_code == 400
+
+
+@pytest.mark.parametrize("header", [None, "", "cross-site", "same-site", "none", "Cross-Site"])
+def test_the_check_route_refuses_anything_but_its_own_page(header):
+    """One request per link from the user's IP, so the same allowlist the panel route uses."""
+    from helpers import bare_client
+
+    headers = {} if header is None else {"sec-fetch-site": header}
+    resp = bare_client.get("/links", params={"v": "example.com", "t": "domain"}, headers=headers)
+    assert resp.status_code == 403
