@@ -23,7 +23,8 @@
   {% endif %}
   {% if result.state == "ok" %}
   {# crtsh returns up to 500 subdomains and wmn hundreds of hits, so long lists get the filter links have #}
-  {% set findings_id = [t or '', v or '', result.source_id] | dom_id %}
+  {# -list so the ul's id differs from the panel div's, which shares this dom_id and would otherwise be filtered #}
+  {% set findings_id = ([t or '', v or '', result.source_id] | dom_id) ~ '-list' %}
   {% if result.findings | length > 8 %}
   <label class="visually-hidden" for="filter-{{ findings_id }}">Filter {{ result.source_id }} findings</label>
   <input class="filter findings-filter" id="filter-{{ findings_id }}" type="search"
@@ -41,7 +42,7 @@
          title="Search casefile for this value" aria-label="Search casefile for {{ f.value }}">search</a>
       {% endif %}
       {% if not f.note %}<button class="copy" type="button" data-copy="{{ f.value }}"
-              title="Copy this value" aria-label="Copy this value">copy</button>{% endif %}
+              title="Copy this value" aria-label="Copy {{ f.label }} {{ f.value }}">copy</button>{% endif %}
     </li>
     {% endfor %}
   </ul>

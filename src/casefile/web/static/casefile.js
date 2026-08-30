@@ -73,8 +73,29 @@ document.addEventListener("htmx:afterSwap", (event) => {
   const id = event.detail.target?.id;
   if (!id) return;
   const panel = document.getElementById(id);
-  if (panel && panel.classList.contains("panel")) panel.focus({ preventScroll: true });
+  if (!panel || !panel.classList.contains("panel")) return;
+  announcePanel(panel);
+  // Take focus only when it is loose (a clicked refresh/run button just detached, dropping focus to body) or
+  // already inside this panel. An auto-loading panel resolving while the user types elsewhere must not steal it.
+  const active = document.activeElement;
+  if (!active || active === document.body || panel.contains(active)) panel.focus({ preventScroll: true });
 });
+
+// A single persistent live region, so a panel arriving is announced without the placeholder that used to carry
+// aria-live (and was destroyed by the very swap it was meant to announce).
+function announcePanel(panel) {
+  let region = document.getElementById("panel-status");
+  if (!region) {
+    region = document.createElement("p");
+    region.id = "panel-status";
+    region.className = "visually-hidden";
+    region.setAttribute("role", "status");
+    document.body.appendChild(region);
+  }
+  const name = panel.querySelector(".panel-id")?.textContent?.trim();
+  const state = panel.querySelector(".panel-state")?.textContent?.trim();
+  if (name && state) region.textContent = `${name}: ${state}`;
+}
 
 
 

@@ -1,5 +1,5 @@
 {# included by result.html and returned bare by /links, so both paths render the same list #}
-<div class="linkset" id="links-{{ section.type }}-list">
+<div class="linkset">
   {% if verdicts %}
   <p class="muted linkset-tally">
     {% for name, count in tally.items() %}{{ count }} {{ name }}{% if not loop.last %} · {% endif %}{% endfor %}
@@ -17,7 +17,7 @@
   <p class="panel-running muted">checking {{ section.links | length }} links, one request each…</p>
   <p class="muted panel-cost">sends one request per link from your IP, and does not open any of them</p>
   {% endif %}
-  <ul class="links">
+  <ul class="links" id="links-{{ section.type }}-list">
     {% for link in section.links %}
     <li data-verdict="{{ verdicts.get(link.id, '') if verdicts else '' }}">
       <a href="{{ link.url }}" rel="noreferrer noopener" target="_blank">{{ link.name }}</a>

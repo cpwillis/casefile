@@ -75,7 +75,7 @@ def test_the_demo_result_page_matches_the_live_one(built):
 
     def links(html):
         # Scoped to the link lists: the demo banner has a source link the live app does not, and that is not drift.
-        lists = re.findall(r'<ul class="links">(.*?)</ul>', html, re.S)
+        lists = re.findall(r'<ul class="links"[^>]*>(.*?)</ul>', html, re.S)
         assert lists, 'no <ul class="links"> found, so this comparison would prove nothing'
         return re.findall(r'<a href="(https?://[^"]+)"[^>]*>([^<]+)</a>', "".join(lists))
 

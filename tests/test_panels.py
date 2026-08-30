@@ -235,3 +235,19 @@ async def test_refresh_requeries_while_a_plain_load_does_not():
     client.get("/panel/refresh-probe", params={**p, "refresh": "1"})
     assert len(calls) == 2, "refresh did not re-query"
     assert "2" in client.get("/panel/refresh-probe", params=p).text, "refresh did not replace the stored answer"
+
+
+def test_a_findings_filter_targets_the_list_not_the_panel_div(monkeypatch):
+    """The panel div and its findings <ul> shared one dom_id, so the filter iterated the panel's own children and
+    hid the filter box instead of the rows. The list id must differ from the panel div id."""
+    import re
+
+    findings = [Finding("A", f"10.0.0.{i}") for i in range(12)]  # >8, so the filter renders
+    monkeypatch.setattr("casefile.web.app.run_cached", stub_result(*findings))
+    text = client.get("/panel/dns", params={"v": "example.com", "t": "domain"}).text
+    panel_div = re.search(r'class="panel"[^>]*?id="([^"]+)"', text)
+    ul_id = re.search(r'<ul class="findings" id="([^"]+)"', text)
+    data_filter = re.search(r'data-filters="([^"]+)"', text)
+    assert panel_div and ul_id and data_filter
+    assert ul_id.group(1) != panel_div.group(1), "filter would iterate the panel div, not the list"
+    assert data_filter.group(1) == ul_id.group(1), "filter must point at the list"
