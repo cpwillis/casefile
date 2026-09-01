@@ -1,14 +1,14 @@
 """Build the static demo: the real templates rendered against canned data, with `demo=True` the only difference."""
 
-# Where the built demo is published. Only the demo has a public URL; the app itself runs locally.
-SITE = "https://casefile.cpwillis.dev"
-
 import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
 from casefile.fetchers import Finding, SourceResult
+
+# Where the built demo is published. Only the demo has a public URL; the app itself runs locally.
+SITE = "https://casefile.cpwillis.dev"
 
 # Inside the package, not the repo root: --build-demo is in --help for every install, and a repo path breaks a wheel.
 DEMO_DATA = Path(__file__).resolve().parent / "demo_data" / "demo.json"
