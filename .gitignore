@@ -19,3 +19,6 @@ site/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# wrangler local cache (contains account id)
+.wrangler/
