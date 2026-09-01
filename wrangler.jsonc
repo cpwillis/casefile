@@ -1,0 +1,20 @@
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "casefile",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  // custom_domain = true makes Cloudflare create and manage the DNS record on deploy. A plain zone
+  // route does NOT create DNS, which is the reason a route alone leaves the host unresolvable.
+  "routes": [
+    { "pattern": "casefile.cpwillis.dev", "custom_domain": true }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  // site/ is build output, not in git: run `make demo` before deploying.
+  "assets": {
+    "directory": "site",
+    "not_found_handling": "404-page"
+  }
+}

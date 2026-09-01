@@ -1,5 +1,8 @@
 """Build the static demo: the real templates rendered against canned data, with `demo=True` the only difference."""
 
+# Where the built demo is published. Only the demo has a public URL; the app itself runs locally.
+SITE = "https://casefile.cpwillis.dev"
+
 import json
 import shutil
 from dataclasses import dataclass
@@ -55,7 +58,7 @@ def build_demo(out_dir: Path, data: Path | None = None) -> list[Path]:
 
     nav = [{"query": t.query, "href": f"{t.slug}.html"} for t in targets]
 
-    index = templates.get_template("index.html").render(demo=True, targets=nav)
+    index = templates.get_template("index.html").render(demo=True, targets=nav, site=SITE, page="")
     (out_dir / "index.html").write_text(index)
     written.append(out_dir / "index.html")
 
@@ -65,10 +68,28 @@ def build_demo(out_dir: Path, data: Path | None = None) -> list[Path]:
             raw=target.query,
             sections=sections_for(target.query, target.panels),
             targets=nav,
+            site=SITE,
+            page=f"{target.slug}.html",
         )
         path = out_dir / f"{target.slug}.html"
         path.write_text(html)
         written.append(path)
+
+    # A public site is expected to answer these, and the 404 needs assets.not_found_handling set.
+    (out_dir / "robots.txt").write_text(f"User-agent: *\nAllow: /\n\nSitemap: {SITE}/sitemap.xml\n")
+    written.append(out_dir / "robots.txt")
+
+    locs = "".join(f"  <url><loc>{SITE}/{p}</loc></url>\n" for p in ["", *(f"{t.slug}.html" for t in targets)])
+    (out_dir / "sitemap.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + locs + "</urlset>\n"
+    )
+    written.append(out_dir / "sitemap.xml")
+
+    (out_dir / "404.html").write_text(
+        templates.get_template("not_found.html").render(demo=True, targets=nav, site=SITE, page="404.html")
+    )
+    written.append(out_dir / "404.html")
 
     # Replaced, not merged: merging left the 51KB htmx of an earlier build in a demo that no longer loads it.
     static_out = out_dir / "static"

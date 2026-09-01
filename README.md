@@ -127,7 +127,17 @@ subject to you and nothing alike to a detector.
 ## Demo and release
 
 `make demo` builds a static prerender of the real templates against fixture data into `site/`. It cannot look anything
-up. Publishing is manual, and `casefile.cpwillis.dev` is not deployed yet, so the repo homepage link is dead.
+up. The same templates render the live app; `demo=True` is the only difference, so the demo cannot drift from it.
+
+Deploy is manual, because `site/` is build output and is not in git:
+
+```bash
+make demo && npx wrangler@4 deploy
+```
+
+`wrangler.jsonc` declares `casefile.cpwillis.dev` as a `custom_domain`, so the first deploy creates the DNS record.
+The demo emits its own `robots.txt`, `sitemap.xml` and `404.html`, and links to the shared policies at
+`cpwillis.dev`, which is what brings it under them.
 
 `.github/workflows/release.yml` is manual dispatch only: it runs `make check`, builds, asserts the wheel carries the
 catalogue, the vendored dataset, the templates and the static assets, then publishes to PyPI via Trusted Publishing.

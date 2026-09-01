@@ -6,6 +6,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}casefile{% if demo %} demo{% endif %}{% endblock %}</title>
+{# Only the demo is a public site, so only it carries the tags a crawler or an unfurl reads. #}
+{% if demo %}
+<meta name="description" content="Static demo of casefile, a local-first OSINT lookup tool.">
+<link rel="canonical" href="{{ site }}/{{ page }}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{% block og_title %}casefile demo{% endblock %}">
+<meta property="og:description" content="A local-first OSINT lookup tool, shown against canned data.">
+<meta property="og:url" content="{{ site }}/{{ page }}">
+<meta name="twitter:card" content="summary">
+{% endif %}
 <link rel="stylesheet" href="{{ assets }}/casefile.css">
 </head>
 <body>
@@ -38,6 +48,14 @@
 {% block content %}{% endblock %}
 {# htmx is the biggest asset in the wheel, so it loads only on pages that swap; casefile.js is on all of them. #}
 {% if htmx and not demo %}<script src="/static/htmx.min.js" defer></script>{% endif %}
+{% if demo %}
+{# The shared policies at cpwillis.dev cover any personal project that links to them, so this links. #}
+<footer class="demo-footer">
+  <a href="https://github.com/cpwillis/casefile" rel="noreferrer noopener">Source</a>
+  <a href="https://cpwillis.dev/terms">Terms</a>
+  <a href="https://cpwillis.dev/privacy">Privacy</a>
+</footer>
+{% endif %}
 <script src="{{ assets }}/casefile.js" defer></script>
 </body>
 </html>

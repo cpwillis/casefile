@@ -133,3 +133,7 @@ h4.panel-id { font-size: 15px; margin: 0; }
 .own-note { font-style: italic; color: var(--muted); }
 .own-note .f-label { font-style: normal; }
 .page-save { max-width: 1200px; margin: 0 auto; padding: 0 16px 10px; }
+.demo-footer { border-top: 1px solid var(--line); margin-top: 32px; padding: 16px;
+               font-size: 13px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; }
+.demo-footer a { color: var(--muted); }
+.demo-footer a:hover { color: var(--accent); }
