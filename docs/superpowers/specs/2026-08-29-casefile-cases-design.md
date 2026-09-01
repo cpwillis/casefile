@@ -74,10 +74,10 @@ knows nothing about storage. The web layer wires them together. Each is testable
 
 ### Modules
 
-- `casefile.cases` — the `Case` and `Star` dataclasses, the SQLite store, and its queries.
-- `casefile.export` — one case to Markdown, JSON or HTML.
-- `casefile.web.app` — three new routes plus the star endpoint.
-- `casefile.cli` — `--cases`, `--export`, `--forget-cases`.
+- `casefile.cases`: the `Case` and `Star` dataclasses, the SQLite store, and its queries.
+- `casefile.export`: one case to Markdown, JSON or HTML.
+- `casefile.web.app`: three new routes plus the star endpoint.
+- `casefile.cli`: `--cases`, `--export`, `--forget-cases`.
 
 ## Data model
 
@@ -128,9 +128,9 @@ requirement: opening casefile shows what you were working on rather than an empt
 One function per format over the same `Case`. Markdown is the default because it pastes into an
 issue or a report unchanged.
 
-- **Markdown** — target, when saved, then findings grouped by source, links as links.
-- **JSON** — the case verbatim, for piping. Stable key names, same contract discipline as the CLI.
-- **HTML** — one self-contained file with inline CSS, openable anywhere, no assets.
+- **Markdown**: target, when saved, then findings grouped by source, links as links.
+- **JSON**: the case verbatim, for piping. Stable key names, same contract discipline as the CLI.
+- **HTML**: one self-contained file with inline CSS, openable anywhere, no assets.
 
 Export never re-fetches. It renders what you starred, which is the point: it is a record of what
 you chose to keep, not a fresh scrape.
