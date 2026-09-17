@@ -13,7 +13,7 @@ from urllib.parse import quote
 import httpx
 
 from casefile.fetchers import Finding, fetcher
-from casefile.fetchers.http import domain_slot
+from casefile.fetchers.http import domain_slot, request
 from casefile.types import EntityType
 
 DATA_PATH = Path(__file__).resolve().parents[1] / "vendor" / "wmn-data.json"
@@ -82,7 +82,7 @@ async def _check_one(site: Site, username: str, client: httpx.AsyncClient) -> Fi
         url = check_url(site, username)
         host = httpx.URL(url).host
         async with domain_slot(host):
-            resp = await client.get(url, follow_redirects=False)
+            resp = await request(client, "GET", url, follow_redirects=False)
     except Exception:  # noqa: BLE001 -- one dead or malformed site must not sink the rest
         return _UNREACHABLE
     if not account_exists(site, resp.status_code, resp.text):

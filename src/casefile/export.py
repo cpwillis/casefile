@@ -7,7 +7,7 @@ from html import escape
 from itertools import groupby
 
 from casefile.cases import Case
-from casefile.fetchers import source_note
+from casefile.fetchers import sanitize, source_note
 from casefile.fetchers.wmn import CREDIT, CREDIT_URL, SOURCE_ID
 
 _SAFE_SCHEMES = ("https://", "http://")
@@ -25,12 +25,6 @@ li { display: flex; gap: .75rem; padding: .2rem 0; border-bottom: 1px solid rgba
 """
 
 
-def sanitize(text: str, keep: str = "") -> str:
-    """Escape non-printable third-party characters. Escaped not dropped: deleting a zero-width turns paypa<zwsp>l
-    into the name it imitates. Shared by the CLI's terminal output and every export, so a download is safe too."""
-    return "".join(ch if ch.isprintable() or ch in keep else ch.encode("unicode_escape").decode("ascii") for ch in text)
-
-
 def when(ts: float) -> str:
     return datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -42,10 +36,13 @@ def _md(text: str) -> str:
     return text.replace("\r", " ").replace("\n", " ")
 
 
+_URL_BREAKERS = set(" \\<>\"'`")
+
+
 def safe_url(url: str | None) -> str | None:
     """A url is a link only with an allowed scheme and no whitespace or controls, which no real url has and which
     would break out of a Markdown link or an HTML attribute. The one gate the exporter and the Jinja filter share."""
-    if url and url.lower().startswith(_SAFE_SCHEMES) and url.isprintable() and " " not in url and "\\" not in url:
+    if url and url.lower().startswith(_SAFE_SCHEMES) and url.isprintable() and not _URL_BREAKERS & set(url):
         return url
     return None
 

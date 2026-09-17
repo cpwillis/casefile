@@ -172,3 +172,10 @@ async def test_an_unreachable_source_names_the_host_it_could_not_reach():
 
     result = await run_fetcher("reason-probe-2", "example.com", EntityType.DOMAIN, None)
     assert result.detail == "could not reach crt.sh"
+
+
+def test_finding_escapes_non_printable_third_party_text_at_construction():
+    f = Finding(label="na​me", value="invoice‮gpj.exe", url="https://x.example/​")
+    assert f.label == "na\\u200bme"
+    assert f.value == "invoice\\u202egpj.exe"
+    assert f.url == "https://x.example/​"  # urls are gated by safe_url, not escaped into a different url

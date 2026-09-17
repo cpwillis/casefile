@@ -150,3 +150,9 @@ def test_static_assets_are_revalidated_rather_than_heuristically_cached():
     resp = client.get("/static/casefile.js")
     assert resp.headers["cache-control"] == "no-cache"
     assert resp.headers["etag"], "revalidation needs an etag to be cheap"
+
+
+def test_every_response_refuses_framing():
+    # Framed, the page's own htmx panel loads would fetch on behalf of the framing page, from this machine's IP.
+    for path in ("/", "/q?v=example.com", "/cases", "/static/casefile.css"):
+        assert client.get(path).headers["x-frame-options"] == "DENY"

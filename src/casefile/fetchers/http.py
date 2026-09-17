@@ -1,6 +1,7 @@
 """The one place an httpx client is built, and the shared outbound rate limiter."""
 
 import asyncio
+import ipaddress
 import random
 import weakref
 from collections import defaultdict
@@ -26,12 +27,48 @@ def _slots_for_running_loop() -> _LoopSlots:
     return _SLOTS[loop]
 
 
+async def refuse_local_targets(request: httpx.Request) -> None:
+    """Runs on every hop, redirects included: a source must not be able to bounce the fetcher onto this machine."""
+    host = request.url.host
+    try:
+        local = not ipaddress.ip_address(host).is_global
+    except ValueError:
+        local = host == "localhost" or host.endswith(".localhost")
+    if local:
+        raise httpx.RequestError(f"refused to fetch {host}", request=request)
+
+
 def build_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         headers={"user-agent": USER_AGENT},
         timeout=httpx.Timeout(connect=5.0, read=20.0, write=20.0, pool=20.0),
         follow_redirects=True,
+        event_hooks={"request": [refuse_local_targets]},
     )
+
+
+# A JSON answer is KBs. Read through a cap because httpx inflates gzip in full: a 200KB bomb was 200MB in memory.
+MAX_BODY = 4 * 1024 * 1024
+
+
+async def request(
+    client: httpx.AsyncClient, method: str, url: str, *, follow_redirects=httpx.USE_CLIENT_DEFAULT, **kwargs
+) -> httpx.Response:
+    """client.request with the body read through MAX_BODY. Every outbound call goes through here."""
+    req = client.build_request(method, url, **kwargs)
+    resp = await client.send(req, stream=True, follow_redirects=follow_redirects)
+    body, size = [], 0
+    try:
+        async for chunk in resp.aiter_bytes():
+            size += len(chunk)
+            if size > MAX_BODY:
+                raise httpx.ReadError(f"{req.url.host} sent more than {MAX_BODY} bytes", request=req)
+            body.append(chunk)
+    finally:
+        await resp.aclose()
+    # Already decoded, so the encoding and length headers would describe bytes that are no longer there.
+    headers = [(k, v) for k, v in resp.headers.raw if k.lower() not in (b"content-encoding", b"content-length")]
+    return httpx.Response(resp.status_code, headers=headers, content=b"".join(body), request=req)
 
 
 # Named so tests can zero them.
@@ -74,10 +111,10 @@ async def fetch(
     """
     host = httpx.URL(url).host
     async with domain_slot(host):
-        resp = await client.request(method, url, **kwargs)
+        resp = await request(client, method, url, **kwargs)
         if resp.status_code == 429 or resp.status_code >= 500:
             await asyncio.sleep(BACKOFF)
-            resp = await client.request(method, url, **kwargs)
+            resp = await request(client, method, url, **kwargs)
         if resp.status_code == 429:
             raise RateLimited(f"{host} returned 429")
         # GitHub and NVD signal an exhausted unauthenticated quota with a 403 and a zeroed remaining header,

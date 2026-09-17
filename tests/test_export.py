@@ -248,3 +248,11 @@ def test_a_url_with_a_backslash_is_not_linked():
     from casefile.export import safe_url
 
     assert safe_url("https://ok.example/a\\b") is None
+
+
+def test_safe_url_rejects_the_characters_that_end_an_attribute_or_a_link():
+    from casefile.export import safe_url
+
+    for bad in ('https://x.example/"><b>', "https://x.example/'", "https://x.example/`", "https://x.example/<"):
+        assert safe_url(bad) is None
+    assert safe_url("https://x.example/a?b=c&d=(e)") == "https://x.example/a?b=c&d=(e)"

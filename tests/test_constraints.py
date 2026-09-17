@@ -110,3 +110,12 @@ def test_no_fixture_or_doc_names_a_real_world_host():
                 continue
             offenders.add(f"{path.name}: {host}")
     assert not offenders, "non-reserved hosts in fixtures or docs: " + ", ".join(sorted(offenders))
+
+
+def test_vendored_wmn_dataset_is_unmodified():
+    """Share-alike attaches to edits: a re-vendor replaces the file whole and updates this hash, nothing patches it."""
+    import hashlib
+
+    data = Path(__file__).resolve().parents[1] / "src" / "casefile" / "vendor" / "wmn-data.json"
+    expected = "779922223756f47d1512f81a5a2d0c69d19418fe5df1a2a9406c7cf18cf68f34"
+    assert hashlib.sha256(data.read_bytes()).hexdigest() == expected

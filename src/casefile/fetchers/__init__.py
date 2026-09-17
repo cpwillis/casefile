@@ -27,6 +27,12 @@ class RateLimited(Exception):
     """Raised when a source returns 429 after the single retry is exhausted."""
 
 
+def sanitize(text: str, keep: str = "") -> str:
+    """Escape non-printable third-party characters. Escaped not dropped: deleting a zero-width turns paypa<zwsp>l
+    into the name it imitates."""
+    return "".join(ch if ch.isprintable() or ch in keep else ch.encode("unicode_escape").decode("ascii") for ch in text)
+
+
 @dataclass(frozen=True)
 class Finding:
     label: str
@@ -34,6 +40,11 @@ class Finding:
     url: str | None = None
     # casefile's own remark, not a source's: not starrable, not a pivot, never exported as a third-party claim.
     note: bool = False
+
+    def __post_init__(self):
+        # At the source, so the terminal, a panel, a case page and an export all show the same escaped text.
+        object.__setattr__(self, "label", sanitize(self.label))
+        object.__setattr__(self, "value", sanitize(self.value))
 
 
 @dataclass(frozen=True)

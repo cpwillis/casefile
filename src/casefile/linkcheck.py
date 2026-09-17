@@ -8,7 +8,7 @@ from collections import Counter
 
 import httpx
 
-from casefile.fetchers.http import domain_slot
+from casefile.fetchers.http import domain_slot, request
 
 LIVE = "live"
 MISSING = "missing"
@@ -28,7 +28,7 @@ async def check_link(url: str, client: httpx.AsyncClient) -> str:
     try:
         async with domain_slot(host):
             # follow_redirects=False on purpose: a missing profile redirected home would answer 200 and read as a hit.
-            resp = await client.get(url, follow_redirects=False)
+            resp = await request(client, "GET", url, follow_redirects=False)
     except Exception:  # noqa: BLE001 -- a probe that fails is a verdict, not an error
         return UNREACHABLE
     if verdict := _VERDICTS.get(resp.status_code):

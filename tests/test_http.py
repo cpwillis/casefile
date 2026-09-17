@@ -156,3 +156,28 @@ async def test_a_plain_403_is_still_an_error():
     async with mock_client(handler) as client:
         with pytest.raises(httpx.HTTPStatusError):
             await fetch(client, "https://api.github.example/users/x")
+
+
+async def test_request_refuses_a_body_past_the_cap_even_when_it_arrives_compressed():
+    import gzip
+
+    bomb = gzip.compress(b"0" * (http.MAX_BODY + 1))  # a few KB on the wire, past the cap once inflated
+    client = responder(200, content=bomb, headers={"content-encoding": "gzip"})
+    with pytest.raises(httpx.ReadError):
+        await http.request(client, "GET", "https://h.test/")
+
+
+async def test_request_returns_the_decoded_body_under_the_cap():
+    import gzip
+
+    client = responder(200, content=gzip.compress(b'{"ok": 1}'), headers={"content-encoding": "gzip"})
+    resp = await http.request(client, "GET", "https://h.test/")
+    assert resp.json() == {"ok": 1}
+
+
+async def test_shared_client_refuses_loopback_and_private_targets_on_any_hop():
+    for host in ("127.0.0.1", "[::1]", "10.0.0.1", "169.254.169.254", "localhost", "a.localhost"):
+        with pytest.raises(httpx.RequestError):
+            await http.refuse_local_targets(httpx.Request("GET", f"http://{host}/"))
+    await http.refuse_local_targets(httpx.Request("GET", "https://example.com/"))  # public hosts pass
+    assert http.refuse_local_targets in build_client().event_hooks["request"]

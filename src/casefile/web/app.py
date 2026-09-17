@@ -341,7 +341,9 @@ class _SameOriginWrites(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         if request.method not in ("GET", "HEAD") and request.headers.get("sec-fetch-site") != "same-origin":
             return PlainTextResponse("cross-site request refused", status_code=403)
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers["x-frame-options"] = "DENY"  # framed, the page's own panel loads would fetch for the framer
+        return response
 
 
 app = Starlette(
