@@ -260,3 +260,10 @@ def test_an_invalid_port_is_a_clean_usage_error_not_a_traceback(bad):
     with pytest.raises(SystemExit) as exc:
         main(["--port", bad])
     assert exc.value.code == 2  # argparse usage error, before any server start
+
+
+@pytest.mark.parametrize("argv", [["--deep"], ["--deep", "whatsmyname"]])
+def test_deep_without_an_identifier_is_a_usage_error_not_the_web_app(argv):
+    with pytest.raises(SystemExit) as exc:
+        main(argv)
+    assert exc.value.code == 2

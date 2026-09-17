@@ -239,3 +239,8 @@ def test_starred_keys_reflects_state():
 def test_starred_keys_is_scoped_to_its_target():
     star(EntityType.DOMAIN, "a.example", _star())
     assert starred_keys(EntityType.DOMAIN, "b.example") == frozenset()
+
+
+def test_renaming_a_missing_case_is_an_error_not_a_silent_success():
+    with pytest.raises(CaseStoreError):
+        rename_case("nosuchcase", "hello")

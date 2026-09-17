@@ -78,9 +78,12 @@ def sources_for(catalog: tuple[Source, ...], entity_type: EntityType) -> tuple[S
 
 
 def build_url(source: Source, value: str) -> str:
-    # lstrip('+'): a phone's leading + becomes %2B and 404s path-embedded sources; only phones start with one.
+    # A phone's leading + becomes %2B, which 404s when it sits in the path; in a query string it is the right form
+    # and stripping it there would merge +15550100 with 15550100. Only phones start with one.
+    if PLACEHOLDER in source.url.partition("?")[0]:
+        value = value.lstrip("+")
     # safe=',': a coordinate's comma is structural to map links (windy, zoom.earth), not a character to encode.
-    return source.url.replace(PLACEHOLDER, quote(value.lstrip("+"), safe=","))
+    return source.url.replace(PLACEHOLDER, quote(value, safe=","))
 
 
 @dataclass(frozen=True)

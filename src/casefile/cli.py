@@ -181,6 +181,8 @@ def main(argv: list[str] | None = None) -> int:
     # web app. If what it grabbed is not a known source id and no identifier was given, it was the identifier: all.
     if args.value is None and args.deep and args.deep not in fetched_ids():
         args.value, args.deep = args.deep, ""
+    if args.value is None and args.deep is not None:
+        parser.error("--deep needs an identifier to run on")
 
     if args.build_demo:
         from casefile.demo import build_demo

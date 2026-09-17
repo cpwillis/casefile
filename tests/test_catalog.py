@@ -89,3 +89,11 @@ def test_the_same_url_under_two_different_types_is_allowed(tmp_path):
         b'[[source]]\nid = "two"\nname = "Two"\naccepts = ["username"]\nurl = "https://s.test/{value}"\n'
     )
     assert len(load_catalog(tmp_path)) == 2
+
+
+def test_a_phone_keeps_its_plus_in_a_query_string_and_drops_it_in_a_path():
+    """%2B 404s a path-embedded source; in a query it is correct, and stripping it there merges two numbers."""
+    query = Source(id="q", name="q", accepts=(EntityType.PHONE,), url="https://e.test/?q={value}")
+    path = Source(id="p", name="p", accepts=(EntityType.PHONE,), url="https://e.test/n/{value}")
+    assert build_url(query, "+15550100") == "https://e.test/?q=%2B15550100"
+    assert build_url(path, "+15550100") == "https://e.test/n/15550100"

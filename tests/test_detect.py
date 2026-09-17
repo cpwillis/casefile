@@ -291,3 +291,38 @@ def test_a_zero_width_character_makes_an_email_unrecognised():
 def test_a_digit_only_string_is_not_a_username():
     """_username requires a letter; without that guard a bare number would pivot as a handle."""
     assert EntityType.USERNAME not in {c.type for c in detect("1234")}
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("[2001:db8::1]", {(EntityType.IP, "2001:db8::1")}),  # the bracketed form copied out of a URL or log
+        ("fe80::1%eth0", {(EntityType.IP, "fe80::1")}),  # a zone id names a local interface: never sent out
+        ("::ffff:192.0.2.1", {(EntityType.IP, "192.0.2.1")}),  # mapped v4 is the v4 to every source
+        ("https://[2001:db8::1]:8080/x", {(EntityType.URL, "https://[2001:db8::1]:8080/x")}),
+        ("mailto:jdoe@example.com", {(EntityType.USERNAME, "jdoe")}),  # the handle survives the mailto: prefix
+        ("a" * 128, {(EntityType.HASH, "a" * 128)}),  # sha-512
+    ],
+)
+def test_detector_edge_forms(raw, expected):
+    assert expected <= {(c.type, c.value) for c in detect(raw)}
+
+
+def test_a_dotted_handle_with_an_underscore_in_the_last_label_is_not_a_domain():
+    assert EntityType.DOMAIN not in {c.type for c in detect("j.doe_1")}
+    assert (EntityType.DOMAIN, "_dmarc.example.com") in {(c.type, c.value) for c in detect("_dmarc.example.com")}
+
+
+@pytest.mark.parametrize("raw", [".com", "example.com.", "-jdoe"])
+def test_a_handle_cannot_open_or_close_with_a_dot_or_hyphen(raw):
+    assert EntityType.USERNAME not in {c.type for c in detect(raw)}
+
+
+@pytest.mark.parametrize("raw", ["Müller GmbH", "Иван Петров", "A" * 100])
+def test_names_are_not_less_names_for_being_non_latin_or_long(raw):
+    assert {EntityType.PERSON, EntityType.COMPANY} <= {c.type for c in detect(raw)}
+
+
+def test_a_check_digit_reading_outranks_the_phone_reading():
+    assert [c.type for c in detect("9074729")][:2] == [EntityType.IMO, EntityType.PHONE]
+    assert [c.type for c in detect("503000000")][:2] == [EntityType.MMSI, EntityType.PHONE]

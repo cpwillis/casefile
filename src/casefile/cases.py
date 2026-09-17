@@ -202,11 +202,15 @@ def rename_case(case_id: str, name: str) -> None:
         raise CaseStoreError("a case needs a name")
     if len(name) > NAME_LIMIT:
         raise CaseStoreError(f"a case name is at most {NAME_LIMIT} characters, that one is {len(name)}")
-    _write(
-        lambda conn: conn.execute(
-            "UPDATE cases SET name = ?, updated_at = ? WHERE id = ?", (name, time.time(), case_id)
+    renamed = _write(
+        lambda conn: (
+            conn.execute(
+                "UPDATE cases SET name = ?, updated_at = ? WHERE id = ?", (name, time.time(), case_id)
+            ).rowcount
         )
     )
+    if not renamed:
+        raise CaseStoreError("no such case")
 
 
 def star(entity_type: EntityType, value: str, finding: Star) -> str:

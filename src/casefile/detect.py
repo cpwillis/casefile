@@ -11,7 +11,7 @@ from casefile.types import Candidate, EntityType
 
 Detector = Callable[[str], str | None]
 
-_HASH_LENGTHS = {32, 40, 64}
+_HASH_LENGTHS = {32, 40, 64, 128}
 
 
 def _has_control(s: str) -> bool:
@@ -19,10 +19,12 @@ def _has_control(s: str) -> bool:
 
 
 def _ip(s: str) -> str | None:
+    s = s[1:-1] if s[:1] == "[" and s[-1:] == "]" else s  # the bracketed form copied out of a URL or a log line
     try:
-        return str(ip_address(s))
+        addr = ip_address(s.partition("%")[0])  # a zone id names a local interface, meaningless off-host, so dropped
     except ValueError:
         return None
+    return str(getattr(addr, "ipv4_mapped", None) or addr)  # ::ffff:192.0.2.1 is 192.0.2.1 to every source
 
 
 def _asn(s: str) -> str | None:
@@ -101,6 +103,7 @@ TIER1: tuple[tuple[EntityType, Detector], ...] = (
 
 # Leading/trailing underscore allowed: _dmarc, _domainkey, _sip._tcp are routine DNS pivots.
 _LABEL = r"[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?"
+_TLD = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"  # no underscore in the last label, or j.doe_1 reads as a domain
 
 
 def _email(s: str) -> str | None:
@@ -120,7 +123,7 @@ def _url(s: str) -> str | None:
         host = parts.hostname
         if host is None:
             return s
-        netloc = host.lower()
+        netloc = f"[{host}]" if ":" in host else host  # hostname drops the brackets an IPv6 literal needs back
         if parts.port is not None:  # .port raises ValueError on an out-of-range port, same as urlsplit
             netloc = f"{netloc}:{parts.port}"
     except ValueError:
@@ -142,7 +145,7 @@ def _domain(s: str) -> str | None:
             candidate = idna.encode(s, uts46=True).decode("ascii")
         except idna.IDNAError:
             return None
-    if not re.fullmatch(rf"{_LABEL}(?:\.{_LABEL})+", candidate):
+    if not re.fullmatch(rf"(?:{_LABEL}\.)+{_TLD}", candidate):
         return None
     if candidate.split(".")[-1].isdigit():
         return None
@@ -151,7 +154,7 @@ def _domain(s: str) -> str | None:
 
 def _phone(s: str) -> str | None:
     """Regex-only; the phone fetcher does the real parsing with libphonenumber."""
-    if re.fullmatch(r"[0-9]{1,3}(?:\.[0-9]{1,3}){3}", s.strip()):  # dotted-quad shape, even a zero-padded or bad one
+    if re.fullmatch(r"[0-9]{1,3}(?:\.[0-9]{1,3}){3}", s.strip()):  # dotted-quad shape; 1.800.555.0199 has a 4-digit group
         return None
     plus = s.strip().startswith("+")
     digits = re.sub(r"[^0-9]", "", s)
@@ -231,23 +234,26 @@ TIER2: tuple[tuple[EntityType, Detector], ...] = (
     (EntityType.EMAIL, _email),
     (EntityType.URL, _url),
     (EntityType.DOMAIN, _domain),
-    (EntityType.PHONE, _phone),
     (EntityType.VIN, _vin),
     (EntityType.IMO, _imo),
     (EntityType.MMSI, _mmsi),
+    (EntityType.PHONE, _phone),  # after the check-digit readings: a 7 or 9 digit id is a weaker phone than an IMO
     (EntityType.ICAO24, _icao24),
     (EntityType.TAIL_NUMBER, _tail_number),
     (EntityType.TX_HASH, _tx_hash),
 )
 
-_NAMEISH = r"[A-Za-z][A-Za-z0-9 .,&'’\-]{1,59}"
+# \w, not A-Za-z: a name is not less of a name for being written in Cyrillic or with an umlaut. Bound matches cases.
+_NAMEISH = r"[^\W\d_][\w .,&'’\-]{1,119}"
 
 
 def _username(s: str) -> str | None:
     s = s.strip().lstrip("@")  # @octocat is how handles are written; it is still the handle
     if " " in s:
         return None
-    return s if re.fullmatch(r"[A-Za-z0-9._-]{2,39}", s) and any(c.isalpha() for c in s) else None
+    # Dot and hyphen cannot open or close a handle, or .com and example.com. read as usernames.
+    shape = r"[A-Za-z0-9_](?:[A-Za-z0-9._-]{0,37}[A-Za-z0-9_])"
+    return s if re.fullmatch(shape, s) and any(c.isalpha() for c in s) else None
 
 
 def _nameish(s: str) -> str | None:
@@ -286,7 +292,8 @@ def detect(raw: str) -> tuple[Candidate, ...]:
         tier2 = (*tier2, Candidate(EntityType.DOMAIN, host))
     # An email carries a domain and often a handle, both real pivots; a URL already yields its host the same way.
     if EntityType.EMAIL in have:
-        local, _, host = value.strip().partition("@")
+        # The normalised candidate, not the raw value: a mailto: prefix would otherwise stay glued to the handle.
+        local, _, host = next(c.value for c in tier2 if c.type == EntityType.EMAIL).partition("@")
         if EntityType.DOMAIN not in have and (derived := _domain(host)):
             tier2 = (*tier2, Candidate(EntityType.DOMAIN, derived))
         if handle := _username(local):  # TIER2 has no username detector, so `have` can never hold one
