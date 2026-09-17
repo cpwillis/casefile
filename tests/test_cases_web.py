@@ -352,7 +352,7 @@ def test_removing_an_identifier_from_a_case_page_returns_to_that_case():
 def test_deleting_a_case_that_does_not_exist_says_so():
     """Reporting a delete that never happened is the same lie as 'nothing found' for a lookup never made."""
     resp = client.post("/case/never-existed/delete", headers=SAME, follow_redirects=False)
-    assert resp.status_code == 200
+    assert resp.status_code == 404  # says so in the status too, so a stale bookmark is not a live page to a cache
     assert "no longer exists" in resp.text
 
 
@@ -447,3 +447,8 @@ def test_a_rename_error_stays_on_the_case_page():
     assert resp.status_code == 400
     assert "could not rename" in resp.text
     assert f'action="/case/{cid}/rename"' in resp.text  # still the case page, not the dashboard
+
+
+def test_a_deleted_or_unknown_case_is_a_404_not_a_live_dashboard():
+    assert client.get("/case/deadbeef").status_code == 404
+    assert client.post("/case/deadbeef/delete").status_code == 404

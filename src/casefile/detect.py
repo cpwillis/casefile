@@ -154,7 +154,7 @@ def _domain(s: str) -> str | None:
 
 def _phone(s: str) -> str | None:
     """Regex-only; the phone fetcher does the real parsing with libphonenumber."""
-    if re.fullmatch(r"[0-9]{1,3}(?:\.[0-9]{1,3}){3}", s.strip()):  # dotted-quad shape; 1.800.555.0199 has a 4-digit group
+    if re.fullmatch(r"[0-9]{1,3}(?:\.[0-9]{1,3}){3}", s.strip()):  # dotted quad; 1.800.555.0199 has a 4-digit group
         return None
     plus = s.strip().startswith("+")
     digits = re.sub(r"[^0-9]", "", s)

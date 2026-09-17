@@ -4,6 +4,6 @@
 {% block content %}
 <main id="pane" class="pane">
   <h1>Not Found</h1>
-  <p>That page does not exist. Try the <a href="/">demo home page</a>.</p>
+  <p>That page does not exist. Try the <a href="{{ 'index.html' if demo else '/' }}">{{ 'demo ' if demo }}home page</a>.</p>
 </main>
 {% endblock %}

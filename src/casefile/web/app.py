@@ -119,7 +119,9 @@ async def result(request: Request) -> HTMLResponse:
 def _dead_panel(request: Request, source_id: str, detail: str) -> HTMLResponse:
     """htmx will not swap a 4xx, so refusals render as a panel; a status code leaves the tile on "loading…"."""
     result = SourceResult(source_id, State.ERROR, detail=detail)
-    return templates.TemplateResponse(request, "panel.html", {"result": result})
+    # t and v as sent, so the refusal keeps the id and tabindex the swap needs to give focus back.
+    context = {"result": result, "t": request.query_params.get("t", ""), "v": request.query_params.get("v", "")}
+    return templates.TemplateResponse(request, "panel.html", context)
 
 
 async def panel(request: Request) -> HTMLResponse:
@@ -204,7 +206,8 @@ async def star_route(request: Request) -> Response:
 
 def _dead_linkset(request: Request, detail: str) -> HTMLResponse:
     """Like _dead_panel: htmx will not swap a 4xx, so a refused link-check must come back as a rendered linkset."""
-    return templates.TemplateResponse(request, "linkset_error.html", {"detail": detail})
+    context = {"detail": detail, "type": request.query_params.get("t", "")}  # the id htmx re-focuses after the swap
+    return templates.TemplateResponse(request, "linkset_error.html", context)
 
 
 async def link_check(request: Request) -> Response:
@@ -294,8 +297,17 @@ def _case_page(request: Request, case, problem: str | None = None, status_code: 
 async def case_detail(request: Request) -> Response:
     case = load_case(request.path_params["case_id"])
     if case is None:
-        return templates.TemplateResponse(request, "cases.html", {"cases": list_cases(), "missing": True})
+        return _no_such_case(request)
     return _case_page(request, case)
+
+
+def _no_such_case(request: Request) -> Response:
+    # 404, not 200: a bookmark to a deleted case must not read as a live page to history and caches.
+    return templates.TemplateResponse(request, "cases.html", {"cases": list_cases(), "missing": True}, status_code=404)
+
+
+async def not_found(request: Request, exc: Exception) -> Response:
+    return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
 
 
 async def case_export(request: Request) -> Response:
@@ -318,7 +330,7 @@ async def case_delete(request: Request) -> Response:
     except CaseStoreError as exc:
         return _mutation_error(request, f"could not delete: {exc}")
     if not deleted:
-        return templates.TemplateResponse(request, "cases.html", {"cases": list_cases(), "missing": True})
+        return _no_such_case(request)
     return RedirectResponse("/cases", status_code=303)
 
 
@@ -365,6 +377,7 @@ app = Starlette(
         Route("/case/{case_id}/delete", case_delete, methods=["POST"]),
         Mount("/static", _RevalidatedStatics(directory=HERE / "static"), name="static"),
     ],
+    exception_handlers={404: not_found},
 )
 
 

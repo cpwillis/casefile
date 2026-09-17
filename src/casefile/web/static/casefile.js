@@ -10,8 +10,8 @@ document.addEventListener("input", (event) => {
     item.hidden = needle !== "" && !item.textContent.toLowerCase().includes(needle);
     if (!item.hidden) shown++;
   }
-  let status = input.parentElement.querySelector(".filter-status");
-  if (!status) {
+  let status = input.nextElementSibling;  // the sibling, not the parent's first: sections hold several filters
+  if (!status || !status.classList.contains("filter-status")) {
     status = document.createElement("span");
     status.className = "filter-status muted";
     status.setAttribute("role", "status");
@@ -39,11 +39,18 @@ document.addEventListener("click", (event) => {
     button.textContent = "copied";
     announce(`copied ${button.dataset.copy || ""}`); // the button text change alone is visual-only
     setTimeout(() => { button.textContent = original; }, 1200);
-  });
+  }).catch(() => announce("could not copy"));  // an unfocused document or a denied permission rejects silently
 });
 
 // htmx swaps nothing when a request never completes, so a blocked panel just sits there looking idle.
 function panelFailed(event, reason) {
+  const star = event.detail.elt.closest(".star");
+  if (star) {  // a failed save is the button's failure, not the panel's: its good findings stay "ok"
+    star.textContent = "!";
+    star.setAttribute("aria-label", `Save failed: ${reason}`);
+    star.title = `Save failed: ${reason}`;
+    return;
+  }
   const panel = event.detail.elt.closest(".panel") || event.detail.elt.closest(".linkset");
   if (!panel) return;
   panel.dataset.state = "error";
@@ -76,7 +83,10 @@ document.addEventListener("htmx:afterSwap", (event) => {
   const el = document.getElementById(id);
   if (!el) return;
   if (el.classList.contains("panel")) announcePanel(el);
-  else if (!el.classList.contains("linkset")) return;
+  else if (el.classList.contains("linkset")) {
+    // The filter box sits outside the swapped list, so its needle must be re-applied to the new rows.
+    document.getElementById(`filter-${id.replace(/^linkset-/, "")}`)?.dispatchEvent(new Event("input", { bubbles: true }));
+  } else return;
   // Take focus only when it is loose (a clicked refresh/run button just detached, dropping focus to body) or
   // already inside this element. An auto-loading panel resolving while the user types elsewhere must not steal it.
   const active = document.activeElement;

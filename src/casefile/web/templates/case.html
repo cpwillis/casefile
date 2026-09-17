@@ -31,7 +31,7 @@
         <input type="hidden" name="v" value="{{ t.value }}">
         <input type="hidden" name="action" value="remove">
         <input type="hidden" name="back" value="{{ case.id }}">
-        <button type="submit" class="linkish">remove</button>
+        <button type="submit" class="linkish" aria-label="Remove {{ t.value }} from this case">remove</button>
       </form>
     </li>
     {% endfor %}
@@ -60,7 +60,8 @@
         <input type="hidden" name="url" value="{{ s.url or '' }}">
         <input type="hidden" name="action" value="unstar">
         <input type="hidden" name="back" value="{{ case.id }}">
-        <button type="submit" class="linkish" title="Remove this finding from the case">remove</button>
+        <button type="submit" class="linkish" title="Remove this finding from the case"
+                aria-label="Remove {{ s.label }} {{ s.value }} from this case">remove</button>
       </form>
     </li>
     {% endfor %}

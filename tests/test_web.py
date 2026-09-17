@@ -156,3 +156,14 @@ def test_every_response_refuses_framing():
     # Framed, the page's own htmx panel loads would fetch on behalf of the framing page, from this machine's IP.
     for path in ("/", "/q?v=example.com", "/cases", "/static/casefile.css"):
         assert client.get(path).headers["x-frame-options"] == "DENY"
+
+
+def test_an_unknown_path_gets_the_styled_not_found_page():
+    resp = client.get("/nope")
+    assert resp.status_code == 404
+    assert "That page does not exist" in resp.text and 'href="/"' in resp.text
+
+
+def test_a_refused_panel_and_linkset_keep_the_id_the_swap_refocuses():
+    assert 'id="linkset-bogus"' in client.get("/links?v=x&t=bogus").text
+    assert 'tabindex="-1"' in client.get("/panel/dns?v=example.com&t=bogus").text

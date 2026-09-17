@@ -1,4 +1,4 @@
-:root { --fg: #1a1a1a; --bg: #fdfdfc; --muted: #6b6b6b; --line: #e0dedb; --accent: #2d5f8a;
+:root { color-scheme: light dark; --fg: #1a1a1a; --bg: #fdfdfc; --muted: #6b6b6b; --line: #e0dedb; --accent: #2d5f8a;
         --ok: #1b5e20; --bad: #a4111c; --warn: #8a5200; --star: #a97400; }
 @media (prefers-color-scheme: dark) {
   :root { --fg: #e8e6e3; --bg: #1c1c1a; --muted: #9a9895; --line: #34332f; --accent: #7fb3d9;
@@ -31,6 +31,7 @@ a { color: var(--accent); }
 .region-note { font-size: 12px; margin: 0 0 16px; }
 /* Identifiers are data: uppercasing turned Acme-Example into ACME-EXAMPLE, a different case-sensitive handle. */
 .reading .muted { text-transform: none; letter-spacing: 0; }
+.reading, .intro code { overflow-wrap: anywhere; }  /* one long hash otherwise scrolls a phone sideways */
 .reading { text-transform: uppercase; letter-spacing: .04em; font-size: 14px; scroll-margin-top: 16px;
            margin: 22px 0 8px; }
 .tag { font-size: 11px; border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px; color: var(--muted); text-transform: none; letter-spacing: 0; }
@@ -129,7 +130,7 @@ h4.panel-id { font-size: 15px; margin: 0; }
 .speculative > summary h3 { display: inline; font-size: 14px; }
 .links li { break-inside: avoid; }
 .filter-status { font-size: 12px; margin-left: 8px; }
-.panel:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.panel:focus, .linkset:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 .own-note { font-style: italic; color: var(--muted); }
 .own-note .f-label { font-style: normal; }
 .page-save { max-width: 1200px; margin: 0 auto; padding: 0 16px 10px; }
