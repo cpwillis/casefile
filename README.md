@@ -8,8 +8,13 @@ Local only: binds `127.0.0.1`, no account, no telemetry, nothing hosted.
 
 ## Run
 
-Not on PyPI yet. The name is reserved there, but the only published version is a `0.0.0` placeholder, so `uvx casefile`
-gets a stub until `release.yml` is dispatched. Run from source:
+On [PyPI](https://pypi.org/project/casefile/). With [uv](https://docs.astral.sh/uv/), which fetches its own Python:
+
+```bash
+uvx casefile
+```
+
+`uv tool install casefile` keeps it on your path; `pip install casefile` works too. To run from source instead:
 
 ```bash
 git clone https://github.com/cpwillis/casefile
@@ -18,7 +23,7 @@ uv sync
 uv run casefile
 ```
 
-That starts the local web app and opens a browser on it:
+Either way it starts the local web app and opens a browser on it:
 
 ```
 casefile is running at http://127.0.0.1:8765
@@ -34,19 +39,20 @@ ssh -L 8765:127.0.0.1:8765 user@host
 
 ## CLI
 
-A positional identifier prints to the terminal instead of starting the server.
+A positional identifier prints to the terminal instead of starting the server. `casefile` below is `uv run casefile`
+from a source checkout. `--json` applies to a lookup; the case and cache commands print text.
 
 ```bash
-uv run casefile example.com                    # text
-uv run casefile example.com --json             # machine-readable
-uv run casefile example.com --no-fetch         # links only, no requests
-uv run casefile example.com --no-cache         # bypass the response cache for this run
-uv run casefile example.com --check-links      # probe each link, flag the ones definitely gone
-uv run casefile jdoe-example --deep            # also run on-demand sources (bare, or a comma-separated list of ids)
-uv run casefile --cases                        # list saved cases with their ids
-uv run casefile --export <case-id> --format md|json|html
-uv run casefile --clear-cache
-uv run casefile --forget-cases
+casefile example.com                    # text
+casefile example.com --json             # machine-readable
+casefile example.com --no-fetch         # links only, no requests
+casefile example.com --no-cache         # bypass the response cache for this run
+casefile example.com --check-links      # probe each link, flag the ones definitely gone
+casefile jdoe-example --deep            # also run on-demand sources (bare, or a comma-separated list of ids)
+casefile --cases                        # list saved cases with their ids
+casefile --export <case-id> --format md|json|html
+casefile --clear-cache
+casefile --forget-cases
 ```
 
 `--deep` and `--check-links` are opt-in because the egress is large: the WhatsMyName check queries several hundred
@@ -63,8 +69,6 @@ make fmt     # ruff format, ruff check --fix
 make live    # pytest -m live: hits real third-party services, deselected by make test
 make demo    # render the static demo into site/
 ```
-
-Requires [uv](https://docs.astral.sh/uv/), which fetches its own Python.
 
 ## Adding a source
 
