@@ -244,3 +244,36 @@ def test_starred_keys_is_scoped_to_its_target():
 def test_renaming_a_missing_case_is_an_error_not_a_silent_success():
     with pytest.raises(CaseStoreError):
         rename_case("nosuchcase", "hello")
+
+
+def test_simultaneous_saves_of_one_identifier_land_in_one_case(monkeypatch):
+    """Two tabs, or a second casefile process, saving the same identifier at once. One case, no empty leftovers."""
+    import threading
+    import time
+
+    from casefile import cases as cases_module
+
+    real = cases_module._case_of
+
+    def slow(conn, target):  # widen the read-then-write window the race needs, nothing more
+        got = real(conn, target)
+        time.sleep(0.05)
+        return got
+
+    monkeypatch.setattr(cases_module, "_case_of", slow)
+    ids, errors = [], []
+
+    def save():
+        try:
+            ids.append(save_target(EntityType.DOMAIN, "example.com"))
+        except CaseStoreError as exc:
+            errors.append(str(exc))
+
+    threads = [threading.Thread(target=save) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []
+    assert len(set(ids)) == 1, f"one identifier ended up in {len(set(ids))} cases"
+    assert [c.id for c in list_cases() if not c.targets] == [], "a save left an empty case behind"

@@ -106,6 +106,9 @@ def _read(default, query):
 def _write(query):
     try:
         with _connect() as conn:
+            # BEGIN IMMEDIATE, not sqlite3's deferred one: every write reads "which case holds this?" first, and a
+            # deferred transaction leaves that read unprotected, so two at once each make a case and one is left empty.
+            conn.execute("BEGIN IMMEDIATE")
             return query(conn)
     except (sqlite3.Error, OSError) as exc:
         raise CaseStoreError(str(exc)) from exc

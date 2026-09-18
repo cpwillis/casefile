@@ -251,3 +251,30 @@ def test_a_findings_filter_targets_the_list_not_the_panel_div(monkeypatch):
     assert panel_div and ul_id and data_filter
     assert ul_id.group(1) != panel_div.group(1), "filter would iterate the panel div, not the list"
     assert data_filter.group(1) == ul_id.group(1), "filter must point at the list"
+
+
+def test_a_hanging_source_renders_a_timeout_instead_of_a_panel_that_never_resolves(monkeypatch):
+    """End to end through /panel: httpx's own timeouts never fire on a transport that simply does not answer."""
+    import asyncio
+
+    import httpx
+
+    import casefile.fetchers as fetchers_module
+    from casefile.fetchers import fetcher
+
+    async def never_answers(request):
+        await asyncio.Event().wait()
+
+    @fetcher(id="hang-panel", accepts=[EntityType.DOMAIN])
+    async def f(value, entity_type, client):
+        await client.get("https://example.com")
+        return []
+
+    monkeypatch.setattr(fetchers_module, "DEADLINE", 0.05)
+    monkeypatch.setattr(
+        "casefile.web.app.shared_client",
+        lambda: httpx.AsyncClient(transport=httpx.MockTransport(never_answers)),
+    )
+    resp = client.get("/panel/hang-panel", params={"v": "example.com", "t": "domain"})
+    assert resp.status_code == 200
+    assert 'data-state="timeout"' in resp.text

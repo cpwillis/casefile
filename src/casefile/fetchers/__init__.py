@@ -1,5 +1,6 @@
 """Fetcher contract: the result model, panel states, exceptions, registry and runner."""
 
+import asyncio
 import json
 import time
 from collections.abc import Callable
@@ -116,6 +117,12 @@ def fetchers_for(entity_type: EntityType) -> tuple[Registered, ...]:
     return tuple(r for r in _REGISTRY.values() if entity_type in r.accepts)
 
 
+# Wide enough for the wmn sweep's own 30-60s, narrow enough that nothing leaves a panel on "loading…" for ever:
+# httpx's read timeout restarts on every chunk, so a source trickling bytes is unbounded without a deadline here.
+# ponytail: one flat ceiling, per-source budgets only if a source ever legitimately needs longer than the sweep.
+DEADLINE = 300.0
+
+
 async def run_fetcher(source_id, value, entity_type, client) -> "SourceResult":
     """Run one fetcher and map its outcome to a SourceResult. Never raises."""
     rec = registered_fetcher(source_id)
@@ -123,14 +130,15 @@ async def run_fetcher(source_id, value, entity_type, client) -> "SourceResult":
         return SourceResult(source_id=source_id, state=State.ERROR, detail=f"no fetcher registered for {source_id}")
     start = time.monotonic()
     try:
-        findings = tuple(await rec.func(value, entity_type, client))
+        async with asyncio.timeout(DEADLINE):
+            findings = tuple(await rec.func(value, entity_type, client))
         state = State.OK if findings else State.EMPTY
         return SourceResult(source_id, state, findings, elapsed_ms=_ms(start))
     except NeedsKey as exc:
         return SourceResult(source_id, State.NEEDS_KEY, detail=str(exc), elapsed_ms=_ms(start))
     except RateLimited as exc:
         return SourceResult(source_id, State.RATE_LIMITED, detail=str(exc), elapsed_ms=_ms(start))
-    except httpx.TimeoutException:
+    except (httpx.TimeoutException, TimeoutError):  # TimeoutError is what asyncio.timeout raises on expiry
         return SourceResult(source_id, State.TIMEOUT, detail="no response within the timeout", elapsed_ms=_ms(start))
     except Exception as exc:  # noqa: BLE001 -- a dead source must never break the page
         return SourceResult(source_id, State.ERROR, detail=_reason(exc), elapsed_ms=_ms(start))

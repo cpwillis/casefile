@@ -179,3 +179,18 @@ def test_finding_escapes_non_printable_third_party_text_at_construction():
     assert f.label == "na\\u200bme"
     assert f.value == "invoice\\u202egpj.exe"
     assert f.url == "https://x.example/​"  # urls are gated by safe_url, not escaped into a different url
+
+
+async def test_a_fetcher_that_hangs_times_out_rather_than_stalling_the_panel(monkeypatch):
+    """A source that trickles bytes forever resets httpx's read timeout on every chunk, so the deadline is ours."""
+    import asyncio
+
+    import casefile.fetchers as fetchers_module
+
+    @fetcher(id="hang-probe", accepts=[EntityType.DOMAIN])
+    async def f(value, entity_type, client):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(fetchers_module, "DEADLINE", 0.05)
+    result = await asyncio.wait_for(run_fetcher("hang-probe", "example.com", EntityType.DOMAIN, None), 5)
+    assert result.state == State.TIMEOUT
