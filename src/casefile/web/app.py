@@ -18,7 +18,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers at import
-from casefile.cache import cached_result, run_cached
+from casefile.cache import cached_result, in_flight, run_cached
 from casefile.cases import (
     CaseStoreError,
     Star,
@@ -47,7 +47,8 @@ from casefile.fetchers import (
     wmn,
 )
 from casefile.fetchers.http import shared_client
-from casefile.linkcheck import check_links, tally
+from casefile.linkcheck import SOURCE_ID as LINKCHECK
+from casefile.linkcheck import cached_verdicts, check_links_cached, tally
 from casefile.types import Candidate, EntityType
 
 _TYPES = {t.value: t for t in EntityType}
@@ -82,8 +83,12 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
         panels = fetchers_for(candidate.type)
         if results is None:
             known = {r.id: hit for r in panels if (hit := cached_result(r.id, candidate.type, candidate.value))}
+            # Still running from before a reload: render as loading so the page joins that run, not a second one.
+            running = {r.id for r in panels if r.on_demand and in_flight(r.id, candidate.type, candidate.value)}
+            verdicts = cached_verdicts(candidate.type, candidate.value)
+            checking = verdicts is None and in_flight(LINKCHECK, candidate.type, candidate.value)
         else:
-            known = results
+            known, running, verdicts, checking = results, set(), None, False
         sections.append(
             {
                 "type": candidate.type.value,
@@ -91,6 +96,10 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
                 "panels": panels,
                 "results": known,
                 "links": links_for(candidate, exclude=fetched_ids()),
+                "running": running,
+                "verdicts": verdicts,
+                "tally": tally(verdicts) if verdicts else None,
+                "checking": checking,
                 "case": None if results is not None else case_for_target(candidate.type, candidate.value),
                 "starred": frozenset() if results is not None else starred_keys(candidate.type, candidate.value),
                 "speculative": structured and candidate.type in FREE_FORM,
@@ -219,7 +228,7 @@ async def link_check(request: Request) -> Response:
     if entity_type is None:
         return _dead_linkset(request, "unknown entity type")
     links = links_for(Candidate(entity_type, value), exclude=fetched_ids())
-    verdicts = await check_links(links, shared_client())
+    verdicts = await check_links_cached(links, entity_type, value, shared_client())
     section = {"type": entity_type.value, "value": value, "links": links}
     return templates.TemplateResponse(
         request, "links.html", {"section": section, "verdicts": verdicts, "tally": tally(verdicts)}

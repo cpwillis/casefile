@@ -1,5 +1,6 @@
 """SQLite response cache. Holds third-party data, so clear_cache is a privacy control as much as a debugging one."""
 
+import asyncio
 import json
 import os
 import time
@@ -90,17 +91,39 @@ def cached_result(source_id, entity_type, value) -> SourceResult | None:
         return None
 
 
-async def run_cached(source_id, value, entity_type, client, *, use_cache: bool = True, refresh: bool = False):
-    """run_fetcher with a read-through cache; failures get the shorter FAILURE_RETENTION.
+# One task per key while it runs: a reload mid-check joins it instead of launching a second identical run.
+_IN_FLIGHT: dict[tuple[str, str, str], asyncio.Task] = {}
 
-    `use_cache` off means never touch the cache (privacy); `refresh` means ignore the stored answer but still write.
-    """
-    if use_cache and not refresh and (hit := cached_result(source_id, entity_type, value)) is not None:
-        return hit
-    result = await run_fetcher(source_id, value, entity_type, client)
+
+def in_flight(source_id, entity_type, value) -> bool:
+    return (source_id, str(entity_type), value) in _IN_FLIGHT
+
+
+async def _run_and_store(runner, source_id, value, entity_type, client, use_cache: bool) -> SourceResult:
+    result = await runner(source_id, value, entity_type, client)
     if use_cache:
         try:  # noqa: SIM105
             _store(result, entity_type, value)
         except Exception:  # noqa: BLE001 -- failing to cache is not failing to fetch
             pass
     return result
+
+
+async def run_cached(
+    source_id, value, entity_type, client, *, use_cache: bool = True, refresh: bool = False, runner=run_fetcher
+) -> SourceResult:
+    """`runner` with a read-through cache and in-flight coalescing; failures get the shorter FAILURE_RETENTION.
+
+    `use_cache` off means never touch the cache (privacy); `refresh` means ignore the stored answer but still write.
+    `runner` defaults to the fetcher registry; the link checker passes its own so verdicts share this machinery.
+    """
+    if use_cache and not refresh and (hit := cached_result(source_id, entity_type, value)) is not None:
+        return hit
+    key = (source_id, str(entity_type), value)
+    task = _IN_FLIGHT.get(key)
+    if task is None or task.done():
+        task = asyncio.ensure_future(_run_and_store(runner, source_id, value, entity_type, client, use_cache))
+        _IN_FLIGHT[key] = task
+        task.add_done_callback(lambda t: _IN_FLIGHT.pop(key, None) if _IN_FLIGHT.get(key) is t else None)
+    # Shielded: the browser dropping this request (a reload) must not cancel a run other waiters share.
+    return await asyncio.shield(task)

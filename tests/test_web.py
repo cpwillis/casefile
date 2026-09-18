@@ -167,3 +167,22 @@ def test_an_unknown_path_gets_the_styled_not_found_page():
 def test_a_refused_panel_and_linkset_keep_the_id_the_swap_refocuses():
     assert 'id="linkset-bogus"' in client.get("/links?v=x&t=bogus").text
     assert 'tabindex="-1"' in client.get("/panel/dns?v=example.com&t=bogus").text
+
+
+def test_a_reload_mid_check_joins_the_running_check_instead_of_offering_to_start_it_again():
+    import asyncio
+
+    from casefile import cache
+    from casefile.linkcheck import SOURCE_ID
+
+    loop = asyncio.new_event_loop()
+    try:  # an unresolved future stands in for a run still going
+        cache._IN_FLIGHT[("whatsmyname", "username", "jdoe-example")] = loop.create_future()
+        cache._IN_FLIGHT[(SOURCE_ID, "username", "jdoe-example")] = loop.create_future()
+        text = client.get("/q", params={"v": "jdoe-example"}).text
+    finally:
+        cache._IN_FLIGHT.clear()
+        loop.close()
+    username_links = text.split('id="linkset-username"')[1].split("</ul>")[0]
+    assert "Run this check" not in text and "Check for dead links" not in username_links
+    assert text.count('hx-trigger="load"') >= 2  # the on-demand panel and the linkset both attach to the live run

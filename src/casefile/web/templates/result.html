@@ -68,7 +68,7 @@
             <span class="panel-state">not in this demo</span></div>
           <p class="muted panel-cost">Run casefile locally to query this source.</p>
         </div>
-        {% elif p.on_demand %}
+        {% elif p.on_demand and p.id not in section.running %}
         <div class="panel" data-state="on-demand" id="{{ [section.type, section.value, p.id] | dom_id }}" tabindex="-1">
           <div class="panel-head"><h4 class="panel-id">{{ source_name(p.id) }}</h4>
             <span class="panel-state">on demand</span></div>
@@ -112,7 +112,8 @@
       <label class="visually-hidden" for="filter-{{ section.type }}">Filter {{ section.type }} links</label>
       <input class="filter" id="filter-{{ section.type }}" type="search" placeholder="filter links…"
              data-filters="links-{{ section.type }}-list">
-      {% include "links.html" %}
+      {% with verdicts = section.verdicts, tally = section.tally, checking = section.checking %}
+      {% include "links.html" %}{% endwith %}
       {% if section.speculative %}</details>{% endif %}
       {% endfor %}
     </section>

@@ -72,24 +72,24 @@ async def test_check_links_returns_one_verdict_per_link_id():
 
 def test_the_link_list_offers_the_check_but_never_runs_it_on_page_load(monkeypatch):
     """Egress consent: dozens of third-party requests from your IP are not something a page load does by itself."""
-    import casefile.web.app as appmod
+    import casefile.linkcheck as lc
 
     async def explode(links, client):
         raise AssertionError("a page load probed the links")
 
-    monkeypatch.setattr(appmod, "check_links", explode)
+    monkeypatch.setattr(lc, "check_links", explode)
     text = web.get("/q", params={"v": "example.com"}).text
     assert "Check for dead links" in text
     assert 'hx-get="/links?v=example.com&amp;t=domain"' in text
 
 
 def test_the_check_route_renders_verdicts_against_the_links(monkeypatch):
-    import casefile.web.app as appmod
+    import casefile.linkcheck as lc
 
     async def fake(links, client):
         return {link.id: (MISSING if link.id == "crtsh" else LIVE) for link in links}
 
-    monkeypatch.setattr(appmod, "check_links", fake)
+    monkeypatch.setattr(lc, "check_links", fake)
     text = web.get("/links", params={"v": "example.com", "t": "domain"}).text
     assert 'data-verdict="live"' in text
     assert "nothing here was opened" in text
@@ -112,3 +112,22 @@ def test_the_check_route_refuses_anything_but_its_own_page(header):
     assert resp.status_code == 200
     assert "must come from" in resp.text
     assert 'class="verdict' not in resp.text  # no link was probed
+
+
+def test_verdicts_survive_a_reload_and_a_return_to_the_search(monkeypatch):
+    """A dead-link check is dozens of requests; the page must not repeat it because the user came back."""
+    import casefile.linkcheck as lc
+
+    runs = []
+
+    async def fake(links, client):
+        runs.append(1)
+        return {link.id: LIVE for link in links}
+
+    monkeypatch.setattr(lc, "check_links", fake)
+    web.get("/links", params={"v": "example.com", "t": "domain"})
+    text = web.get("/q", params={"v": "example.com"}).text  # back to the search: the verdicts are already there
+    domain_links = text.split('id="linkset-domain"')[1].split("</ul>")[0]
+    assert 'data-verdict="live"' in domain_links and "Check for dead links" not in domain_links
+    web.get("/links", params={"v": "example.com", "t": "domain"})
+    assert runs == [1]

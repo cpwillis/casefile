@@ -8,7 +8,11 @@ from collections import Counter
 
 import httpx
 
+from casefile.cache import cached_result, run_cached
+from casefile.fetchers import Finding, SourceResult, State
 from casefile.fetchers.http import domain_slot, request
+
+SOURCE_ID = "linkcheck"  # the cache key prefix for verdicts; not a fetcher, so never a panel
 
 LIVE = "live"
 MISSING = "missing"
@@ -58,3 +62,22 @@ async def check_links(links, client: httpx.AsyncClient) -> dict[str, str]:
 
 def tally(verdicts: dict[str, str]) -> Counter:
     return Counter(verdicts.values())
+
+
+def _as_verdicts(result: SourceResult | None) -> dict[str, str] | None:
+    return {f.label: f.value for f in result.findings} if result else None
+
+
+def cached_verdicts(entity_type, value: str) -> dict[str, str] | None:
+    """Verdicts from an earlier check of this reading, or None. Spends no egress."""
+    return _as_verdicts(cached_result(SOURCE_ID, entity_type, value))
+
+
+async def check_links_cached(links, entity_type, value: str, client: httpx.AsyncClient) -> dict[str, str]:
+    """check_links through the response cache: a reload or a return to this search must not re-probe every link."""
+
+    async def runner(source_id, _value, _entity_type, client):
+        verdicts = await check_links(links, client)
+        return SourceResult(source_id, State.OK, tuple(Finding(label=k, value=v) for k, v in verdicts.items()))
+
+    return _as_verdicts(await run_cached(SOURCE_ID, value, entity_type, client, runner=runner)) or {}

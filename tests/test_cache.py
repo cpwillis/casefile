@@ -221,3 +221,56 @@ def test_a_relative_xdg_path_is_ignored_not_used_verbatim(monkeypatch):
     from pathlib import Path
 
     assert str(cache_path()).startswith(str(Path.home()))
+
+
+async def test_identical_runs_in_flight_are_coalesced_and_visible(tmp_path, monkeypatch):
+    """A reload mid-check must join the running check, not launch a second one."""
+    import asyncio
+
+    from casefile.cache import in_flight, run_cached
+    from casefile.fetchers import SourceResult, State
+    from casefile.types import EntityType
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    started = asyncio.Event()
+    release = asyncio.Event()
+    runs = []
+
+    async def slow(source_id, value, entity_type, client):
+        runs.append(1)
+        started.set()
+        await release.wait()
+        return SourceResult(source_id, State.EMPTY)
+
+    first = asyncio.ensure_future(run_cached("dns", "example.com", EntityType.DOMAIN, None, runner=slow))
+    await started.wait()
+    assert in_flight("dns", EntityType.DOMAIN, "example.com")
+    second = asyncio.ensure_future(run_cached("dns", "example.com", EntityType.DOMAIN, None, runner=slow))
+    await asyncio.sleep(0)
+    release.set()
+    assert (await first).state == (await second).state == State.EMPTY
+    assert runs == [1]
+    assert not in_flight("dns", EntityType.DOMAIN, "example.com")
+
+
+async def test_a_dropped_waiter_does_not_cancel_the_shared_run(tmp_path, monkeypatch):
+    import asyncio
+
+    from casefile.cache import cached_result, run_cached
+    from casefile.fetchers import SourceResult, State
+    from casefile.types import EntityType
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    release = asyncio.Event()
+
+    async def slow(source_id, value, entity_type, client):
+        await release.wait()
+        return SourceResult(source_id, State.EMPTY)
+
+    waiter = asyncio.ensure_future(run_cached("dns", "example.com", EntityType.DOMAIN, None, runner=slow))
+    await asyncio.sleep(0)
+    waiter.cancel()  # the browser reloaded
+    await asyncio.sleep(0)
+    release.set()
+    await asyncio.sleep(0.01)
+    assert cached_result("dns", EntityType.DOMAIN, "example.com") is not None  # the run finished and was stored
