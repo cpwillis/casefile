@@ -201,6 +201,19 @@ def test_a_store_is_created_owner_only(tmp_path, monkeypatch):
     assert stat.S_IMODE(p.parent.stat().st_mode) == 0o700
 
 
+def test_purge_removes_wal_and_shm_sidecars_too(tmp_path):
+    """Rollback mode never leaves these, but README promises they're swept if present; the loop must cover them."""
+    from casefile.store import connect, purge
+
+    p = tmp_path / "s.db"
+    connect(p, "CREATE TABLE IF NOT EXISTS t (x)").close()
+    p.with_name(p.name + "-wal").write_bytes(b"")
+    p.with_name(p.name + "-shm").write_bytes(b"")
+    purge(p, "t")
+    leftovers = [f.name for f in tmp_path.iterdir()]
+    assert leftovers == [], f"purge left {leftovers} behind"
+
+
 async def test_a_cache_hit_reports_when_it_was_fetched_not_epoch_zero(monkeypatch, tmp_path):
     """fetched_at comes from the row, not the payload; a swap to the payload would misreport age as 1970."""
     import time
