@@ -55,6 +55,8 @@ a { color: var(--accent); }
 .state-needs_key { color: var(--warn); }
 .findings { list-style: none; padding: 0; margin: 6px 0 0; }
 .findings li { display: flex; gap: 8px; align-items: baseline; }
+/* Case rows carry a timestamp and a remove link too, so on a phone the value was six characters wide. */
+.intro .findings li { flex-wrap: wrap; }
 .findings li[hidden] { display: none; }  /* the flex rule outranks the UA [hidden] rule, so the filter could not hide */
 /* Only the value wraps. Letting the controls wrap broke "search" and "copy" mid-word on mobile. */
 .findings li > .f-value, .findings li > a[target="_blank"] { min-width: 0; overflow-wrap: anywhere; }
