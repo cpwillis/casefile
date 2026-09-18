@@ -10,7 +10,11 @@
     {% for name, count in tally.items() %}{{ count }} {{ name }}{% if not loop.last %} · {% endif %}{% endfor %}
   </p>
   <p class="muted linkset-tally">Only 404 and 410 prove a page is gone. Blocked, redirected and
-    unreachable tell you nothing either way, and nothing here was opened.</p>
+    unreachable tell you nothing either way, and nothing here was opened.{% if not demo %}
+    <button class="linkish" type="button" hx-get="{{ check_url }}&refresh=1"
+            hx-target="closest .linkset" hx-swap="outerHTML" hx-disabled-elt="this"
+            hx-indicator="closest .linkset">check again</button>{% endif %}</p>
+  <p class="panel-running muted">checking {{ section.links | length }} links, one request each…</p>
   {% elif not demo %}
   <button class="panel-run" type="button"
           hx-get="{{ check_url }}"

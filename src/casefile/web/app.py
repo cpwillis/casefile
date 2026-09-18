@@ -42,6 +42,7 @@ from casefile.fetchers import (
     fetched_ids,
     fetchers_for,
     registered_fetcher,
+    sanitize,
     source_name,
     source_note,
     wmn,
@@ -174,10 +175,10 @@ async def star_route(request: Request) -> Response:
     if entity_type is None:
         return PlainTextResponse("unknown entity type", status_code=400)
     value = form.get("v", "")
-    finding = Star(
+    finding = Star(  # escaped like the Finding it came from, so the key matches what the panel renders
         source_id=form.get("source_id", ""),
-        label=form.get("label", ""),
-        value=form.get("value", ""),
+        label=sanitize(form.get("label", "")),
+        value=sanitize(form.get("value", "")),
         url=form.get("url", "") or None,
     )
     if not value or not finding.source_id:
@@ -228,7 +229,8 @@ async def link_check(request: Request) -> Response:
     if entity_type is None:
         return _dead_linkset(request, "unknown entity type")
     links = links_for(Candidate(entity_type, value), exclude=fetched_ids())
-    verdicts = await check_links_cached(links, entity_type, value, shared_client())
+    refresh = request.query_params.get("refresh") == "1"
+    verdicts = await check_links_cached(links, entity_type, value, shared_client(), refresh=refresh)
     section = {"type": entity_type.value, "value": value, "links": links}
     return templates.TemplateResponse(
         request, "links.html", {"section": section, "verdicts": verdicts, "tally": tally(verdicts)}
@@ -316,6 +318,8 @@ def _no_such_case(request: Request) -> Response:
 
 
 async def not_found(request: Request, exc: Exception) -> Response:
+    if request.url.path.startswith("/static/"):  # a stylesheet or script asked for, not a page
+        return PlainTextResponse("Not Found", status_code=404)
     return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
 
 

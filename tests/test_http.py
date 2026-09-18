@@ -181,3 +181,18 @@ async def test_shared_client_refuses_loopback_and_private_targets_on_any_hop():
             await http.refuse_local_targets(httpx.Request("GET", f"http://{host}/"))
     await http.refuse_local_targets(httpx.Request("GET", "https://example.com/"))  # public hosts pass
     assert http.refuse_local_targets in build_client().event_hooks["request"]
+
+
+async def test_request_keeps_the_redirect_chain_and_final_url():
+    def handler(request):
+        if request.url.path == "/redir":
+            return httpx.Response(302, headers={"location": "https://h.test/final"})
+        return httpx.Response(200, text="final")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True)
+    resp = await http.request(client, "GET", "https://h.test/redir")
+    assert resp.text == "final" and str(resp.url) == "https://h.test/final" and len(resp.history) == 1
+
+
+def test_the_client_asks_for_uncompressed_bodies():
+    assert build_client().headers["accept-encoding"] == "identity"  # the cap is then the bytes on the wire

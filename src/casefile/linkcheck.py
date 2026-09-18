@@ -70,14 +70,18 @@ def _as_verdicts(result: SourceResult | None) -> dict[str, str] | None:
 
 def cached_verdicts(entity_type, value: str) -> dict[str, str] | None:
     """Verdicts from an earlier check of this reading, or None. Spends no egress."""
-    return _as_verdicts(cached_result(SOURCE_ID, entity_type, value))
+    hit = cached_result(SOURCE_ID, entity_type, value)
+    return _as_verdicts(hit) if hit and hit.state == State.OK else None  # a check that reached nothing is not a result
 
 
-async def check_links_cached(links, entity_type, value: str, client: httpx.AsyncClient) -> dict[str, str]:
+async def check_links_cached(links, entity_type, value, client: httpx.AsyncClient, refresh=False) -> dict[str, str]:
     """check_links through the response cache: a reload or a return to this search must not re-probe every link."""
 
     async def runner(source_id, _value, _entity_type, client):
         verdicts = await check_links(links, client)
-        return SourceResult(source_id, State.OK, tuple(Finding(label=k, value=v) for k, v in verdicts.items()))
+        # Every probe failing is the network, not the links: keep it for minutes like any failed source, not a day.
+        state = State.OK if set(verdicts.values()) - {UNREACHABLE} else State.ERROR
+        return SourceResult(source_id, state, tuple(Finding(label=k, value=v) for k, v in verdicts.items()))
 
-    return _as_verdicts(await run_cached(SOURCE_ID, value, entity_type, client, runner=runner)) or {}
+    result = await run_cached(SOURCE_ID, value, entity_type, client, refresh=refresh, runner=runner)
+    return _as_verdicts(result) or {}

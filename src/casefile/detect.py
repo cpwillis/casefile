@@ -21,7 +21,8 @@ def _has_control(s: str) -> bool:
 def _ip(s: str) -> str | None:
     s = s[1:-1] if s[:1] == "[" and s[-1:] == "]" else s  # the bracketed form copied out of a URL or a log line
     try:
-        addr = ip_address(s.partition("%")[0])  # a zone id names a local interface, meaningless off-host, so dropped
+        # A zone id (IPv6 only) names a local interface, meaningless off-host, so dropped.
+        addr = ip_address(s.partition("%")[0] if ":" in s else s)
     except ValueError:
         return None
     return str(getattr(addr, "ipv4_mapped", None) or addr)  # ::ffff:192.0.2.1 is 192.0.2.1 to every source

@@ -10,7 +10,7 @@
       <button class="panel-refresh" type="button"
               title="Run this source again, ignoring the stored answer"
               aria-label="Refresh {{ result.source_id }}"
-              hx-get="/panel/{{ result.source_id }}?v={{ v | urlencode }}&t={{ t }}&refresh=1"
+              hx-get="/panel/{{ result.source_id }}?v={{ v | urlencode }}&t={{ t | urlencode }}&refresh=1"
               hx-target="closest .panel" hx-swap="outerHTML"
               hx-disabled-elt="this" hx-indicator="closest .panel">refresh</button>
       {% endif %}

@@ -18,7 +18,7 @@ from casefile.detect import FREE_FORM, detect
 from casefile.export import FORMATS, export_case, sanitize
 from casefile.fetchers import fetched_ids, fetchers_for, wmn
 from casefile.fetchers.http import build_client
-from casefile.linkcheck import check_links, tally
+from casefile.linkcheck import check_links_cached, tally
 
 REPO = "https://github.com/cpwillis/casefile"
 
@@ -51,7 +51,7 @@ async def _check_all(candidates, results):
     async with build_client() as client:
         out = {}
         for c in candidates:  # exactly the links that are shown, so no request goes out for a link never printed
-            out[(c.type, c.value)] = await check_links(_shown_links(c, results), client)
+            out[(c.type, c.value)] = await check_links_cached(_shown_links(c, results), c.type, c.value, client)
         return out
 
 

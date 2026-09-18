@@ -227,16 +227,22 @@ def test_deep_accepts_a_named_source_not_only_all_of_them(monkeypatch, capsys):
 
 
 def test_check_links_reports_a_verdict_per_link(monkeypatch, capsys):
-    import casefile.cli as climod
+    import casefile.linkcheck as lc
+
+    runs = []
 
     async def fake(links, client):
+        runs.append(1)
         return {link.id: "missing" if link.id == "crtsh" else "live" for link in links}
 
-    monkeypatch.setattr(climod, "check_links", fake)
+    monkeypatch.setattr(lc, "check_links", fake)
     assert main(["example.com", "--no-fetch", "--check-links"]) == 0
     out = capsys.readouterr().out
     assert "missing" in out and "live" in out
     assert "tell you nothing" in out
+    probed = len(runs)  # one check per reading
+    assert main(["example.com", "--no-fetch", "--check-links"]) == 0
+    assert len(runs) == probed  # the second run reads the verdicts the first one cached, like the web does
 
 
 def test_deep_before_the_target_does_not_swallow_it(monkeypatch, capsys):

@@ -326,3 +326,8 @@ def test_names_are_not_less_names_for_being_non_latin_or_long(raw):
 def test_a_check_digit_reading_outranks_the_phone_reading():
     assert [c.type for c in detect("9074729")][:2] == [EntityType.IMO, EntityType.PHONE]
     assert [c.type for c in detect("503000000")][:2] == [EntityType.MMSI, EntityType.PHONE]
+
+
+def test_a_percent_is_only_a_zone_id_on_an_ipv6_address():
+    assert EntityType.IP not in {c.type for c in detect("192.0.2.1%junk")}
+    assert (EntityType.IP, "fe80::1") in {(c.type, c.value) for c in detect("fe80::1%eth0")}

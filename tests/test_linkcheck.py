@@ -131,3 +131,28 @@ def test_verdicts_survive_a_reload_and_a_return_to_the_search(monkeypatch):
     assert 'data-verdict="live"' in domain_links and "Check for dead links" not in domain_links
     web.get("/links", params={"v": "example.com", "t": "domain"})
     assert runs == [1]
+
+
+async def test_a_check_that_reached_nothing_is_not_kept_as_a_result(monkeypatch):
+    """Every probe failing is the network, not the links: it must not hide the button for a day."""
+    import casefile.linkcheck as lc
+    from casefile.types import EntityType
+
+    async def offline(links, client):
+        return {link.id: UNREACHABLE for link in links}
+
+    monkeypatch.setattr(lc, "check_links", offline)
+    links = [Link(id="a", name="a", url="https://a.example/", notes=None)]
+    await lc.check_links_cached(links, EntityType.DOMAIN, "example.com", None)
+    assert lc.cached_verdicts(EntityType.DOMAIN, "example.com") is None
+
+
+def test_the_rendered_verdicts_offer_a_re_check(monkeypatch):
+    import casefile.linkcheck as lc
+
+    async def fake(links, client):
+        return {link.id: LIVE for link in links}
+
+    monkeypatch.setattr(lc, "check_links", fake)
+    text = web.get("/links", params={"v": "example.com", "t": "domain"}).text
+    assert "check again" in text and "refresh=1" in text

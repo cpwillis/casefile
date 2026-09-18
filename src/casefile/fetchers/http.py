@@ -40,7 +40,8 @@ async def refuse_local_targets(request: httpx.Request) -> None:
 
 def build_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
-        headers={"user-agent": USER_AGENT},
+        # identity: a cap on inflated bytes is only as good as one chunk; uncompressed, the cap is the bytes on the wire
+        headers={"user-agent": USER_AGENT, "accept-encoding": "identity"},
         timeout=httpx.Timeout(connect=5.0, read=20.0, write=20.0, pool=20.0),
         follow_redirects=True,
         event_hooks={"request": [refuse_local_targets]},
@@ -68,7 +69,9 @@ async def request(
         await resp.aclose()
     # Already decoded, so the encoding and length headers would describe bytes that are no longer there.
     headers = [(k, v) for k, v in resp.headers.raw if k.lower() not in (b"content-encoding", b"content-length")]
-    return httpx.Response(resp.status_code, headers=headers, content=b"".join(body), request=req)
+    return httpx.Response(
+        resp.status_code, headers=headers, content=b"".join(body), request=resp.request, history=resp.history
+    )
 
 
 # Named so tests can zero them.

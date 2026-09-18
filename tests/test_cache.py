@@ -274,3 +274,28 @@ async def test_a_dropped_waiter_does_not_cancel_the_shared_run(tmp_path, monkeyp
     release.set()
     await asyncio.sleep(0.01)
     assert cached_result("dns", EntityType.DOMAIN, "example.com") is not None  # the run finished and was stored
+
+
+async def test_refresh_starts_a_new_run_beside_one_already_going(tmp_path, monkeypatch):
+    import asyncio
+
+    from casefile.cache import run_cached
+    from casefile.fetchers import SourceResult, State
+    from casefile.types import EntityType
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    release = asyncio.Event()
+    runs = []
+
+    async def slow(source_id, value, entity_type, client):
+        runs.append(1)
+        await release.wait()
+        return SourceResult(source_id, State.EMPTY)
+
+    first = asyncio.ensure_future(run_cached("dns", "example.com", EntityType.DOMAIN, None, runner=slow))
+    await asyncio.sleep(0)
+    second = asyncio.ensure_future(run_cached("dns", "example.com", EntityType.DOMAIN, None, refresh=True, runner=slow))
+    await asyncio.sleep(0)
+    release.set()
+    await asyncio.gather(first, second)
+    assert runs == [1, 1]

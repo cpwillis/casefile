@@ -186,3 +186,8 @@ def test_a_reload_mid_check_joins_the_running_check_instead_of_offering_to_start
     username_links = text.split('id="linkset-username"')[1].split("</ul>")[0]
     assert "Run this check" not in text and "Check for dead links" not in username_links
     assert text.count('hx-trigger="load"') >= 2  # the on-demand panel and the linkset both attach to the live run
+
+
+def test_a_missing_static_file_is_a_bare_404_not_a_page():
+    resp = client.get("/static/nothere.css")
+    assert resp.status_code == 404 and "text/html" not in resp.headers["content-type"]

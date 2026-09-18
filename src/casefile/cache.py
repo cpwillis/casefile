@@ -121,7 +121,7 @@ async def run_cached(
         return hit
     key = (source_id, str(entity_type), value)
     task = _IN_FLIGHT.get(key)
-    if task is None or task.done():
+    if refresh or task is None or task.done():  # refresh means a new run even beside one already going
         task = asyncio.ensure_future(_run_and_store(runner, source_id, value, entity_type, client, use_cache))
         _IN_FLIGHT[key] = task
         task.add_done_callback(lambda t: _IN_FLIGHT.pop(key, None) if _IN_FLIGHT.get(key) is t else None)
