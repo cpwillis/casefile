@@ -68,10 +68,14 @@ def _as_verdicts(result: SourceResult | None) -> dict[str, str] | None:
     return {f.label: f.value for f in result.findings} if result else None
 
 
+def verdicts_from(hit: SourceResult | None) -> dict[str, str] | None:
+    """The verdicts a stored check holds, or None: a check that reached nothing is not a result."""
+    return _as_verdicts(hit) if hit and hit.state == State.OK else None
+
+
 def cached_verdicts(entity_type, value: str) -> dict[str, str] | None:
     """Verdicts from an earlier check of this reading, or None. Spends no egress."""
-    hit = cached_result(SOURCE_ID, entity_type, value)
-    return _as_verdicts(hit) if hit and hit.state == State.OK else None  # a check that reached nothing is not a result
+    return verdicts_from(cached_result(SOURCE_ID, entity_type, value))
 
 
 async def check_links_cached(links, entity_type, value, client: httpx.AsyncClient, refresh=False) -> dict[str, str]:

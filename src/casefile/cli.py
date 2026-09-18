@@ -6,21 +6,33 @@ import contextlib
 import json
 import os
 import sys
+from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 
-import casefile.fetchers.sources  # noqa: F401 -- registers fetchers
 from casefile import __version__
-from casefile.cache import clear_cache, run_cached
 from casefile.cases import forget_all, list_cases, load_case
 from casefile.catalog import links_for
 from casefile.detect import FREE_FORM, detect
-from casefile.export import FORMATS, export_case, sanitize
-from casefile.fetchers import fetched_ids, fetchers_for, wmn
-from casefile.fetchers.http import build_client
-from casefile.linkcheck import check_links_cached, tally
+from casefile.export import FORMATS, export_case
+from casefile.types import sanitize
 
 REPO = "https://github.com/cpwillis/casefile"
+
+
+# The fetcher registry and httpx behind it are ~110ms of import that --version, --cases, --export and a --no-fetch
+# lookup never use, so they load on the paths that fetch.
+def _registry():
+    import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers
+    from casefile import fetchers
+
+    return fetchers
+
+
+async def run_cached(*args, **kwargs):
+    from casefile.cache import run_cached as cached
+
+    return await cached(*args, **kwargs)
 
 
 def _wanted(record, deep) -> bool:
@@ -31,10 +43,12 @@ def _wanted(record, deep) -> bool:
 
 
 async def _fetch_all(candidates, use_cache: bool = True, deep=False):
+    from casefile.fetchers.http import build_client
+
     async with build_client() as client:
         results = {}
         for c in candidates:
-            due = [r for r in fetchers_for(c.type) if _wanted(r, deep)]
+            due = [r for r in _registry().fetchers_for(c.type) if _wanted(r, deep)]
             got = await asyncio.gather(*(run_cached(r.id, c.value, c.type, client, use_cache=use_cache) for r in due))
             results[(c.type, c.value)] = got
         return results
@@ -48,6 +62,9 @@ def _shown_links(candidate, results):
 
 async def _check_all(candidates, results):
     """One verdict per link, for every reading. Opt-in like the web button: a request per link, sent from your IP."""
+    from casefile.fetchers.http import build_client
+    from casefile.linkcheck import check_links_cached
+
     async with build_client() as client:
         out = {}
         for c in candidates:  # exactly the links that are shown, so no request goes out for a link never printed
@@ -63,7 +80,7 @@ def _render_links(candidates, results, verdicts):
         for link in _shown_links(c, results):
             verdict = marks.get(link.id, "")
             lines.append(f"    {verdict:<12} {link.name:<28} {link.url}")
-        counts = tally(marks)
+        counts = Counter(marks.values())
         lines.append("    " + " · ".join(f"{n} {name}" for name, n in sorted(counts.items())))
     lines.append("\n  only 404 and 410 count as missing; blocked, redirected and unreachable tell you nothing")
     return "\n".join(lines)
@@ -90,11 +107,11 @@ def _render_text(raw, candidates, results, deep=False):
                 # the url is often the whole result (a WhatsMyName hit's value is a category), so text mode must keep it
                 url = f"  {sanitize(f.url)}" if f.url else ""
                 lines.append(f"      {sanitize(f.label)}: {sanitize(f.value)}{url}")
-            if r.source_id == wmn.SOURCE_ID and r.findings:
-                lines.append(f"      {wmn.CREDIT} {wmn.CREDIT_URL}")
+            if r.source_id == _registry().wmn.SOURCE_ID and r.findings:
+                lines.append(f"      {_registry().wmn.CREDIT} {_registry().wmn.CREDIT_URL}")
         # The web offers these as a button; here the only hint that --deep exists would otherwise be --help.
-        skipped = [r for r in fetchers_for(c.type) if r.on_demand and not _wanted(r, deep)]
-        if skipped and results:
+        skipped = [r for r in _registry().fetchers_for(c.type) if r.on_demand and not _wanted(r, deep)] if ran else []
+        if skipped:
             lines.append(f"    [on demand] {', '.join(r.id for r in skipped)}: run with --deep")
         # notes go to --json, the web and exports, not here: 46 of 49 domain sources have one and they run long
         for link in _shown_links(c, results):
@@ -214,12 +231,14 @@ def _main(argv: list[str] | None) -> int:
 
     # `--deep <target>` makes argparse hand the target to --deep, leaving no identifier and silently launching the
     # web app. If what it grabbed is not a known source id and no identifier was given, it was the identifier: all.
-    if args.value is None and args.deep and args.deep not in fetched_ids():
-        args.value, args.deep = args.deep, ""
-    if args.value is None and args.deep is not None:
-        parser.error("--deep needs an identifier to run on")
-    if unknown := set(args.deep.split(",") if args.deep else ()) - fetched_ids():
-        parser.error(f"--deep: no such source {', '.join(sorted(unknown))}; ids are {', '.join(sorted(fetched_ids()))}")
+    if args.deep is not None:
+        ids = _registry().fetched_ids()
+        if args.value is None and args.deep and args.deep not in ids:
+            args.value, args.deep = args.deep, ""
+        if args.value is None:
+            parser.error("--deep needs an identifier to run on")
+        if unknown := set(args.deep.split(",") if args.deep else ()) - ids:
+            parser.error(f"--deep: no such source {', '.join(sorted(unknown))}; ids are {', '.join(sorted(ids))}")
 
     if args.build_demo:
         from casefile.demo import build_demo
@@ -229,6 +248,8 @@ def _main(argv: list[str] | None) -> int:
         return 0
 
     if args.clear_cache:
+        from casefile.cache import clear_cache
+
         print(f"cleared {clear_cache()} cached responses")
         return 0
 

@@ -34,3 +34,9 @@ class Candidate:
 
     type: EntityType
     value: str
+
+
+def sanitize(text: str, keep: str = "") -> str:
+    """Escape non-printable third-party characters. Escaped not dropped: deleting a zero-width turns paypa<zwsp>l
+    into the name it imitates."""
+    return "".join(ch if ch.isprintable() or ch in keep else ch.encode("unicode_escape").decode("ascii") for ch in text)

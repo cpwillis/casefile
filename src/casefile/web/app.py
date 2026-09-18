@@ -18,7 +18,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers at import
-from casefile.cache import cached_result, in_flight, run_cached
+from casefile.cache import cached_results, in_flight, run_cached
 from casefile.cases import (
     CaseStoreError,
     Star,
@@ -49,7 +49,7 @@ from casefile.fetchers import (
 )
 from casefile.fetchers.http import shared_client
 from casefile.linkcheck import SOURCE_ID as LINKCHECK
-from casefile.linkcheck import cached_verdicts, check_links_cached, tally
+from casefile.linkcheck import check_links_cached, tally, verdicts_from
 from casefile.types import Candidate, EntityType
 
 _TYPES = {t.value: t for t in EntityType}
@@ -83,10 +83,11 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
     for candidate in candidates:
         panels = fetchers_for(candidate.type)
         if results is None:
-            known = {r.id: hit for r in panels if (hit := cached_result(r.id, candidate.type, candidate.value))}
+            stored = cached_results(candidate.type, candidate.value)  # one read for the panels and the link verdicts
+            known = {r.id: stored[r.id] for r in panels if r.id in stored}
             # Still running from before a reload: render as loading so the page joins that run, not a second one.
             running = {r.id for r in panels if r.on_demand and in_flight(r.id, candidate.type, candidate.value)}
-            verdicts = cached_verdicts(candidate.type, candidate.value)
+            verdicts = verdicts_from(stored.get(LINKCHECK))
             checking = verdicts is None and in_flight(LINKCHECK, candidate.type, candidate.value)
         else:
             known, running, verdicts, checking = results, set(), None, False

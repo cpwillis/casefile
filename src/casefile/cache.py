@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS responses (
     payload     TEXT NOT NULL,
     PRIMARY KEY (source_id, entity_type, value)
 );
+CREATE INDEX IF NOT EXISTS responses_fetched_at ON responses (fetched_at);  -- the sweep on open scanned every row
 """
 
 
@@ -44,18 +45,9 @@ def _ttl_for(state: str) -> float:
     return RETENTION_SECONDS if state in ANSWERED else FAILURE_RETENTION
 
 
-def _load(source_id: str, entity_type, value: str) -> SourceResult | None:
-    if not cache_path().exists():
-        return None  # a miss must not bring the store into being; only storing a response does
-    with _connect() as conn:
-        row = conn.execute(
-            "SELECT fetched_at, payload FROM responses WHERE source_id = ? AND entity_type = ? AND value = ?",
-            (source_id, str(entity_type), value),
-        ).fetchone()
-    if row is None:
-        return None
-    data = json.loads(row[1])
-    if time.time() - row[0] > _ttl_for(data["state"]):
+def _fresh(fetched_at: float, payload: str) -> SourceResult | None:
+    data = json.loads(payload)
+    if time.time() - fetched_at > _ttl_for(data["state"]):
         return None
     findings = tuple(Finding(**f) for f in data.get("findings", []))
     return SourceResult(
@@ -65,8 +57,35 @@ def _load(source_id: str, entity_type, value: str) -> SourceResult | None:
         detail=data.get("detail"),
         elapsed_ms=data.get("elapsed_ms", 0),
         # From the row, not the payload: the payload carries its own fetched_at and it would be the stale one.
-        fetched_at=row[0],
+        fetched_at=fetched_at,
     )
+
+
+def _load(source_id: str, entity_type, value: str) -> SourceResult | None:
+    if not cache_path().exists():
+        return None  # a miss must not bring the store into being; only storing a response does
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT fetched_at, payload FROM responses WHERE source_id = ? AND entity_type = ? AND value = ?",
+            (source_id, str(entity_type), value),
+        ).fetchone()
+    return _fresh(*row) if row else None
+
+
+def cached_results(entity_type, value: str) -> dict[str, SourceResult]:
+    """Every fresh stored response for one reading, one query: a page has a dozen panels and opened a store each."""
+    if not cache_path().exists():
+        return {}
+    try:
+        with _connect() as conn:
+            rows = conn.execute(
+                "SELECT fetched_at, payload FROM responses WHERE entity_type = ? AND value = ?",
+                (str(entity_type), value),
+            ).fetchall()
+    except Exception:  # noqa: BLE001 -- a broken cache must never break a render
+        return {}
+    fresh = (_fresh(*row) for row in rows)
+    return {r.source_id: r for r in fresh if r}
 
 
 def _store(result: SourceResult, entity_type, value: str) -> None:

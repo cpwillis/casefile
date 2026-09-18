@@ -7,8 +7,22 @@ from html import escape
 from itertools import groupby
 
 from casefile.cases import Case
-from casefile.fetchers import sanitize, source_note
-from casefile.fetchers.wmn import CREDIT, CREDIT_URL, SOURCE_ID
+from casefile.types import sanitize
+
+
+# Behind these two sits httpx, ~45ms the CLI's case commands should not pay to import this module.
+def _wmn():
+    from casefile.fetchers import wmn
+
+    return wmn
+
+
+def _note(source_id: str) -> str | None:
+    import casefile.fetchers.sources  # noqa: F401 -- the notes live on the registered fetchers
+    from casefile.fetchers import source_note
+
+    return source_note(source_id)
+
 
 _SAFE_SCHEMES = ("https://", "http://")
 
@@ -49,7 +63,7 @@ def safe_url(url: str | None) -> str | None:
 
 def _credit(case: Case) -> bool:
     """CC BY-SA wants attribution where used, and an export is the one artifact that leaves without the licence."""
-    return any(s.source_id == SOURCE_ID for s in case.stars)
+    return any(s.source_id == _wmn().SOURCE_ID for s in case.stars)
 
 
 def _by_target(case: Case):
@@ -75,7 +89,7 @@ def _to_markdown(case: Case) -> str:
         lines += ["", f"## {_md(target_value)}", "", f"`{_md(target_type)}`"]
         for source_id, stars in sources:
             lines += ["", f"### {_md(source_id)}", ""]
-            if note := source_note(source_id):  # the polarity caveat: a known-good hit and a malware hit look alike
+            if note := _note(source_id):  # the polarity caveat: a known-good hit and a malware hit look alike
                 lines += [f"_{_md(note)}_", ""]
             for s in stars:
                 url = safe_url(s.url)
@@ -86,7 +100,7 @@ def _to_markdown(case: Case) -> str:
                 lines.append(f"- **{_md(s.label)}**: {rendered}{seen}")
     lines += ["", "---", "", "Exported by casefile. Only starred findings are included."]
     if _credit(case):
-        lines += ["", f"{_md(CREDIT)} {CREDIT_URL}"]
+        lines += ["", f"{_md(_wmn().CREDIT)} {_wmn().CREDIT_URL}"]
     return "\n".join(lines) + "\n"
 
 
@@ -94,7 +108,7 @@ def _to_json(case: Case) -> str:
     """asdict, not a hand-copied subset: a hand-written payload drifts below what the other renderers show."""
     payload = asdict(case)
     if _credit(case):
-        payload["attribution"] = [{"text": CREDIT, "url": CREDIT_URL}]
+        payload["attribution"] = [{"text": _wmn().CREDIT, "url": _wmn().CREDIT_URL}]
     return json.dumps(payload, indent=2)
 
 
@@ -120,7 +134,7 @@ def _to_html(case: Case) -> str:
         parts.append(f'<h2>{escape(target_value)} <span class="meta">{escape(target_type)}</span></h2>')
         for source_id, stars in sources:
             parts.append(f"<h3>{escape(source_id)}</h3>")
-            if note := source_note(source_id):
+            if note := _note(source_id):
                 parts.append(f'<p class="meta">{escape(note)}</p>')
             parts.append("<ul>")
             for s in stars:
@@ -136,8 +150,8 @@ def _to_html(case: Case) -> str:
     parts.append('<p class="meta">Exported by casefile. Only starred findings are included.</p>')
     if _credit(case):
         parts.append(
-            f'<p class="meta">{escape(CREDIT)} '
-            f'<a href="{CREDIT_URL}" rel="noreferrer noopener">{escape(CREDIT_URL)}</a></p>'
+            f'<p class="meta">{escape(_wmn().CREDIT)} '
+            f'<a href="{_wmn().CREDIT_URL}" rel="noreferrer noopener">{escape(_wmn().CREDIT_URL)}</a></p>'
         )
     parts.append("</body></html>")
     return "\n".join(parts) + "\n"
