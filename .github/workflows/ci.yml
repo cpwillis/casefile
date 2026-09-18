@@ -12,12 +12,15 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13"]  # every version the metadata claims
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
-      - run: uv sync --all-extras --dev
+      - run: uv sync --all-extras --dev --python ${{ matrix.python }}
       # `make check` and nothing else, so the README's claim that this is exactly what CI runs
       # stays true without anyone having to remember to update three lists.
       - run: make check

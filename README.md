@@ -14,7 +14,7 @@ On [PyPI](https://pypi.org/project/casefile/). With [uv](https://docs.astral.sh/
 uvx casefile
 ```
 
-`uv tool install casefile` keeps it on your path; `pip install casefile` works too. To run from source instead:
+`uv tool install casefile` keeps it on your path; `pip install casefile` works too on Python 3.11 or newer. To run from source instead:
 
 ```bash
 git clone https://github.com/cpwillis/casefile
