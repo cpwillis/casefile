@@ -6,7 +6,7 @@ id = "nhtsa-vpic-decode-vin"
 name = "NHTSA vPIC VIN Decoder"
 accepts = ["vin"]
 url = "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/{value}?format=json"
-notes = "Free US government VIN decoder API; VIN in path, returns nested JSON of make/model/year/specs. Verified live."
+notes = "Free US government VIN decoder API; VIN in path, returns nested JSON of make/model/year/specs."
 provenance = "NHTSA vPIC public government API"
 
 [[source]]
@@ -14,7 +14,7 @@ id = "nhtsa-vpic-decode-vin-values"
 name = "NHTSA vPIC VIN Decoder (flat)"
 accepts = ["vin"]
 url = "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/{value}?format=json"
-notes = "Same vPIC decoder, flat single-object JSON output. Verified live."
+notes = "Same vPIC decoder, flat single-object JSON output."
 provenance = "NHTSA vPIC public government API"
 
 [[source]]
@@ -30,7 +30,7 @@ id = "vindecoderz"
 name = "Vindecoderz VIN Lookup"
 accepts = ["vin"]
 url = "https://www.vindecoderz.com/EN/check-lookup/{value}"
-notes = "Free VIN lookup; VIN in path under /EN/check-lookup/. Bot-blocks automated fetches but publicly viewable in a browser."
+notes = "Free VIN lookup; VIN in path under /EN/check-lookup/. Bot-blocks an automated fetch; fine in a browser."
 provenance = "Well-known public VIN decoder"
 
 [[source]]
@@ -38,7 +38,7 @@ id = "macvendors-api"
 name = "macvendors.com API"
 accepts = ["mac"]
 url = "https://api.macvendors.com/{value}"
-notes = "Returns plain-text vendor for a MAC/OUI prefix. Accepts colon/hyphen separators. Verified live (Cisco)."
+notes = "Returns plain-text vendor for a MAC/OUI prefix. Accepts colon/hyphen separators."
 provenance = "awesome-osint"
 
 [[source]]
@@ -46,7 +46,7 @@ id = "macvendors-query"
 name = "macvendors.com Lookup"
 accepts = ["mac"]
 url = "https://macvendors.com/query/{value}"
-notes = "Browser-facing vendor lookup page; MAC in path. Verified returns vendor."
+notes = "Browser-facing vendor lookup page; MAC in path."
 provenance = "awesome-osint"
 
 [[source]]
@@ -54,7 +54,7 @@ id = "maclookup-app"
 name = "maclookup.app MAC Search"
 accepts = ["mac"]
 url = "https://maclookup.app/search/result?mac={value}"
-notes = "Vendor, block type, registration details. MAC in ?mac= query. Verified live (Cisco)."
+notes = "Vendor, block type, registration details. MAC in ?mac= query."
 provenance = "Well-known MAC/OUI vendor lookup"
 
 [[source]]
@@ -62,6 +62,6 @@ id = "macvendorlookup-api"
 name = "macvendorlookup.com API"
 accepts = ["mac"]
 url = "https://www.macvendorlookup.com/api/v2/{value}"
-notes = "Returns vendor name and registered address JSON; MAC in path. Verified live (Cisco)."
+notes = "Returns vendor name and registered address JSON; MAC in path."
 provenance = "Well-known MAC vendor lookup"
 

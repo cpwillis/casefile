@@ -30,7 +30,7 @@ id = "vesselfinder-imo"
 name = "VesselFinder (IMO)"
 accepts = ["imo"]
 url = "https://www.vesselfinder.com/?imo={value}"
-notes = "Confirmed: ?imo= resolves to the specific vessel details page (IMO overrides MMSI). Bellingcat toolkit source."
+notes = "Vessel details page by IMO, which overrides MMSI. Bellingcat toolkit source."
 provenance = "awesome-osint"
 
 [[source]]

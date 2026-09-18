@@ -73,7 +73,8 @@
 
   <div class="danger-zone">
     <form method="post" action="/case/{{ case.id | urlencode }}/delete"
-          onsubmit='return confirm({{ ("Delete “" ~ case.name ~ "”, its " ~ (case.targets | length) ~ " identifier(s) and " ~ case.star_count ~ " saved finding(s)? This cannot be undone.") | tojson }});'>
+          {% set n_ids = case.targets | length %}
+          onsubmit='return confirm({{ ("Delete “" ~ case.name ~ "”, its " ~ n_ids ~ " identifier" ~ ("s" if n_ids != 1) ~ " and " ~ case.star_count ~ " saved finding" ~ ("s" if case.star_count != 1) ~ "? This cannot be undone.") | tojson }});'>
       <button type="submit" class="danger">Delete this case</button>
     </form>
   </div>

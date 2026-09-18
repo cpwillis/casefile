@@ -47,7 +47,7 @@
     {% endfor %}
   </ul>
   {% elif result.state == "empty" %}
-  <p class="muted">{{ source_name(result.source_id) }} answered and had nothing for this</p>
+  <p class="muted">{{ source_name(result.source_id) }} found nothing for this</p>
   {% elif result.state == "needs_key" %}
   <p class="muted">needs a key: {{ result.detail }}</p>
   {% else %}

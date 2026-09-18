@@ -190,7 +190,7 @@ id = "icann-lookup"
 name = "ICANN Lookup"
 accepts = ["domain"]
 url = "https://lookup.icann.org/en/lookup?q={value}"
-notes = "Official ICANN registration data lookup tool; replaces the old whois.icann.org. Verified live."
+notes = "Official ICANN registration data lookup tool; replaces the old whois.icann.org."
 provenance = "verified 2026-08-28"
 
 [[source]]

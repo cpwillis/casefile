@@ -104,7 +104,7 @@ deliberately.
 | Saved cases | `${XDG_DATA_HOME:-~/.local/share}/casefile/cases.db` | until deleted | `--forget-cases` |
 
 The cache is keyed on the identifier searched, so it is in effect a local log of what you looked up, written whether
-or not you star anything. On-demand checks and dead-link verdicts are cached the same way, so a reload or a return to
+or not you save anything. On-demand checks and dead-link verdicts are cached the same way, so a reload or a return to
 an earlier search shows them without re-running, and a check still running when the page reloads is joined, not
 restarted. Expired rows are swept on open, not on write. Both files are `0600` inside a `0700`
 directory, and a purge unlinks the file plus its `-journal`/`-wal`/`-shm` siblings rather than deleting rows, which

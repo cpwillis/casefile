@@ -36,5 +36,5 @@ id = "mozilla-observatory"
 name = "Mozilla HTTP Observatory"
 accepts = ["domain"]
 url = "https://developer.mozilla.org/en-US/observatory/analyze?host={value}"
-notes = "HTTP security header grading; observatory now lives under MDN. Verified live."
+notes = "HTTP security header grading; observatory now lives under MDN."
 provenance = "verified 2026-08-28"

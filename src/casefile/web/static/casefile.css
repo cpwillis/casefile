@@ -95,6 +95,7 @@ a { color: var(--accent); }
 .rename input { flex: 1; max-width: 26rem; padding: 6px 8px; font-size: 20px; font-weight: 600; }
 .rename button { padding: 6px 12px; cursor: pointer; }
 form.inline { display: inline; }
+/* Lowercase, like search and copy: inline secondary actions. Primary buttons (Rename, Search) keep Title Case. */
 .linkish { background: none; border: 0; padding: 0; cursor: pointer; color: var(--accent);
            font: inherit; text-decoration: underline; }
 .save-state { font-size: 13px; margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
