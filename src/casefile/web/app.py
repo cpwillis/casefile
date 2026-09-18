@@ -439,5 +439,7 @@ def serve(port: int = 8765, host: str = "127.0.0.1", open_browser: bool = True) 
     if open_browser:
         # ponytail: fixed 0.5s, not a uvicorn hook, so tests importing `app` never open a browser; raise if racy.
         threading.Timer(0.5, webbrowser.open, [url]).start()
-    uvicorn.run(with_resume(app), host=host, port=port, log_level="warning")
+    # 5s, not the request's own lifetime: ctrl-c during a 60s sweep otherwise needs a second ctrl-c. The sweep's
+    # job row survives the cancellation, so the next start picks it up where its checkpoint left it.
+    uvicorn.run(with_resume(app), host=host, port=port, log_level="warning", timeout_graceful_shutdown=5)
     return 0

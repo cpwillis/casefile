@@ -1,3 +1,5 @@
+import pytest
+
 from casefile.cache import RETENTION_SECONDS, cache_path, clear_cache, run_cached
 from casefile.fetchers import Finding, State, fetcher
 from casefile.types import EntityType
@@ -379,3 +381,34 @@ async def test_a_refresh_does_not_replay_the_crumbs_of_the_run_it_replaces():
     Checkpoint(key).save({"a": "done"})
     _job_start(key, reset=True)
     assert Checkpoint(key).load() == {}
+
+
+async def test_a_cancelled_run_keeps_its_job_row_for_the_next_start(tmp_path, monkeypatch):
+    """ctrl-c is the normal restart: the row and its crumbs must outlive it, or nothing ever resumes."""
+    import asyncio
+
+    from casefile.cache import pending_jobs, run_cached
+    from casefile.fetchers import SourceResult, State
+    from casefile.types import EntityType
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    started = asyncio.Event()
+
+    async def slow(source_id, value, entity_type, client, checkpoint=None):
+        started.set()
+        await asyncio.sleep(3600)
+        return SourceResult(source_id, State.EMPTY)
+
+    task = asyncio.ensure_future(run_cached("dns", "example.com", EntityType.DOMAIN, None, runner=slow))
+    await started.wait()
+    assert pending_jobs() == [("dns", "domain", "example.com")]
+    task.cancel()
+    await asyncio.sleep(0)
+    assert pending_jobs() == [("dns", "domain", "example.com")]
+
+    async def broken(source_id, value, entity_type, client, checkpoint=None):
+        raise RuntimeError("no")
+
+    with pytest.raises(RuntimeError):
+        await run_cached("dns", "example.com", EntityType.DOMAIN, None, refresh=True, runner=broken)
+    assert pending_jobs() == []  # a run that failed on its own is not retried on every start

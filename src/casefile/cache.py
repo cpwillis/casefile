@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import time
+from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
@@ -44,11 +45,16 @@ def cache_path() -> Path:
     return Path(base) / "casefile" / "cache.db"
 
 
+@contextmanager
 def _connect():
     conn = store.connect(cache_path(), _SCHEMA)
-    # Swept on open, not on write: an offline session caches nothing and would keep yesterday's terms forever.
-    conn.execute("DELETE FROM responses WHERE fetched_at < ?", (time.time() - RETENTION_SECONDS,))
-    return conn
+    try:
+        # Swept on open, not on write: an offline session caches nothing and would keep yesterday's terms forever.
+        conn.execute("DELETE FROM responses WHERE fetched_at < ?", (time.time() - RETENTION_SECONDS,))
+        with conn:  # commit on success, roll back on error
+            yield conn
+    finally:
+        conn.close()  # not left to refcounting: a lingering connection holds the write lock against the next one
 
 
 def _ttl_for(state: str) -> float:
@@ -210,11 +216,14 @@ async def _run_and_store(runner, source_id, value, entity_type, client, use_cach
             pass
     try:
         result = await runner(source_id, value, entity_type, client, checkpoint)
-    finally:
-        # Gone whether the run succeeded, failed or was cancelled, so a normal CLI exit leaves no stale row.
+    except asyncio.CancelledError:
+        raise  # ctrl-c or shutdown mid-run: the row stays, and the crumbs with it, so the next start resumes here
+    except BaseException:
         if use_cache:
-            forget_job(source_id, entity_type, value)
+            forget_job(source_id, entity_type, value)  # a run that failed on its own is not retried on every start
+        raise
     if use_cache:
+        forget_job(source_id, entity_type, value)
         try:  # noqa: SIM105
             _store(result, entity_type, value)
         except Exception:  # noqa: BLE001 -- failing to cache is not failing to fetch

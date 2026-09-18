@@ -253,7 +253,11 @@ def _main(argv: list[str] | None) -> int:
     if args.clear_cache:
         from casefile.cache import clear_cache
 
-        print(f"cleared {clear_cache()} cached responses")
+        try:
+            print(f"cleared {clear_cache()} cached responses")
+        except OSError as exc:
+            print(f"could not clear the cache: {exc}", file=sys.stderr)
+            return 1
         return 0
 
     if args.forget_cases:
@@ -264,7 +268,11 @@ def _main(argv: list[str] | None) -> int:
             if answer.strip().lower() not in ("y", "yes"):
                 print("kept", file=sys.stderr)
                 return 1
-        print(f"forgot {forget_all()} saved cases")
+        try:
+            print(f"forgot {forget_all()} saved cases")
+        except OSError as exc:
+            print(f"could not delete the cases: {exc}", file=sys.stderr)
+            return 1
         return 0
 
     if args.cases:
