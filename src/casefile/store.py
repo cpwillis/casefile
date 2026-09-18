@@ -2,7 +2,7 @@
 
 import os
 import sqlite3
-from contextlib import closing
+from contextlib import closing, suppress
 from pathlib import Path
 
 _SIDECARS = ("-journal", "-wal", "-shm")
@@ -16,7 +16,12 @@ def connect(path: Path, schema: str) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     os.chmod(path, 0o600)
     conn.execute("PRAGMA foreign_keys = ON")  # off by default, and cases' cascade depends on it
-    conn.execute("PRAGMA journal_mode = WAL")  # readers do not block the writer: a panel storm ran 2x faster
+    # WAL: readers do not block the writer, a panel storm ran 2x faster. fetchall, not fetchone: a cursor left
+    # half-read keeps a read snapshot open, and BEGIN IMMEDIATE on top of one fails at once instead of waiting.
+    if conn.execute("PRAGMA journal_mode").fetchall() != [("wal",)]:
+        # The switch needs the file to itself; a sibling first connection is making it, and this one inherits it.
+        with suppress(sqlite3.OperationalError):
+            conn.execute("PRAGMA journal_mode = WAL").fetchall()
     conn.executescript(schema)
     return conn
 
