@@ -48,13 +48,23 @@ async def check_link(url: str, client: httpx.AsyncClient) -> str:
 _CONCURRENCY = 8
 
 
-async def check_links(links, client: httpx.AsyncClient) -> dict[str, str]:
-    """One verdict per link id. Never raises: a probe that fell over is its own verdict."""
+async def check_links(links, client: httpx.AsyncClient, checkpoint=None) -> dict[str, str]:
+    """One verdict per link id. Never raises: a probe that fell over is its own verdict.
+
+    `checkpoint` carries the verdicts of a run a restart interrupted, so those links are not probed a second time.
+    """
+    done = checkpoint.load() if checkpoint else {}
     budget = asyncio.Semaphore(_CONCURRENCY)
 
     async def one(link):
+        if link.id in done:
+            return done[link.id]
         async with budget:
-            return await check_link(link.url, client)
+            verdict = await check_link(link.url, client)
+        done[link.id] = verdict
+        if checkpoint:
+            checkpoint.save(done)  # throttled there, so this is not a write per link
+        return verdict
 
     verdicts = await asyncio.gather(*(one(link) for link in links))
     return dict(zip((link.id for link in links), verdicts, strict=True))
@@ -81,8 +91,8 @@ def cached_verdicts(entity_type, value: str) -> dict[str, str] | None:
 async def check_links_cached(links, entity_type, value, client: httpx.AsyncClient, refresh=False) -> dict[str, str]:
     """check_links through the response cache: a reload or a return to this search must not re-probe every link."""
 
-    async def runner(source_id, _value, _entity_type, client):
-        verdicts = await check_links(links, client)
+    async def runner(source_id, _value, _entity_type, client, checkpoint=None):
+        verdicts = await check_links(links, client, checkpoint)
         # Every probe failing is the network, not the links: keep it for minutes like any failed source, not a day.
         state = State.OK if set(verdicts.values()) - {UNREACHABLE} else State.ERROR
         return SourceResult(source_id, state, tuple(Finding(label=k, value=v) for k, v in verdicts.items()))

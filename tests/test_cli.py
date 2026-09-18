@@ -231,7 +231,7 @@ def test_check_links_reports_a_verdict_per_link(monkeypatch, capsys):
 
     runs = []
 
-    async def fake(links, client):
+    async def fake(links, client, *_):
         runs.append(1)
         return {link.id: "missing" if link.id == "crtsh" else "live" for link in links}
 

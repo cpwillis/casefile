@@ -74,7 +74,7 @@ def test_the_link_list_offers_the_check_but_never_runs_it_on_page_load(monkeypat
     """Egress consent: dozens of third-party requests from your IP are not something a page load does by itself."""
     import casefile.linkcheck as lc
 
-    async def explode(links, client):
+    async def explode(links, client, *_):
         raise AssertionError("a page load probed the links")
 
     monkeypatch.setattr(lc, "check_links", explode)
@@ -86,7 +86,7 @@ def test_the_link_list_offers_the_check_but_never_runs_it_on_page_load(monkeypat
 def test_the_check_route_renders_verdicts_against_the_links(monkeypatch):
     import casefile.linkcheck as lc
 
-    async def fake(links, client):
+    async def fake(links, client, *_):
         return {link.id: (MISSING if link.id == "crtsh" else LIVE) for link in links}
 
     monkeypatch.setattr(lc, "check_links", fake)
@@ -120,7 +120,7 @@ def test_verdicts_survive_a_reload_and_a_return_to_the_search(monkeypatch):
 
     runs = []
 
-    async def fake(links, client):
+    async def fake(links, client, *_):
         runs.append(1)
         return {link.id: LIVE for link in links}
 
@@ -138,7 +138,7 @@ async def test_a_check_that_reached_nothing_is_not_kept_as_a_result(monkeypatch)
     import casefile.linkcheck as lc
     from casefile.types import EntityType
 
-    async def offline(links, client):
+    async def offline(links, client, *_):
         return {link.id: UNREACHABLE for link in links}
 
     monkeypatch.setattr(lc, "check_links", offline)
@@ -150,9 +150,32 @@ async def test_a_check_that_reached_nothing_is_not_kept_as_a_result(monkeypatch)
 def test_the_rendered_verdicts_offer_a_re_check(monkeypatch):
     import casefile.linkcheck as lc
 
-    async def fake(links, client):
+    async def fake(links, client, *_):
         return {link.id: LIVE for link in links}
 
     monkeypatch.setattr(lc, "check_links", fake)
     text = web.get("/links", params={"v": "example.com", "t": "domain"}).text
     assert "check again" in text and "refresh=1" in text
+
+
+async def test_a_resumed_check_skips_the_links_the_interrupted_one_had_verdicts_for():
+    """Dozens of requests per reading: a restart mid-check must not re-probe the links already answered."""
+    from casefile.cache import Checkpoint, _job_start
+
+    links = [
+        Link(id="a", name="A", url="https://h.test/a"),
+        Link(id="b", name="B", url="https://h.test/b"),
+    ]
+    asked = []
+
+    def handler(request):
+        asked.append(request.url.path)
+        return httpx.Response(200)
+
+    key = ("linkcheck", "domain", "example.com")
+    _job_start(key)
+    Checkpoint(key).save({"a": MISSING})
+    async with mock_client(handler) as client:
+        verdicts = await check_links(links, client, Checkpoint(key))
+    assert asked == ["/b"]
+    assert verdicts == {"a": MISSING, "b": LIVE}

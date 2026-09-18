@@ -191,3 +191,42 @@ def test_a_reload_mid_check_joins_the_running_check_instead_of_offering_to_start
 def test_a_missing_static_file_is_a_bare_404_not_a_page():
     resp = client.get("/static/nothere.css")
     assert resp.status_code == 404 and "text/html" not in resp.headers["content-type"]
+
+
+async def test_a_run_interrupted_by_a_restart_is_resumed_on_start():
+    """The point of the jobs table: a reloaded page joins the resumed run rather than finding it gone."""
+    import asyncio
+
+    from casefile.cache import _job_start, in_flight, pending_jobs
+    from casefile.fetchers import Finding, fetcher
+    from casefile.types import EntityType
+    from casefile.web.app import resume_jobs
+
+    started = []
+
+    @fetcher(id="resume-me", accepts=[EntityType.DOMAIN], on_demand=True)
+    async def _f(value, entity_type, client):
+        started.append(value)
+        return [Finding(label="A", value="1")]
+
+    _job_start(("resume-me", "domain", "example.com"))
+    await resume_jobs()
+    assert in_flight("resume-me", EntityType.DOMAIN, "example.com")
+    await asyncio.sleep(0)
+    assert started == ["example.com"]
+    assert pending_jobs() == []
+
+
+async def test_a_job_naming_nothing_resumable_is_dropped_rather_than_retried_on_every_start():
+    from casefile.cache import _job_start, pending_jobs
+    from casefile.web.app import resume_jobs
+
+    _job_start(("no-such-source", "domain", "example.com"))
+    _job_start(("dns", "not-a-type", "example.com"))
+    await resume_jobs()
+    assert pending_jobs() == []
+
+
+def test_the_resume_wrapper_is_what_serve_runs_not_the_bare_app():
+    """`app` must stay hook-free for importers, so the resume can only ride on what serve hands uvicorn."""
+    assert "with_resume(app)" in inspect.getsource(serve)

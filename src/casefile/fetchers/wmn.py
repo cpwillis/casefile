@@ -75,6 +75,21 @@ def account_exists(site: Site, status: int, body: str) -> bool:
 _CONCURRENCY = 12
 
 _UNREACHABLE = object()  # this site could not be reached at all, as distinct from "no account"
+_UNREACHABLE_CRUMB = "unreachable"
+
+
+def _crumb(outcome) -> dict | str | None:
+    """One site's outcome, small enough to keep several hundred of in one JSON column. The label is the site name."""
+    if outcome is _UNREACHABLE:
+        return _UNREACHABLE_CRUMB
+    return {"value": outcome.value, "url": outcome.url} if isinstance(outcome, Finding) else None
+
+
+def _replay(site: Site, crumb):
+    """A crumb read back as the outcome it stood for, so a resumed sweep does not re-request the site."""
+    if crumb == _UNREACHABLE_CRUMB:
+        return _UNREACHABLE
+    return Finding(label=site.name, value=crumb["value"], url=crumb["url"]) if crumb else None
 
 
 async def _check_one(site: Site, username: str, client: httpx.AsyncClient) -> Finding | None | object:
@@ -98,15 +113,24 @@ async def _check_one(site: Site, username: str, client: httpx.AsyncClient) -> Fi
     note="Presence of a profile page, not proof the same person owns it.",
     on_demand=True,
     cost_note="queries several hundred sites from your IP and takes 30 to 60 seconds",
+    checkpointed=True,
 )
-async def whatsmyname(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+async def whatsmyname(value: str, entity_type: EntityType, client: httpx.AsyncClient, checkpoint=None) -> list[Finding]:
     sites = load_sites()
+    # Sites already checked before a restart; a minute of work, so it is resumed rather than started again.
+    done = checkpoint.load() if checkpoint else {}
     # Its own budget: several hundred checks through the global limiter queued every other panel behind this.
     budget = asyncio.Semaphore(_CONCURRENCY)
 
     async def check(site):
+        if site.name in done:
+            return _replay(site, done[site.name])
         async with budget:
-            return await _check_one(site, value, client)
+            outcome = await _check_one(site, value, client)
+        done[site.name] = _crumb(outcome)
+        if checkpoint:
+            checkpoint.save(done)  # throttled there, so this is not a write per site
+        return outcome
 
     results = await asyncio.gather(*(check(s) for s in sites))
     unreachable = sum(1 for r in results if r is _UNREACHABLE)

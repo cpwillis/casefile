@@ -24,7 +24,17 @@ CREATE TABLE IF NOT EXISTS responses (
     PRIMARY KEY (source_id, entity_type, value)
 );
 CREATE INDEX IF NOT EXISTS responses_fetched_at ON responses (fetched_at);  -- the sweep on open scanned every row
+CREATE TABLE IF NOT EXISTS jobs (
+    source_id   TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    value       TEXT NOT NULL,
+    started_at  REAL NOT NULL,
+    progress    TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY (source_id, entity_type, value)
+);
 """
+# One write a second, not one per site: a 600-site sweep would otherwise be 600 transactions to save 600 crumbs.
+CHECKPOINT_INTERVAL = 1.0
 
 
 def cache_path() -> Path:
@@ -118,8 +128,92 @@ def in_flight(source_id, entity_type, value) -> bool:
     return (source_id, str(entity_type), value) in _IN_FLIGHT
 
 
-async def _run_and_store(runner, source_id, value, entity_type, client, use_cache: bool) -> SourceResult:
-    result = await runner(source_id, value, entity_type, client)
+def _job_start(key: tuple[str, str, str], reset: bool = False) -> None:
+    """Record a run so a restart can pick it up. OR IGNORE, so a resume keeps the crumbs it is resuming from."""
+    with _connect() as conn:
+        if reset:  # a refresh must re-probe, not replay the crumbs of the run it replaces
+            conn.execute("DELETE FROM jobs WHERE source_id = ? AND entity_type = ? AND value = ?", key)
+        conn.execute(
+            "INSERT OR IGNORE INTO jobs (source_id, entity_type, value, started_at) VALUES (?, ?, ?, ?)",
+            (*key, time.time()),
+        )
+
+
+def forget_job(source_id, entity_type, value) -> None:
+    """Drop a job row: the run finished, or it can never be resumed and must not be retried on every start."""
+    try:  # noqa: SIM105
+        with _connect() as conn:
+            conn.execute(
+                "DELETE FROM jobs WHERE source_id = ? AND entity_type = ? AND value = ?",
+                (source_id, str(entity_type), value),
+            )
+    except Exception:  # noqa: BLE001 -- a broken cache must never break a run
+        pass
+
+
+def pending_jobs() -> list[tuple[str, str, str]]:
+    """Runs a restart interrupted, oldest first. Reads only: a miss must not bring the store into being."""
+    if not cache_path().exists():
+        return []
+    try:
+        with _connect() as conn:
+            rows = conn.execute("SELECT source_id, entity_type, value FROM jobs ORDER BY started_at").fetchall()
+    except Exception:  # noqa: BLE001 -- a broken cache must never break startup
+        return []
+    return [tuple(row) for row in rows]
+
+
+class Checkpoint:
+    """Crumbs a long run drops into its job row, so a resumed run skips the items that already finished.
+
+    Generic on purpose: a runner with nothing worth resuming from is handed one and ignores it.
+    """
+
+    def __init__(self, key: tuple[str, str, str]):
+        self._key = key
+        self._saved_at = 0.0
+
+    def load(self) -> dict:
+        try:
+            with _connect() as conn:
+                row = conn.execute(
+                    "SELECT progress FROM jobs WHERE source_id = ? AND entity_type = ? AND value = ?", self._key
+                ).fetchone()
+        except Exception:  # noqa: BLE001 -- no crumbs just means starting over, slower but correct
+            return {}
+        return json.loads(row[0]) if row and row[0] else {}
+
+    def save(self, progress: dict) -> None:
+        now = time.monotonic()
+        if now - self._saved_at < CHECKPOINT_INTERVAL:
+            return
+        self._saved_at = now
+        try:  # noqa: SIM105
+            with _connect() as conn:
+                conn.execute(
+                    "UPDATE jobs SET progress = ? WHERE source_id = ? AND entity_type = ? AND value = ?",
+                    (json.dumps(progress), *self._key),
+                )
+        except Exception:  # noqa: BLE001 -- failing to checkpoint is not failing to fetch
+            pass
+
+
+async def _run_and_store(runner, source_id, value, entity_type, client, use_cache: bool, refresh: bool) -> SourceResult:
+    key = (source_id, str(entity_type), value)
+    # use_cache off is the privacy path: nothing is written, so there is no job row and nothing to resume.
+    checkpoint = None
+    if use_cache:
+        try:
+            _job_start(key, reset=refresh)
+            checkpoint = Checkpoint(key)
+        except Exception:  # noqa: BLE001 -- a run that cannot be resumed is still a run
+            pass
+    try:
+        result = await runner(source_id, value, entity_type, client, checkpoint)
+    finally:
+        # Gone whether the run succeeded, failed or was cancelled, so a normal CLI exit leaves no stale row.
+        if use_cache:
+            forget_job(source_id, entity_type, value)
     if use_cache:
         try:  # noqa: SIM105
             _store(result, entity_type, value)
@@ -135,13 +229,15 @@ async def run_cached(
 
     `use_cache` off means never touch the cache (privacy); `refresh` means ignore the stored answer but still write.
     `runner` defaults to the fetcher registry; the link checker passes its own so verdicts share this machinery.
+    A run is recorded in `jobs` while it lasts, and handed a Checkpoint, so a restart can resume it where it stopped.
     """
     if use_cache and not refresh and (hit := cached_result(source_id, entity_type, value)) is not None:
         return hit
     key = (source_id, str(entity_type), value)
     task = _IN_FLIGHT.get(key)
     if refresh or task is None or task.done():  # refresh means a new run even beside one already going
-        task = asyncio.ensure_future(_run_and_store(runner, source_id, value, entity_type, client, use_cache))
+        coro = _run_and_store(runner, source_id, value, entity_type, client, use_cache, refresh)
+        task = asyncio.ensure_future(coro)
         _IN_FLIGHT[key] = task
         task.add_done_callback(lambda t: _IN_FLIGHT.pop(key, None) if _IN_FLIGHT.get(key) is t else None)
     # Shielded: the browser dropping this request (a reload) must not cancel a run other waiters share.

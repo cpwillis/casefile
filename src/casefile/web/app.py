@@ -1,5 +1,6 @@
 """Starlette app. Binds loopback only; this is a local tool, not a service."""
 
+import asyncio
 import hashlib
 import re
 import threading
@@ -18,7 +19,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers at import
-from casefile.cache import cached_results, in_flight, run_cached
+from casefile.cache import cached_result, cached_results, forget_job, in_flight, pending_jobs, run_cached
 from casefile.cases import (
     CaseStoreError,
     Star,
@@ -348,6 +349,37 @@ async def case_delete(request: Request) -> Response:
     return RedirectResponse("/cases", status_code=303)
 
 
+async def resume_jobs() -> None:
+    """Relaunch the runs a restart interrupted, so a reloaded page joins them instead of finding them gone."""
+    for source_id, entity_type, value in pending_jobs():
+        target = _TYPES.get(entity_type)
+        known = source_id == LINKCHECK or registered_fetcher(source_id) is not None
+        if target is None or not known or cached_result(source_id, target, value) is not None:
+            # Unresumable, or it finished and only the row outlived the process. Either way, stop retrying it.
+            forget_job(source_id, entity_type, value)
+            continue
+        if source_id == LINKCHECK:
+            links = links_for(Candidate(target, value), exclude=fetched_ids())
+            coro = check_links_cached(links, target, value, shared_client())
+        else:
+            coro = run_cached(source_id, value, target, shared_client())
+        # Fire and forget: a resumed run that fails clears its own row, so a broken source cannot loop forever.
+        asyncio.ensure_future(coro)
+    # One tick so each task reaches its first await and registers itself, making in_flight true for the next request.
+    await asyncio.sleep(0)
+
+
+def with_resume(asgi):
+    """Resume on server start without a hook on `app` itself, which every importer, CI included, would fire."""
+
+    async def wrapped(scope, receive, send):
+        if scope["type"] == "lifespan":
+            asyncio.ensure_future(resume_jobs())
+        await asgi(scope, receive, send)
+
+    return wrapped
+
+
 # Host pin is what stops DNS rebinding, which Sec-Fetch-Site cannot: a rebound name is same-origin to the browser.
 _TRUSTED_HOSTS = ["127.0.0.1", "localhost"]
 
@@ -407,5 +439,5 @@ def serve(port: int = 8765, host: str = "127.0.0.1", open_browser: bool = True) 
     if open_browser:
         # ponytail: fixed 0.5s, not a uvicorn hook, so tests importing `app` never open a browser; raise if racy.
         threading.Timer(0.5, webbrowser.open, [url]).start()
-    uvicorn.run(app, host=host, port=port, log_level="warning")
+    uvicorn.run(with_resume(app), host=host, port=port, log_level="warning")
     return 0

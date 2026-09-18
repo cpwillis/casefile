@@ -236,7 +236,7 @@ async def test_identical_runs_in_flight_are_coalesced_and_visible(tmp_path, monk
     release = asyncio.Event()
     runs = []
 
-    async def slow(source_id, value, entity_type, client):
+    async def slow(source_id, value, entity_type, client, checkpoint=None):
         runs.append(1)
         started.set()
         await release.wait()
@@ -263,7 +263,7 @@ async def test_a_dropped_waiter_does_not_cancel_the_shared_run(tmp_path, monkeyp
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     release = asyncio.Event()
 
-    async def slow(source_id, value, entity_type, client):
+    async def slow(source_id, value, entity_type, client, checkpoint=None):
         await release.wait()
         return SourceResult(source_id, State.EMPTY)
 
@@ -287,7 +287,7 @@ async def test_refresh_starts_a_new_run_beside_one_already_going(tmp_path, monke
     release = asyncio.Event()
     runs = []
 
-    async def slow(source_id, value, entity_type, client):
+    async def slow(source_id, value, entity_type, client, checkpoint=None):
         runs.append(1)
         await release.wait()
         return SourceResult(source_id, State.EMPTY)
@@ -299,3 +299,83 @@ async def test_refresh_starts_a_new_run_beside_one_already_going(tmp_path, monke
     release.set()
     await asyncio.gather(first, second)
     assert runs == [1, 1]
+
+
+async def test_a_job_row_records_the_run_and_is_gone_once_it_ends():
+    """The point of the table: a restart mid-run must find the run on disk, a finished one must not be resumed."""
+    from casefile.cache import pending_jobs
+
+    seen = []
+
+    @fetcher(id="job-row", accepts=[EntityType.DOMAIN])
+    async def _f(value, entity_type, client):
+        seen.extend(pending_jobs())
+        return [Finding(label="A", value="1")]
+
+    await run_cached("job-row", "example.com", EntityType.DOMAIN, None)
+    assert seen == [("job-row", "domain", "example.com")]
+    assert pending_jobs() == []
+
+
+async def test_a_failed_run_clears_its_job_row_so_a_broken_source_cannot_loop():
+    from casefile.cache import pending_jobs
+
+    counting("job-fail", raises=ValueError("boom"))
+    await run_cached("job-fail", "example.com", EntityType.DOMAIN, None)
+    assert pending_jobs() == []
+
+
+async def test_no_cache_records_no_job_because_nothing_about_it_is_stored():
+    """--no-cache is the privacy path: a resumable row naming what was searched would defeat it."""
+    from casefile.cache import pending_jobs
+
+    seen = []
+
+    @fetcher(id="job-nocache", accepts=[EntityType.DOMAIN])
+    async def _f(value, entity_type, client):
+        seen.append(pending_jobs())
+        return []
+
+    await run_cached("job-nocache", "example.com", EntityType.DOMAIN, None, use_cache=False)
+    assert seen == [[]]
+
+
+async def test_clear_cache_purges_jobs_too():
+    """It unlinks the file, so the jobs table goes with it; a surviving row would name a purged search."""
+    from casefile.cache import _job_start, pending_jobs
+
+    _job_start(("job-purge", "domain", "example.com"))
+    assert pending_jobs() == [("job-purge", "domain", "example.com")]
+    clear_cache()
+    assert pending_jobs() == []
+
+
+async def test_a_checkpoint_is_readable_by_the_run_that_resumes_it():
+    from casefile.cache import Checkpoint, _job_start
+
+    key = ("job-crumbs", "domain", "example.com")
+    _job_start(key)
+    Checkpoint(key).save({"a": "done"})
+    assert Checkpoint(key).load() == {"a": "done"}
+
+
+async def test_checkpoint_writes_are_batched_rather_than_one_per_item():
+    """600 sites must not be 600 transactions; losing the last second of crumbs is the trade."""
+    from casefile.cache import Checkpoint, _job_start
+
+    key = ("job-batch", "domain", "example.com")
+    _job_start(key)
+    saver = Checkpoint(key)
+    saver.save({"a": "done"})
+    saver.save({"a": "done", "b": "done"})
+    assert Checkpoint(key).load() == {"a": "done"}
+
+
+async def test_a_refresh_does_not_replay_the_crumbs_of_the_run_it_replaces():
+    from casefile.cache import Checkpoint, _job_start
+
+    key = ("job-refresh", "domain", "example.com")
+    _job_start(key)
+    Checkpoint(key).save({"a": "done"})
+    _job_start(key, reset=True)
+    assert Checkpoint(key).load() == {}

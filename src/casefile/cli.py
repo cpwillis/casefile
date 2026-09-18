@@ -60,6 +60,9 @@ def _shown_links(candidate, results):
     return links_for(candidate, exclude=frozenset(fetched))
 
 
+# The CLI never resumes a job: a run is one command, and run_cached clears its row on the way out however it ends.
+
+
 async def _check_all(candidates, results):
     """One verdict per link, for every reading. Opt-in like the web button: a request per link, sent from your IP."""
     from casefile.fetchers.http import build_client

@@ -106,7 +106,9 @@ deliberately.
 The cache is keyed on the identifier searched, so it is in effect a local log of what you looked up, written whether
 or not you save anything. On-demand checks and dead-link verdicts are cached the same way, so a reload or a return to
 an earlier search shows them without re-running, and a check still running when the page reloads is joined, not
-restarted. Expired rows are swept on open, not on write. Both files are `0600` inside a `0700`
+restarted, and survives a restart of the app itself. A `jobs` table in the same file records each run while it lasts,
+with the per-site and per-link outcomes it has collected, so the web app resumes an interrupted run on start rather
+than losing it or beginning again. Expired rows are swept on open, not on write. Both files are `0600` inside a `0700`
 directory, and a purge unlinks the file plus its `-journal`/`-wal`/`-shm` siblings rather than deleting rows, which
 would leave search terms readable in freed pages.
 

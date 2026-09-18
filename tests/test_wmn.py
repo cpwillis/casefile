@@ -138,3 +138,28 @@ async def test_whatsmyname_total_failure_is_an_error_not_an_empty_result(monkeyp
         result = await run_fetcher("whatsmyname", "someone", EntityType.USERNAME, client)
     assert result.state == "error"
     assert "nothing was actually checked" in result.detail
+
+
+async def test_a_resumed_sweep_skips_the_sites_the_interrupted_one_finished(monkeypatch):
+    """30 to 60 seconds of egress: a restart must pick the sweep up, not send every request a second time."""
+    from casefile.cache import Checkpoint, _job_start
+    from casefile.fetchers.wmn import whatsmyname
+
+    sites = (
+        _site(name="Already", uri_check="https://already.test/{account}"),
+        _site(name="Pending", uri_check="https://pending.test/{account}"),
+    )
+    monkeypatch.setattr("casefile.fetchers.wmn.load_sites", lambda: sites)
+    asked = []
+
+    def handler(request):
+        asked.append(request.url.host)
+        return httpx.Response(200, text="found-me")
+
+    key = ("whatsmyname", "username", "someone")
+    _job_start(key)
+    Checkpoint(key).save({"Already": {"value": "social", "url": "https://already.test/someone"}})
+    async with mock_client(handler) as client:
+        findings = await whatsmyname("someone", EntityType.USERNAME, client, checkpoint=Checkpoint(key))
+    assert asked == ["pending.test"]  # the checkpointed site was not requested again
+    assert [f.label for f in findings] == ["Already", "Pending"]  # and its finding survived the restart

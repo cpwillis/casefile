@@ -59,6 +59,8 @@ class Registered:
     func: Callable
     on_demand: bool = False
     cost_note: str | None = None
+    # Opt-in: only a long sweep wants the resume crumbs, and everything else keeps the three-argument signature.
+    checkpointed: bool = False
     # `note`: polarity is not self-evident, a known-good corpus hit and a malware hit look identical on screen.
     name: str = ""
     note: str | None = None
@@ -75,6 +77,7 @@ def fetcher(
     cost_note: str | None = None,
     name: str = "",
     note: str | None = None,
+    checkpointed: bool = False,
 ):
     """Register a fetcher. on_demand marks one whose egress is large enough to need consent."""
 
@@ -89,6 +92,7 @@ def fetcher(
             cost_note=cost_note,
             name=name or id,
             note=note,
+            checkpointed=checkpointed,
         )
         return func
 
@@ -123,15 +127,19 @@ def fetchers_for(entity_type: EntityType) -> tuple[Registered, ...]:
 DEADLINE = 300.0
 
 
-async def run_fetcher(source_id, value, entity_type, client) -> "SourceResult":
-    """Run one fetcher and map its outcome to a SourceResult. Never raises."""
+async def run_fetcher(source_id, value, entity_type, client, checkpoint=None) -> "SourceResult":
+    """Run one fetcher and map its outcome to a SourceResult. Never raises.
+
+    `checkpoint` reaches only a fetcher registered as checkpointed; the rest never see it.
+    """
     rec = registered_fetcher(source_id)
     if rec is None:
         return SourceResult(source_id=source_id, state=State.ERROR, detail=f"no fetcher registered for {source_id}")
     start = time.monotonic()
     try:
+        crumbs = {"checkpoint": checkpoint} if rec.checkpointed else {}
         async with asyncio.timeout(DEADLINE):
-            findings = tuple(await rec.func(value, entity_type, client))
+            findings = tuple(await rec.func(value, entity_type, client, **crumbs))
         state = State.OK if findings else State.EMPTY
         return SourceResult(source_id, state, findings, elapsed_ms=_ms(start))
     except NeedsKey as exc:
