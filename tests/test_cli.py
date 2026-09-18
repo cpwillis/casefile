@@ -221,9 +221,9 @@ def test_deep_accepts_a_named_source_not_only_all_of_them(monkeypatch, capsys):
     assert "whatsmyname" in seen
 
     seen.clear()
-    assert main(["octocat", "--json", "--deep", "no-such-source"]) == 0
-    assert "whatsmyname" not in seen, "a name that matches nothing must not run everything"
-    assert "github" in seen
+    with pytest.raises(SystemExit) as exc:  # a typo must not silently run nothing extra, or everything
+        main(["octocat", "--json", "--deep", "no-such-source"])
+    assert exc.value.code == 2 and not seen  # refused before anything ran
 
 
 def test_check_links_reports_a_verdict_per_link(monkeypatch, capsys):
@@ -267,3 +267,66 @@ def test_deep_without_an_identifier_is_a_usage_error_not_the_web_app(argv):
     with pytest.raises(SystemExit) as exc:
         main(argv)
     assert exc.value.code == 2
+
+
+def test_forget_cases_asks_at_a_terminal_and_keeps_on_anything_but_yes(monkeypatch, capsys):
+    from casefile.cases import list_cases, save_target
+    from casefile.types import EntityType
+
+    save_target(EntityType.DOMAIN, "example.com")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt: "n")
+    assert main(["--forget-cases"]) == 1
+    assert len(list_cases()) == 1
+    monkeypatch.setattr("builtins.input", lambda prompt: "y")
+    assert main(["--forget-cases"]) == 0
+    assert not list_cases()
+
+
+def test_forget_cases_does_not_prompt_a_script(monkeypatch, capsys):
+    from casefile.cases import save_target
+    from casefile.types import EntityType
+
+    save_target(EntityType.DOMAIN, "example.com")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("builtins.input", lambda prompt: pytest.fail("prompted without a terminal"))
+    assert main(["--forget-cases"]) == 0
+    assert "forgot 1" in capsys.readouterr().out
+
+
+def test_nothing_recognised_is_json_under_json(capsys):
+    import json
+
+    assert main(["???", "--json"]) == 1
+    err = json.loads(capsys.readouterr().err)
+    assert err["error"].startswith("nothing recognised") and err["input"] == "???"
+
+
+def test_text_output_names_the_on_demand_sources_and_tags_the_guesses(monkeypatch, capsys):
+    async def fake(source_id, value, entity_type, client, *, use_cache=True):
+        return SourceResult(source_id, State.EMPTY)
+
+    monkeypatch.setattr("casefile.cli.run_cached", fake)
+    assert main(["jdoe-example"]) == 0
+    out = capsys.readouterr().out
+    assert "[on demand] whatsmyname: run with --deep" in out
+    assert "a guess" not in out  # nothing structured matched, so the free-form readings are the readings
+    assert main(["example.com", "--no-fetch"]) == 0
+    out = capsys.readouterr().out
+    assert "most likely" in out and "a guess" in out and "[on demand]" not in out  # --no-fetch ran no sources
+
+
+def test_text_output_credits_whatsmyname(monkeypatch, capsys):
+    from casefile.fetchers import wmn
+
+    async def fake(source_id, value, entity_type, client, *, use_cache=True):
+        findings = (
+            (Finding(label="GitHub", value="coding", url="https://example.com/x"),)
+            if source_id == wmn.SOURCE_ID
+            else ()
+        )
+        return SourceResult(source_id, State.OK if findings else State.EMPTY, findings)
+
+    monkeypatch.setattr("casefile.cli.run_cached", fake)
+    assert main(["jdoe-example", "--deep"]) == 0
+    assert wmn.CREDIT in capsys.readouterr().out

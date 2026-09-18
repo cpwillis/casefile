@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import contextlib
 import json
+import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -13,9 +14,9 @@ from casefile import __version__
 from casefile.cache import clear_cache, run_cached
 from casefile.cases import forget_all, list_cases, load_case
 from casefile.catalog import links_for
-from casefile.detect import detect
+from casefile.detect import FREE_FORM, detect
 from casefile.export import FORMATS, export_case, sanitize
-from casefile.fetchers import fetched_ids, fetchers_for
+from casefile.fetchers import fetched_ids, fetchers_for, wmn
 from casefile.fetchers.http import build_client
 from casefile.linkcheck import check_links, tally
 
@@ -68,18 +69,33 @@ def _render_links(candidates, results, verdicts):
     return "\n".join(lines)
 
 
-def _render_text(raw, candidates, results):
+def _tag(candidate, index: int, structured: bool) -> str:
+    """The web's tags: a free-form reading beside a structured one is a guess, and only the first reading is likely."""
+    if structured and candidate.type in FREE_FORM:
+        return "a guess"
+    return "most likely" if index == 0 else ""
+
+
+def _render_text(raw, candidates, results, deep=False):
     lines = [raw]
+    structured = any(c.type not in FREE_FORM for c in candidates)
     for i, c in enumerate(candidates):
         lines.append("")
-        lines.append(f"  {c.type.value.upper():<14} {c.value:<40} {'most likely' if i == 0 else ''}")
-        for r in results.get((c.type, c.value), []):
+        lines.append(f"  {c.type.value.upper():<14} {c.value:<40} {_tag(c, i, structured)}")
+        ran = results.get((c.type, c.value), [])
+        for r in ran:
             detail = f": {sanitize(r.detail)}" if r.detail else ""
             lines.append(f"    [{r.state}] {r.source_id}{detail}")
             for f in r.findings:
                 # the url is often the whole result (a WhatsMyName hit's value is a category), so text mode must keep it
                 url = f"  {sanitize(f.url)}" if f.url else ""
                 lines.append(f"      {sanitize(f.label)}: {sanitize(f.value)}{url}")
+            if r.source_id == wmn.SOURCE_ID and r.findings:
+                lines.append(f"      {wmn.CREDIT} {wmn.CREDIT_URL}")
+        # The web offers these as a button; here the only hint that --deep exists would otherwise be --help.
+        skipped = [r for r in fetchers_for(c.type) if r.on_demand and not _wanted(r, deep)]
+        if skipped and results:
+            lines.append(f"    [on demand] {', '.join(r.id for r in skipped)}: run with --deep")
         # notes go to --json, the web and exports, not here: 46 of 49 domain sources have one and they run long
         for link in _shown_links(c, results):
             lines.append(f"    {link.name:<28} {link.url}")
@@ -109,6 +125,7 @@ def _render_links_json(raw, candidates, results, verdicts):
 def _render_json(raw, candidates, results):
     return json.dumps(
         {
+            "casefile": __version__,  # so a consumer can tell which shape it is reading if fields ever move
             "input": raw,
             "candidates": [
                 {
@@ -132,6 +149,14 @@ def _port(text: str) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    try:
+        return _main(argv)
+    except BrokenPipeError:  # `casefile x | head`: the reader left, which is not an error worth a traceback
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return 0
+
+
+def _main(argv: list[str] | None) -> int:
     for stream in (sys.stdout, sys.stderr):
         # third-party text is UTF-8; a latin-1 terminal would otherwise traceback mid-print. A captured or
         # detached stream (tests, a pipe closed early) has no reconfigure, hence the suppress.
@@ -140,7 +165,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="casefile",
         description="One input box, every relevant OSINT pivot. Runs locally.",
-        epilog=f"With no identifier, casefile launches the local web app (see --port, --no-browser). {REPO}",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "examples:\n"
+            "  casefile                          launch the local web app\n"
+            "  casefile example.com              look one identifier up in the terminal\n"
+            "  casefile jdoe-example --deep      also run the on-demand sources\n"
+            "  casefile 192.0.2.1 --json | jq .  machine-readable\n"
+            f"\n{REPO}"
+        ),
     )
     parser.add_argument("value", nargs="?", help="the identifier to look up; omit it to launch the local web app")
     parser.add_argument("--json", action="store_true", help="emit JSON instead of text")
@@ -157,7 +190,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--check-links",
         action="store_true",
-        help="probe each catalogue link and flag the ones that are definitely gone",
+        help="probe each catalogue link and flag the ones that are definitely gone. One request per link from "
+        "your IP, and it still probes under --no-fetch, which only skips the sources.",
     )
     parser.add_argument("--clear-cache", action="store_true", help="purge the response cache and exit")
     parser.add_argument("--cases", action="store_true", help="list your saved cases and exit")
@@ -172,6 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         help="delete every saved case and exit. Separate from --clear-cache on purpose: a privacy "
         "purge must never destroy the work you deliberately saved.",
     )
+    parser.add_argument("--yes", action="store_true", help="do not ask before --forget-cases")
     parser.add_argument("--port", type=_port, default=8765, help="port for the web app (default: 8765)")
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser on launch")
     parser.add_argument("--version", action="version", version=f"casefile {__version__}")
@@ -183,6 +218,8 @@ def main(argv: list[str] | None = None) -> int:
         args.value, args.deep = args.deep, ""
     if args.value is None and args.deep is not None:
         parser.error("--deep needs an identifier to run on")
+    if unknown := set(args.deep.split(",") if args.deep else ()) - fetched_ids():
+        parser.error(f"--deep: no such source {', '.join(sorted(unknown))}; ids are {', '.join(sorted(fetched_ids()))}")
 
     if args.build_demo:
         from casefile.demo import build_demo
@@ -196,6 +233,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.forget_cases:
+        held = list_cases()
+        # Asked only at a terminal: a script that says --forget-cases means it, and a prompt there would hang.
+        if held and not args.yes and sys.stdin.isatty():
+            answer = input(f"delete {len(held)} saved case{'s' if len(held) != 1 else ''} for good? [y/N] ")
+            if answer.strip().lower() not in ("y", "yes"):
+                print("kept", file=sys.stderr)
+                return 1
         print(f"forgot {forget_all()} saved cases")
         return 0
 
@@ -226,7 +270,11 @@ def main(argv: list[str] | None = None) -> int:
 
     candidates = detect(args.value)
     if not candidates:
-        print(f"nothing recognised in {args.value!r}", file=sys.stderr)
+        message = f"nothing recognised in {args.value!r}"
+        print(
+            json.dumps({"casefile": __version__, "input": args.value, "error": message}) if args.json else message,
+            file=sys.stderr,
+        )
         return 1
 
     deep = True if args.deep == "" else (args.deep.split(",") if args.deep else False)
@@ -238,6 +286,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(_render_links(candidates, results, verdicts))
         return 0
-    render = _render_json if args.json else _render_text
-    print(render(args.value, candidates, results))
+    if args.json:
+        print(_render_json(args.value, candidates, results))
+    else:
+        print(_render_text(args.value, candidates, results, deep))
     return 0
