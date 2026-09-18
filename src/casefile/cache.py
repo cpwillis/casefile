@@ -113,6 +113,20 @@ def _store(result: SourceResult, entity_type, value: str) -> None:
         )
 
 
+def recent_searches(limit: int = 8) -> list[str]:
+    """Values looked up lately, newest first. The cache is a log of searches already; this shows it on the way in."""
+    if not cache_path().exists():
+        return []
+    try:
+        with _connect() as conn:
+            rows = conn.execute(
+                "SELECT value FROM responses GROUP BY value ORDER BY MAX(fetched_at) DESC LIMIT ?", (limit,)
+            ).fetchall()
+    except Exception:  # noqa: BLE001 -- a broken cache must never break the index page
+        return []
+    return [row[0] for row in rows]
+
+
 def clear_cache() -> int:
     """Delete every cached response by removing the database file. Returns rows removed."""
     return store.purge(cache_path(), "responses")

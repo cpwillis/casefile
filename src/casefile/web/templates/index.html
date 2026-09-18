@@ -13,6 +13,13 @@
   </ul>
   {% else %}
   <p class="muted">Runs entirely on this machine. Requests go out over your own connection.</p>
+  {% if recent %}
+  <h2 class="recent-heading">Recent searches</h2>
+  <ul class="case-list">
+    {% for value in recent %}<li><a href="/q?v={{ value | urlencode }}">{{ value }}</a></li>{% endfor %}
+  </ul>
+  <p class="muted">From the response cache, so <code>--clear-cache</code> clears this list too.</p>
+  {% endif %}
   {% if cases %}
   <h2 class="recent-heading">Where you left off</h2>
   <ul class="case-list">

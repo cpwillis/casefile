@@ -104,7 +104,7 @@ deliberately.
 | Saved cases | `${XDG_DATA_HOME:-~/.local/share}/casefile/cases.db` | until deleted | `--forget-cases` |
 
 The cache is keyed on the identifier searched, so it is in effect a local log of what you looked up, written whether
-or not you save anything. On-demand checks and dead-link verdicts are cached the same way, so a reload or a return to
+or not you save anything, and the home page lists the most recent of them as "Recent searches". On-demand checks and dead-link verdicts are cached the same way, so a reload or a return to
 an earlier search shows them without re-running, and a check still running when the page reloads is joined, not
 restarted, and survives a restart of the app itself. A `jobs` table in the same file records each run while it lasts,
 with the per-site and per-link outcomes it has collected, so the web app resumes an interrupted run on start rather

@@ -230,3 +230,14 @@ async def test_a_job_naming_nothing_resumable_is_dropped_rather_than_retried_on_
 def test_the_resume_wrapper_is_what_serve_runs_not_the_bare_app():
     """`app` must stay hook-free for importers, so the resume can only ride on what serve hands uvicorn."""
     assert "with_resume(app)" in inspect.getsource(serve)
+
+
+def test_the_home_page_lists_recent_searches_from_the_cache():
+    from casefile.cache import _store
+    from casefile.fetchers import SourceResult, State
+    from casefile.types import EntityType
+
+    assert "Recent searches" not in client.get("/").text
+    _store(SourceResult("dns", State.EMPTY), EntityType.DOMAIN, "example.com")
+    text = client.get("/").text
+    assert "Recent searches" in text and 'href="/q?v=example.com"' in text

@@ -425,3 +425,17 @@ async def test_a_cancelled_run_keeps_its_job_row_for_the_next_start(tmp_path, mo
     with pytest.raises(RuntimeError):
         await run_cached("dns", "example.com", EntityType.DOMAIN, None, refresh=True, runner=broken)
     assert pending_jobs() == []  # a run that failed on its own is not retried on every start
+
+
+def test_stores_run_in_wal_mode_and_purge_removes_the_sidecars(tmp_path, monkeypatch):
+    from casefile.cache import _store, cache_path
+    from casefile.fetchers import SourceResult, State
+    from casefile.types import EntityType
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    _store(SourceResult("dns", State.EMPTY), EntityType.DOMAIN, "example.com")
+    import sqlite3
+
+    assert sqlite3.connect(cache_path()).execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    clear_cache()
+    assert not list(cache_path().parent.glob("cache.db*"))

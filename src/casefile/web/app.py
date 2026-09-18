@@ -19,7 +19,15 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 import casefile.fetchers.sources  # noqa: F401 -- registers the fetchers at import
-from casefile.cache import cached_result, cached_results, forget_job, in_flight, pending_jobs, run_cached
+from casefile.cache import (
+    cached_result,
+    cached_results,
+    forget_job,
+    in_flight,
+    pending_jobs,
+    recent_searches,
+    run_cached,
+)
 from casefile.cases import (
     CaseStoreError,
     Star,
@@ -113,7 +121,8 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
 
 async def index(request: Request) -> HTMLResponse:
     # autofocus only here: on a content page it defeats the skip link and pulls focus off the results.
-    return templates.TemplateResponse(request, "index.html", {"cases": list_cases()[:8], "autofocus": True})
+    context = {"cases": list_cases()[:8], "recent": recent_searches(), "autofocus": True}
+    return templates.TemplateResponse(request, "index.html", context)
 
 
 async def result(request: Request) -> HTMLResponse:

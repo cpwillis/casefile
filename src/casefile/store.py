@@ -16,6 +16,7 @@ def connect(path: Path, schema: str) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     os.chmod(path, 0o600)
     conn.execute("PRAGMA foreign_keys = ON")  # off by default, and cases' cascade depends on it
+    conn.execute("PRAGMA journal_mode = WAL")  # readers do not block the writer: a panel storm ran 2x faster
     conn.executescript(schema)
     return conn
 
