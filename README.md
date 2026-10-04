@@ -84,6 +84,10 @@ A data edit, not code: a `[[source]]` block in `src/casefile/catalog/<category>.
 (entity types) and an `https://` `url` containing `{value}`. `make test` validates every entry, and rejects a
 duplicate id or a duplicate url for the same type (two rows going to one page is a difference that is not there).
 
+Many entries were found through [awesome-osint](https://github.com/jivoi/awesome-osint) (CC BY-SA 4.0) and are marked
+`provenance = "awesome-osint"`. The list was used for discovery only: each lookup URL was researched and verified
+separately, and the notes are casefile's own.
+
 A fetcher, ie a source casefile calls itself rather than links to, is a registration in
 `src/casefile/fetchers/sources.py`.
 
