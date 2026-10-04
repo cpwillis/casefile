@@ -13,6 +13,38 @@
           {"label": "handle", "value": "EXAMPLE-DOM"},
           {"label": "registration", "value": "1995-08-14"}
         ]},
+        "mail": {"state": "ok", "findings": [
+          {"label": "SPF policy", "value": "fail (-all)"},
+          {"label": "SPF include", "value": "spf.example.net"},
+          {"label": "DMARC policy", "value": "reject"},
+          {"label": "DMARC rua", "value": "mailto:dmarc@example.com"},
+          {"label": "MTA-STS", "value": "not published"},
+          {"label": "BIMI", "value": "not published"}
+        ]},
+        "dnssec": {"state": "ok", "findings": [
+          {"label": "DNSSEC", "value": "signed (DS record at the parent)"},
+          {"label": "validated", "value": "yes"},
+          {"label": "DS algorithm", "value": "13 (ECDSAP256SHA256)"},
+          {"label": "DS key tag", "value": "12345"}
+        ]},
+        "wayback": {"state": "ok", "findings": [
+          {"label": "first capture", "value": "2001-01-01 00:00:00 UTC", "url": "https://web.archive.org/web/20010101000000/example.com"},
+          {"label": "last capture", "value": "2026-01-01 00:00:00 UTC", "url": "https://web.archive.org/web/20260101000000/example.com"},
+          {"label": "calendar", "value": "all captures", "url": "https://web.archive.org/web/*/example.com"}
+        ]},
+        "tranco": {"state": "ok", "findings": [
+          {"label": "rank", "value": "1,234 on 2026-01-01"},
+          {"label": "trend", "value": "rose from 1,300 on 2025-12-02"}
+        ]},
+        "hsts-preload": {"state": "ok", "findings": [
+          {"label": "HSTS preload", "value": "not on the preload list", "url": "https://hstspreload.org/?domain=example.com"}
+        ]},
+        "blocklists": {"state": "ok", "findings": [
+          {"label": "AdGuard", "value": "not blocked"},
+          {"label": "Cloudflare Security", "value": "not blocked"},
+          {"label": "Cloudflare Family", "value": "not blocked"}
+        ]},
+        "urlhaus": {"state": "needs_key", "findings": [], "detail": "set ABUSECH_AUTH_KEY in .env to enable URLhaus"},
         "crtsh": {"state": "empty", "findings": []},
         "github": {"state": "timeout", "findings": [], "detail": "no response within the timeout"},
         "wikidata": {"state": "ok", "findings": [
