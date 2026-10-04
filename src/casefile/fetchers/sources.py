@@ -9,6 +9,7 @@ import httpx
 import phonenumbers
 from phonenumbers import PhoneNumberFormat
 
+import casefile.fetchers.site  # noqa: F401 -- registers the site visit
 from casefile.config import get_key
 from casefile.fetchers import Finding, NeedsKey, RateLimited, fetcher, http
 from casefile.types import EntityType

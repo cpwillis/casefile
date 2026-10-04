@@ -123,6 +123,40 @@ def test_no_fixture_or_doc_names_a_real_world_host():
     assert not offenders, "non-reserved hosts in fixtures or docs: " + ", ".join(sorted(offenders))
 
 
+async def test_nothing_runs_a_site_visit_without_its_trigger(monkeypatch):
+    """The visit is the one path that contacts the target: a page load, --deep and a restart must never start it."""
+    import asyncio
+    import dataclasses
+
+    from casefile import cli
+    from casefile.cache import _job_start, pending_jobs
+    from casefile.fetchers import _REGISTRY
+    from casefile.web.app import resume_jobs
+
+    visits = [r for r in _REGISTRY.values() if r.contacts_target]
+    assert visits, "nothing contacts the target, so this rule is not being checked"
+    called = []
+
+    async def tripwire(value, entity_type, client):
+        called.append(value)
+        return []
+
+    for rec in visits:
+        monkeypatch.setitem(_REGISTRY, rec.id, dataclasses.replace(rec, func=tripwire))
+
+    for raw in ("example.com", "https://example.com/a"):  # page load: each placeholder waits for the button's event
+        text = client.get("/q", params={"v": raw}).text
+        for rec in visits:
+            triggers = re.findall(rf'hx-get="/panel/{re.escape(rec.id)}\?[^"]*"\s+hx-trigger="([^"]*)"', text)
+            assert triggers and set(triggers) == {"visit from:closest .visit"}, f"{rec.id} loads without a click"
+    for rec in visits:  # --deep, bare or naming it
+        assert not cli._wanted(rec, True) and not cli._wanted(rec, [rec.id])
+        _job_start((rec.id, "domain", "example.com"))
+    await resume_jobs()  # a restart
+    await asyncio.sleep(0)
+    assert called == [] and pending_jobs() == []
+
+
 def test_vendored_wmn_dataset_is_unmodified():
     """Share-alike attaches to edits: a re-vendor replaces the file whole and updates this hash, nothing patches it."""
     import hashlib
