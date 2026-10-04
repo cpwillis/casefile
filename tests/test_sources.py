@@ -803,18 +803,27 @@ async def test_dnssec_refused_and_http_failure_are_errors():
         assert (await run_fetcher("dnssec", "example.com", EntityType.DOMAIN, client)).state == "error"
 
 
-async def test_wayback_reports_first_and_last_capture_with_links():
-    seen = []
+def _archive(first=None, last=None, seen=None):
+    """CDX for the oldest capture, the availability API for the newest: the two Wayback answers the fetcher reads."""
 
     def handler(request):
-        seen.append(dict(request.url.params))
-        stamp = "20020120142510" if request.url.params["limit"] == "1" else "20260901000000"
-        return httpx.Response(200, json=[["timestamp"], [stamp]])
+        if seen is not None:
+            seen.append((request.url.path, dict(request.url.params)))
+        if request.url.path.startswith("/cdx/"):
+            return httpx.Response(200, json=[["timestamp"], [first]] if first else [])
+        closest = {"available": True, "status": "200", "timestamp": last} if last else None
+        return httpx.Response(200, json={"url": "x", "archived_snapshots": {"closest": closest} if closest else {}})
 
-    async with mock_client(handler) as client:
+    return handler
+
+
+async def test_wayback_reports_first_and_last_capture_with_links():
+    seen = []
+    async with mock_client(_archive("20020120142510", "20260901000000", seen)) as client:
         findings = await wayback("example.com", EntityType.DOMAIN, client)
-    assert sorted(p["limit"] for p in seen) == ["-1", "1"]
-    assert all(p["url"] == "example.com" and p["output"] == "json" and p["fl"] == "timestamp" for p in seen)
+    cdx = dict(seen)["/cdx/search/cdx"]
+    assert cdx == {"url": "example.com", "output": "json", "fl": "timestamp", "limit": "1"}
+    assert dict(seen)["/wayback/available"] == {"url": "example.com"}  # not CDX limit=-1, which took up to 38s
     assert findings[0] == Finding(
         label="first capture",
         value="2002-01-20 14:25:10 UTC",
@@ -825,7 +834,7 @@ async def test_wayback_reports_first_and_last_capture_with_links():
 
 
 async def test_wayback_never_archived_is_empty():
-    async with responder(200, json=[]) as client:
+    async with mock_client(_archive()) as client:
         result = await run_fetcher("wayback", "example.com", EntityType.DOMAIN, client)
     assert result.state == "empty"
 
@@ -833,30 +842,33 @@ async def test_wayback_never_archived_is_empty():
 async def test_wayback_accepts_a_url_and_sends_it_whole():
     seen = {}
 
+    archive = _archive()
+
     def handler(request):
-        seen["url"] = request.url.params["url"]
-        return httpx.Response(200, json=[])
+        seen.setdefault("url", set()).add(request.url.params["url"])
+        return archive(request)
 
     async with mock_client(handler) as client:
         await wayback("https://example.com/a?b=1&c=2", EntityType.URL, client)
-    assert seen["url"] == "https://example.com/a?b=1&c=2"
+    assert seen["url"] == {"https://example.com/a?b=1&c=2"}  # both calls, whole
 
 
 async def test_wayback_gives_the_request_its_own_timeout():
     seen = []
 
+    archive = _archive()
+
     def handler(request):
         seen.append(request.extensions["timeout"])
-        return httpx.Response(200, json=[])
+        return archive(request)
 
     async with mock_client(handler) as client:
         await wayback("example.com", EntityType.DOMAIN, client)
-    assert seen and all(t["read"] == 40.0 and t["connect"] == 5.0 for t in seen)
+    assert len(seen) == 2 and all(t["read"] == 40.0 and t["connect"] == 5.0 for t in seen)
 
 
 async def test_wayback_over_its_own_budget_is_a_timeout(monkeypatch):
-    real = asyncio.timeout
-    monkeypatch.setattr("casefile.fetchers.sources.asyncio.timeout", lambda _: real(0.05))
+    monkeypatch.setattr("casefile.fetchers.sources.WAYBACK_CALL_BUDGET", 0.05)
 
     async def handler(request):
         await asyncio.sleep(1)
@@ -865,6 +877,25 @@ async def test_wayback_over_its_own_budget_is_a_timeout(monkeypatch):
     async with mock_client(handler) as client:
         result = await run_fetcher("wayback", "example.com", EntityType.DOMAIN, client)
     assert result.state == "timeout"
+
+
+async def test_wayback_shows_the_half_that_answered_when_the_other_times_out(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.WAYBACK_CALL_BUDGET", 0.05)
+    archive = _archive("20020120142510", "20260901000000")
+
+    async def handler(request):
+        if request.url.path.startswith("/cdx/"):
+            await asyncio.sleep(1)  # the oldest-capture query stalls, as CDX does
+        return archive(request)
+
+    async with mock_client(handler) as client:
+        result = await run_fetcher("wayback", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "ok"
+    assert [(f.label, f.note) for f in result.findings] == [
+        ("note", True),
+        ("last capture", False),
+        ("calendar", False),
+    ]
 
 
 async def test_wayback_failure_and_rate_limit_paths():

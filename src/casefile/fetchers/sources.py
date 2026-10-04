@@ -623,6 +623,7 @@ async def dnssec(value: str, entity_type: EntityType, client: httpx.AsyncClient)
 
 # The CDX API measured 9-17s a call; httpx's 20s read timeout would cut the slow ones, so this request gets its own.
 _CDX_TIMEOUT = httpx.Timeout(40.0, connect=5.0)
+WAYBACK_CALL_BUDGET = 30.0  # per call: the archive answers one in 0.5s and the other in 40s, at random
 
 
 def _capture_date(stamp: str) -> str:
@@ -636,25 +637,41 @@ def _capture_date(stamp: str) -> str:
     note="Internet Archive captures of this exact address. Slow: the archive can take 20s or more to answer.",
 )
 async def wayback(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
-    async def edge(limit: int) -> str | None:
+    async def oldest() -> str | None:  # CDX limit=1 reads from the start of the index, the fast direction
         resp = await http.fetch(
             client,
             "https://web.archive.org/cdx/search/cdx",
-            params={"url": value, "output": "json", "fl": "timestamp", "limit": limit},
+            params={"url": value, "output": "json", "fl": "timestamp", "limit": 1},
             timeout=_CDX_TIMEOUT,
         )
         rows = resp.json()
         return rows[1][0] if len(rows) > 1 and rows[1] else None  # row 0 is the header; [] means never archived
 
-    async with asyncio.timeout(40):
-        first, last = await asyncio.gather(edge(1), edge(-1))
-    if not first or not last:
-        return []
-    return [
-        Finding(label="first capture", value=_capture_date(first), url=f"https://web.archive.org/web/{first}/{value}"),
-        Finding(label="last capture", value=_capture_date(last), url=f"https://web.archive.org/web/{last}/{value}"),
-        Finding(label="calendar", value="all captures", url=f"https://web.archive.org/web/*/{value}"),
-    ]
+    async def newest() -> str | None:  # same answer as CDX limit=-1, measured 0.5s against 6 to 38s
+        resp = await http.fetch(
+            client, "https://archive.org/wayback/available", params={"url": value}, timeout=_CDX_TIMEOUT
+        )
+        closest = (resp.json().get("archived_snapshots") or {}).get("closest") or {}
+        return closest.get("timestamp") if closest.get("available") else None
+
+    async def bounded(call):
+        async with asyncio.timeout(WAYBACK_CALL_BUDGET):
+            return await call()
+
+    first, last = await asyncio.gather(bounded(oldest), bounded(newest), return_exceptions=True)
+    if isinstance(first, BaseException) and isinstance(last, BaseException):
+        raise first  # both failed: keep the real cause so a timeout or a 429 reads as one
+    findings = []
+    for label, stamp in (("first capture", first), ("last capture", last)):
+        if isinstance(stamp, BaseException):
+            findings.append(Finding(label="note", value=f"{label}: the archive did not answer in time", note=True))
+        elif stamp:
+            url = f"https://web.archive.org/web/{stamp}/{value}"
+            findings.append(Finding(label=label, value=_capture_date(stamp), url=url))
+    if not any(not f.note for f in findings):
+        return [f for f in findings if f.note]  # never archived is empty; a lone timeout note still says why
+    findings.append(Finding(label="calendar", value="all captures", url=f"https://web.archive.org/web/*/{value}"))
+    return findings
 
 
 @fetcher(
