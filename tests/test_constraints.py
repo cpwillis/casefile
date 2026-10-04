@@ -2,6 +2,7 @@
 
 import ast
 import re
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -59,6 +60,14 @@ def test_async_client_is_constructed_in_one_place():
 RESERVED_PHONE = re.compile(r"^(?:61[2378]5550\d{4}|0?[2378]5550\d{4}|1?\d{3}55501\d{2})$")
 
 
+def _is_timestamp(literal: str) -> bool:
+    try:
+        datetime.strptime(literal, "%Y%m%d%H%M%S")
+    except ValueError:
+        return False
+    return len(literal) == 14
+
+
 def test_no_fixture_uses_a_dialable_real_phone_number():
     """A test number must not ring anyone: anything casefile reads as a phone with 10+ digits must be reserved."""
     offenders = []
@@ -69,6 +78,8 @@ def test_no_fixture_uses_a_dialable_real_phone_number():
             literal = node.value.strip()
             if re.search(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", literal):
                 continue  # an address or a range: dots and digits, but not a number you can ring
+            if _is_timestamp(literal):
+                continue  # a Wayback capture stamp, YYYYMMDDhhmmss: fourteen digits, but a date, not a number
             digits = re.sub(r"\D", "", literal)
             if len(digits) < 10 or not any(c.type is EntityType.PHONE for c in detect(literal)):
                 continue
