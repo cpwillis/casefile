@@ -898,6 +898,15 @@ async def test_wayback_shows_the_half_that_answered_when_the_other_times_out(mon
     ]
 
 
+async def test_wayback_says_so_when_one_answer_is_empty_but_the_other_proves_captures_exist():
+    async with mock_client(_archive("20020120142510", None)) as client:
+        result = await run_fetcher("wayback", "example.com", EntityType.DOMAIN, client)
+    assert [(f.label, f.value) for f in result.findings][:2] == [
+        ("first capture", "2002-01-20 14:25:10 UTC"),
+        ("note", "last capture: the archive gave no answer"),
+    ]
+
+
 async def test_wayback_failure_and_rate_limit_paths():
     async with responder(500) as client:
         assert (await run_fetcher("wayback", "example.com", EntityType.DOMAIN, client)).state == "error"

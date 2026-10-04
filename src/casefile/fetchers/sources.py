@@ -661,15 +661,18 @@ async def wayback(value: str, entity_type: EntityType, client: httpx.AsyncClient
     first, last = await asyncio.gather(bounded(oldest), bounded(newest), return_exceptions=True)
     if isinstance(first, BaseException) and isinstance(last, BaseException):
         raise first  # both failed: keep the real cause so a timeout or a 429 reads as one
+    archived = isinstance(first, str) or isinstance(last, str)
     findings = []
     for label, stamp in (("first capture", first), ("last capture", last)):
-        if isinstance(stamp, BaseException):
-            findings.append(Finding(label="note", value=f"{label}: the archive did not answer in time", note=True))
-        elif stamp:
+        if isinstance(stamp, str):
             url = f"https://web.archive.org/web/{stamp}/{value}"
             findings.append(Finding(label=label, value=_capture_date(stamp), url=url))
-    if not any(not f.note for f in findings):
-        return [f for f in findings if f.note]  # never archived is empty; a lone timeout note still says why
+        elif isinstance(stamp, BaseException):
+            findings.append(Finding(label="note", value=f"{label}: the archive did not answer in time", note=True))
+        elif archived:  # the other call proves captures exist, so an empty answer here is the archive, not the site
+            findings.append(Finding(label="note", value=f"{label}: the archive gave no answer", note=True))
+    if not archived:
+        return findings  # never archived is empty; a lone timeout note still says why
     findings.append(Finding(label="calendar", value="all captures", url=f"https://web.archive.org/web/*/{value}"))
     return findings
 
