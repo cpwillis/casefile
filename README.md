@@ -4,7 +4,8 @@ Paste an identifier (domain, IP, ASN, URL, email, username, person, company, pho
 coordinates, MAC, VIN, MMSI, IMO, ICAO24, tail number) and casefile works out what it could be, fetches what keyless
 sources will give up, and lists the rest as links you open yourself.
 
-Local only: binds `127.0.0.1`, no account, no telemetry, nothing hosted.
+Local only: binds `127.0.0.1`, no account, no telemetry, nothing hosted. casefile never contacts the target itself
+unless you click **Visit the site** or pass `--visit`; everything else asks a third party about it.
 
 ## Run
 
@@ -49,6 +50,7 @@ casefile example.com --no-fetch         # links only, no requests
 casefile example.com --no-cache         # bypass the response cache for this run
 casefile example.com --check-links      # probe each link, flag the ones definitely gone
 casefile jdoe-example --deep            # also run on-demand sources (bare, or a comma-separated list of ids)
+casefile example.com --visit            # also visit the site itself: about 5 requests it sees
 casefile --cases                        # list saved cases with their ids
 casefile --export <case-id> --format md|json|html
 casefile --clear-cache
@@ -59,6 +61,12 @@ casefile --forget-cases
 sites from your IP and takes 30-60s. The browser has the same two as buttons (**Run this check**, **Check for dead
 links**) rather than panels that load themselves. Only 404 and 410 count as a dead link; blocked, redirected and
 unreachable are reported as telling you nothing, because a checker that guessed would invent cleared leads.
+
+`--visit` is separate, and `--deep` never includes it: the site visit (HTTP response and headers, TLS certificate,
+`robots.txt`, `sitemap.xml`, `security.txt`) goes to the target from your IP, so the site sees it. In the browser it
+is one **Visit the site** button per domain or URL. Every hop is resolved first and refused if any address is not
+public. It sends a browser User-Agent, `CASEFILE_VISIT_USER_AGENT` if set (environment or `.env`), else a current
+Chrome string. Cookie names are shown, never their values.
 
 ## Checks
 
@@ -112,7 +120,8 @@ than losing it or beginning again. Expired rows are swept on open, not on write.
 directory, and a purge unlinks the file plus its `-journal`/`-wal`/`-shm` siblings rather than deleting rows, which
 would leave search terms readable in freed pages.
 
-Fetching goes out over your own connection: every source sees your IP, and there is no proxy in this version.
+Fetching goes out over your own connection: every source sees your IP, so does the target if you visit it, and
+there is no proxy in this version.
 
 ## Cases
 
