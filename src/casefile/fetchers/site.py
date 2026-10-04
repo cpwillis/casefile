@@ -96,17 +96,20 @@ def _forget_cookies(client: httpx.AsyncClient, host: str) -> None:
             jar.clear(cookie.domain, cookie.path, cookie.name)
 
 
-async def _walk(client: httpx.AsyncClient, url: str) -> tuple[httpx.Response, list[httpx.Response], int]:
-    """GET with redirects followed by hand, each hop's host checked first. Returns final, hops before it, TTFB ms."""
+async def _walk(client: httpx.AsyncClient, url: str) -> tuple[httpx.Response, list[httpx.Response], int, list[str]]:
+    """GET with redirects followed by hand, each hop checked. Returns final, hops, TTFB ms, each one's URL by name."""
     hops: list[httpx.Response] = []
+    urls: list[str] = []
     for _ in range(MAX_HOPS + 1):
         target = httpx.URL(url)
         if target.scheme not in ("http", "https"):
             raise Refused(f"refused: a redirect to {target.scheme}:")
         host = target.raw_host.decode("ascii")
-        await checked_address(host)
-        # ponytail: httpx resolves again on connect, so a rebinding DNS answer could still slip in here; pin with
-        # an IP url plus sni_hostname if that matters. TLS, which connects itself, already pins.
+        address = await checked_address(host)
+        # Connect to the checked address with the name in Host and SNI, so DNS cannot rebind between check and
+        # connect. Connection: close stops a pooled socket opened for one SNI being reused for another name.
+        pinned = str(target.copy_with(host=address))
+        headers = {**visit_headers(), "host": target.netloc.decode("ascii"), "connection": "close"}
         headers_at: list[float] = []
 
         async def trace(name, info, headers_at=headers_at):
@@ -116,15 +119,22 @@ async def _walk(client: httpx.AsyncClient, url: str) -> tuple[httpx.Response, li
         async with http.domain_slot(host):
             start = time.monotonic()
             resp = await http.request(
-                client, "GET", url, headers=visit_headers(), follow_redirects=False, extensions={"trace": trace}
+                client,
+                "GET",
+                pinned,
+                headers=headers,
+                follow_redirects=False,
+                extensions={"trace": trace, "sni_hostname": host},
             )
         ttfb = int(((headers_at[0] if headers_at else time.monotonic()) - start) * 1000)
         _forget_cookies(client, host)
+        _forget_cookies(client, address)  # the jar keys on the request host, which is now the address
+        urls.append(url)
         location = resp.headers.get("location")
         if not (resp.is_redirect and location):
-            return resp, hops, ttfb
+            return resp, hops, ttfb, urls
         hops.append(resp)
-        url = str(resp.url.join(location))
+        url = str(target.join(location))  # against the name: a relative Location must not turn into the address
     raise httpx.TooManyRedirects(f"more than {MAX_HOPS} redirects", request=resp.request)
 
 
@@ -171,14 +181,16 @@ class _Meta(HTMLParser):
 )
 async def site_http(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
     url = value if entity_type is EntityType.URL else f"https://{value}/"
-    resp, hops, ttfb = await _walk(client, url)
+    resp, hops, ttfb, urls = await _walk(client, url)
     findings = [
         Finding(label="status", value=f"{resp.status_code} {resp.reason_phrase}".strip()),
         Finding(label="time to first byte", value=f"{ttfb} ms"),
     ]
-    findings += [Finding(label="redirect", value=f"{hop.status_code} {hop.url}") for hop in hops]
+    findings += [
+        Finding(label="redirect", value=f"{hop.status_code} {at}") for hop, at in zip(hops, urls, strict=False)
+    ]
     if hops:
-        findings.append(Finding(label="final URL", value=str(resp.url)))
+        findings.append(Finding(label="final URL", value=urls[-1]))
     for name in SECURITY_HEADERS:
         got = resp.headers.get(name)
         if got is None:
@@ -275,7 +287,7 @@ async def site_tls(value: str, entity_type: EntityType, client: httpx.AsyncClien
 async def _file(client: httpx.AsyncClient, url: str) -> httpx.Response | str:
     """The file's final response, or a one-line reason it is absent or unreadable; refusals included, per file."""
     try:
-        resp, _, _ = await _walk(client, url)
+        resp, _, _, _ = await _walk(client, url)
     except (Refused, httpx.HTTPError) as exc:
         return f"could not read: {_reason(exc)}"
     # An HTML answer to a plain-text or XML path is a soft 404: a site that routes every path to its app.

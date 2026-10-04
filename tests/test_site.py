@@ -34,7 +34,8 @@ def _answer(routes, seen=None):
     def handler(request):
         if seen is not None:
             seen.append(request)
-        return routes[str(request.url)]
+        # Routed by what the server sees, Host plus path: the connection itself goes to the pinned address.
+        return routes[f"{request.url.scheme}://{request.headers['host']}{request.url.raw_path.decode()}"]
 
     return mock_client(handler)
 
@@ -132,7 +133,7 @@ async def test_a_redirect_to_a_private_host_is_refused_before_it_is_contacted(dn
     async with _answer(routes, seen) as client:
         with pytest.raises(site.Refused, match="internal.example"):
             await site.site_http("example.com", EntityType.DOMAIN, client)
-    assert [r.url.host for r in seen] == ["example.com"]
+    assert [r.headers["host"] for r in seen] == ["example.com"]  # internal.example was never sent a request
 
 
 async def test_redirects_are_capped_at_five(dns):
@@ -301,3 +302,22 @@ def test_every_visit_fetcher_contacts_the_target_and_reads_domains_and_urls():
         rec = registered_fetcher(source_id)
         assert rec.contacts_target and not rec.on_demand
         assert set(rec.accepts) == {EntityType.DOMAIN, EntityType.URL}
+
+
+async def test_each_hop_connects_to_the_address_it_checked_with_the_name_in_host_and_sni(dns):
+    """DNS must not get a second answer between the check and the connect: the address checked is the one used."""
+    dns["example.com"] = [PUBLIC + "10"]
+    dns["www.example.com"] = [PUBLIC + "11"]
+    seen = []
+    routes = {
+        "https://example.com/": httpx.Response(301, headers={"location": "https://www.example.com/"}),
+        "https://www.example.com/": httpx.Response(200),
+    }
+    async with _answer(routes, seen) as client:
+        findings = await site.site_http("example.com", EntityType.DOMAIN, client)
+    assert [r.url.host for r in seen] == [PUBLIC + "10", PUBLIC + "11"]
+    assert [r.headers["host"] for r in seen] == ["example.com", "www.example.com"]
+    assert [r.extensions["sni_hostname"] for r in seen] == ["example.com", "www.example.com"]
+    assert all(r.headers["connection"] == "close" for r in seen)  # no socket reused under another name's SNI
+    values = [f.value for f in findings]
+    assert "301 https://example.com/" in values and "https://www.example.com/" in values  # names, never addresses
