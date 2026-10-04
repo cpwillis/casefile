@@ -35,20 +35,22 @@ async def run_cached(*args, **kwargs):
     return await cached(*args, **kwargs)
 
 
-def _wanted(record, deep) -> bool:
-    """Whether an on-demand source runs. `deep` is True for all, or a list of ids: the browser asks per panel."""
+def _wanted(record, deep, visit=False) -> bool:
+    """Whether a source runs. `deep` is True for all on-demand, or a list of ids; only `visit` admits a site visit."""
+    if record.contacts_target:
+        return visit
     if not record.on_demand:
         return True
     return deep is True or record.id in (deep or ())
 
 
-async def _fetch_all(candidates, use_cache: bool = True, deep=False):
+async def _fetch_all(candidates, use_cache: bool = True, deep=False, visit=False):
     from casefile.fetchers.http import build_client
 
     async with build_client() as client:
         results = {}
         for c in candidates:
-            due = [r for r in _registry().fetchers_for(c.type) if _wanted(r, deep)]
+            due = [r for r in _registry().fetchers_for(c.type) if _wanted(r, deep, visit)]
             got = await asyncio.gather(*(run_cached(r.id, c.value, c.type, client, use_cache=use_cache) for r in due))
             results[(c.type, c.value)] = got
         return results
@@ -96,7 +98,7 @@ def _tag(candidate, index: int, structured: bool) -> str:
     return "most likely" if index == 0 else ""
 
 
-def _render_text(raw, candidates, results, deep=False):
+def _render_text(raw, candidates, results, deep=False, visit=False):
     lines = [raw]
     structured = any(c.type not in FREE_FORM for c in candidates)
     for i, c in enumerate(candidates):
@@ -116,6 +118,11 @@ def _render_text(raw, candidates, results, deep=False):
         skipped = [r for r in _registry().fetchers_for(c.type) if r.on_demand and not _wanted(r, deep)] if ran else []
         if skipped:
             lines.append(f"    [on demand] {', '.join(r.id for r in skipped)}: run with --deep")
+        # Keyed on whether fetching ran at all: a url reading may have no other source to make `ran` non-empty.
+        fetched = (c.type, c.value) in results
+        unvisited = [r for r in _registry().fetchers_for(c.type) if r.contacts_target and not visit] if fetched else []
+        if unvisited:
+            lines.append(f"    [visit] {', '.join(r.id for r in unvisited)}: run with --visit")
         # notes go to --json, the web and exports, not here: 46 of 49 domain sources have one and they run long
         for link in _shown_links(c, results):
             lines.append(f"    {link.name:<28} {link.url}")
@@ -191,6 +198,7 @@ def _main(argv: list[str] | None) -> int:
             "  casefile                          launch the local web app\n"
             "  casefile example.com              look one identifier up in the terminal\n"
             "  casefile jdoe-example --deep      also run the on-demand sources\n"
+            "  casefile example.com --visit      also visit the site itself, which sees your IP\n"
             "  casefile 192.0.2.1 --json | jq .  machine-readable\n"
             f"\n{REPO}"
         ),
@@ -206,6 +214,12 @@ def _main(argv: list[str] | None) -> int:
         metavar="SOURCES",
         help="also run on-demand sources: bare for all, or a comma-separated list of ids. These are the "
         "sources whose egress is large enough to need consent, so they are off by default.",
+    )
+    parser.add_argument(
+        "--visit",
+        action="store_true",
+        help="also visit the site itself: about 5 requests to the domain or URL from your IP, which the site sees. "
+        "Never part of --deep.",
     )
     parser.add_argument(
         "--check-links",
@@ -242,6 +256,11 @@ def _main(argv: list[str] | None) -> int:
             parser.error("--deep needs an identifier to run on")
         if unknown := set(args.deep.split(",") if args.deep else ()) - ids:
             parser.error(f"--deep: no such source {', '.join(sorted(unknown))}; ids are {', '.join(sorted(ids))}")
+        named = [_registry().registered_fetcher(i) for i in (args.deep.split(",") if args.deep else ())]
+        if visits := sorted(r.id for r in named if r.contacts_target):
+            parser.error(f"--deep: {', '.join(visits)} contacts the target itself; use --visit")
+    if args.visit and args.value is None:
+        parser.error("--visit needs an identifier to run on")
 
     if args.build_demo:
         from casefile.demo import build_demo
@@ -310,7 +329,9 @@ def _main(argv: list[str] | None) -> int:
         return 1
 
     deep = True if args.deep == "" else (args.deep.split(",") if args.deep else False)
-    results = {} if args.no_fetch else asyncio.run(_fetch_all(candidates, use_cache=not args.no_cache, deep=deep))
+    results = {}
+    if not args.no_fetch:
+        results = asyncio.run(_fetch_all(candidates, use_cache=not args.no_cache, deep=deep, visit=args.visit))
     if args.check_links:
         verdicts = asyncio.run(_check_all(candidates, results))
         if args.json:
@@ -321,5 +342,5 @@ def _main(argv: list[str] | None) -> int:
     if args.json:
         print(_render_json(args.value, candidates, results))
     else:
-        print(_render_text(args.value, candidates, results, deep))
+        print(_render_text(args.value, candidates, results, deep, args.visit))
     return 0

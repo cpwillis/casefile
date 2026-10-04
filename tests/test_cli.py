@@ -249,7 +249,7 @@ def test_deep_before_the_target_does_not_swallow_it(monkeypatch, capsys):
     """`casefile --deep example.com` must search the target with deep sources, not read it as a source and serve."""
     seen = {}
 
-    async def fake(candidates, use_cache=True, deep=False):
+    async def fake(candidates, use_cache=True, deep=False, visit=False):
         seen["deep"] = deep
         seen["values"] = [c.value for c in candidates]
         return {}
@@ -336,3 +336,56 @@ def test_text_output_credits_whatsmyname(monkeypatch, capsys):
     monkeypatch.setattr("casefile.cli.run_cached", fake)
     assert main(["jdoe-example", "--deep"]) == 0
     assert wmn.CREDIT in capsys.readouterr().out
+
+
+VISIT = {"site-http", "site-tls", "site-files"}
+
+
+@pytest.mark.parametrize(("extra", "visited"), [([], False), (["--deep"], False), (["--visit"], True)])
+def test_only_visit_runs_the_sources_that_contact_the_target(monkeypatch, capsys, extra, visited):
+    """--deep is egress size, --visit is who sees you: one must never imply the other."""
+    import casefile.fetchers.site  # noqa: F401 -- registers the visit
+
+    seen = []
+
+    async def fake(source_id, value, entity_type, client, *, use_cache=True):
+        seen.append(source_id)
+        return SourceResult(source_id, State.EMPTY)
+
+    monkeypatch.setattr("casefile.cli.run_cached", fake)
+    assert main(["example.com", "--json", *extra]) == 0
+    expected = VISIT if visited else set()
+    assert VISIT & set(seen) == expected
+    sources = {s["source_id"] for c in json.loads(capsys.readouterr().out)["candidates"] for s in c["sources"]}
+    assert VISIT & sources == expected  # absent from --json, not listed as skipped
+
+
+def test_deep_refuses_a_visit_source_by_name_and_points_at_visit(monkeypatch, capsys):
+    import casefile.fetchers.site  # noqa: F401 -- registers the visit
+
+    seen = []
+    monkeypatch.setattr("casefile.cli.run_cached", lambda *a, **k: seen.append(a))
+    with pytest.raises(SystemExit) as exc:
+        main(["example.com", "--deep", "site-tls"])
+    assert exc.value.code == 2 and "--visit" in capsys.readouterr().err and not seen
+
+
+def test_visit_without_an_identifier_is_a_usage_error_not_the_web_app():
+    with pytest.raises(SystemExit) as exc:
+        main(["--visit"])
+    assert exc.value.code == 2
+
+
+def test_text_output_names_the_visit_sources_until_visit_is_given(monkeypatch, capsys):
+    import casefile.fetchers.site  # noqa: F401 -- registers the visit
+
+    async def fake(source_id, value, entity_type, client, *, use_cache=True):
+        return SourceResult(source_id, State.EMPTY)
+
+    monkeypatch.setattr("casefile.cli.run_cached", fake)
+    assert main(["example.com", "--deep"]) == 0
+    assert "[visit] site-http, site-tls, site-files: run with --visit" in capsys.readouterr().out
+    assert main(["example.com", "--visit"]) == 0
+    assert "[visit]" not in capsys.readouterr().out
+    assert main(["example.com", "--no-fetch"]) == 0
+    assert "[visit]" not in capsys.readouterr().out
