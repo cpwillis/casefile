@@ -95,7 +95,7 @@
         {# the only panels that contact the target: one click loads all three, nothing else ever does #}
         <div class="visit">
           {% if not demo %}
-          <p class="visit-note muted">about 5 requests to <code>{{ section.visit_host }}</code> from your IP; the
+          <p class="visit-note muted">{{ "about 5 requests" if visits | length > 1 else "one request" }} to <code>{{ section.visit_host }}</code> from your IP; the
             site will see them</p>
           {% if visits | rejectattr("id", "in", section.results) | rejectattr("id", "in", section.running) | list %}
           <button class="panel-run visit-run" type="button">Visit the site</button>

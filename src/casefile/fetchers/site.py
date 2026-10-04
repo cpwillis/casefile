@@ -244,7 +244,7 @@ async def _handshake(address: str, host: str, verify: bool):
 
 @fetcher(
     id="site-tls",
-    accepts=[EntityType.DOMAIN, EntityType.URL],
+    accepts=[EntityType.DOMAIN],  # a URL input also yields its domain reading; on both it would hand-shake twice
     name="Site visit: TLS certificate",
     note="One handshake on 443 from your IP. Leaf certificate only, as served to you now; a CDN's may be shared.",
     contacts_target=True,
@@ -327,7 +327,7 @@ def _security_txt(text: str) -> list[Finding]:
 
 @fetcher(
     id="site-files",
-    accepts=[EntityType.DOMAIN, EntityType.URL],
+    accepts=[EntityType.DOMAIN],  # per host, like TLS: the domain reading covers a URL input's host
     name="Site visit: robots, sitemap, security.txt",
     note="Three GETs from your IP. Absent means a 404 or 410; robots.txt asks crawlers, it does not enforce.",
     contacts_target=True,

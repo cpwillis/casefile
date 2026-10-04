@@ -301,7 +301,10 @@ def test_every_visit_fetcher_contacts_the_target_and_reads_domains_and_urls():
     for source_id in ("site-http", "site-tls", "site-files"):
         rec = registered_fetcher(source_id)
         assert rec.contacts_target and not rec.on_demand
-        assert set(rec.accepts) == {EntityType.DOMAIN, EntityType.URL}
+    assert set(registered_fetcher("site-http").accepts) == {EntityType.DOMAIN, EntityType.URL}
+    # Per host: a URL input also yields its domain reading, so on both these would contact the host twice.
+    assert set(registered_fetcher("site-tls").accepts) == {EntityType.DOMAIN}
+    assert set(registered_fetcher("site-files").accepts) == {EntityType.DOMAIN}
 
 
 async def test_each_hop_connects_to_the_address_it_checked_with_the_name_in_host_and_sni(dns):

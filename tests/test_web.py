@@ -288,7 +288,8 @@ def test_a_url_reading_names_its_host_in_the_visit_note():
 
     text = client.get("/q", params={"v": "https://example.com/a?b=1"}).text
     assert text.count('<div class="visit">') == 2  # the url and the domain it yields: each its own consent
-    assert text.count("about 5 requests to <code>example.com</code>") == 2
+    assert text.count("one request to <code>example.com</code>") == 1  # the url block: that exact page only
+    assert text.count("about 5 requests to <code>example.com</code>") == 1  # the domain block: page, TLS, files
 
 
 def test_a_cached_visit_renders_prefilled_and_the_button_goes_once_nothing_is_left_to_visit():
