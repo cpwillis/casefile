@@ -362,7 +362,9 @@ async def resume_jobs() -> None:
     """Relaunch the runs a restart interrupted, so a reloaded page joins them instead of finding them gone."""
     for source_id, entity_type, value in pending_jobs():
         target = _TYPES.get(entity_type)
-        known = source_id == LINKCHECK or registered_fetcher(source_id) is not None
+        rec = registered_fetcher(source_id)
+        # A visit never resumes, even from a row it should not have: only a click may contact the target.
+        known = source_id == LINKCHECK or (rec is not None and not rec.contacts_target)
         if target is None or not known or cached_result(source_id, target, value) is not None:
             # Unresumable, or it finished and only the row outlived the process. Either way, stop retrying it.
             forget_job(source_id, entity_type, value)

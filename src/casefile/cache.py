@@ -9,7 +9,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from casefile import store
-from casefile.fetchers import Finding, SourceResult, State, run_fetcher
+from casefile.fetchers import Finding, SourceResult, State, registered_fetcher, run_fetcher
 
 ANSWERED = (State.OK, State.EMPTY)  # a source that actually replied, whether or not it had data
 RETENTION_SECONDS = 86400.0
@@ -221,8 +221,11 @@ class Checkpoint:
 async def _run_and_store(runner, source_id, value, entity_type, client, use_cache: bool, refresh: bool) -> SourceResult:
     key = (source_id, str(entity_type), value)
     # use_cache off is the privacy path: nothing is written, so there is no job row and nothing to resume.
+    # A run that contacts the target gets no row either: a restart must never visit a site nobody clicked for.
+    rec = registered_fetcher(source_id)
+    resumable = use_cache and not (rec and rec.contacts_target)
     checkpoint = None
-    if use_cache:
+    if resumable:
         try:
             _job_start(key, reset=refresh)
             checkpoint = Checkpoint(key)
@@ -233,11 +236,12 @@ async def _run_and_store(runner, source_id, value, entity_type, client, use_cach
     except asyncio.CancelledError:
         raise  # ctrl-c or shutdown mid-run: the row stays, and the crumbs with it, so the next start resumes here
     except BaseException:
-        if use_cache:
+        if resumable:
             forget_job(source_id, entity_type, value)  # a run that failed on its own is not retried on every start
         raise
-    if use_cache:
+    if resumable:
         forget_job(source_id, entity_type, value)
+    if use_cache:
         try:  # noqa: SIM105
             _store(result, entity_type, value)
         except Exception:  # noqa: BLE001 -- failing to cache is not failing to fetch

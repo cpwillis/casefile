@@ -64,6 +64,8 @@ class Registered:
     # `note`: polarity is not self-evident, a known-good corpus hit and a malware hit look identical on screen.
     name: str = ""
     note: str | None = None
+    # The target itself sees the request. Not on_demand: that is egress size, this is who learns you looked.
+    contacts_target: bool = False
 
 
 _REGISTRY: dict[str, Registered] = {}
@@ -78,8 +80,9 @@ def fetcher(
     name: str = "",
     note: str | None = None,
     checkpointed: bool = False,
+    contacts_target: bool = False,
 ):
-    """Register a fetcher. on_demand marks one whose egress is large enough to need consent."""
+    """Register a fetcher. on_demand marks large egress; contacts_target, a request the target itself sees."""
 
     def register(func: Callable) -> Callable:
         if id in _REGISTRY:
@@ -93,6 +96,7 @@ def fetcher(
             name=name or id,
             note=note,
             checkpointed=checkpointed,
+            contacts_target=contacts_target,
         )
         return func
 

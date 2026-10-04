@@ -227,6 +227,25 @@ async def test_a_job_naming_nothing_resumable_is_dropped_rather_than_retried_on_
     assert pending_jobs() == []
 
 
+async def test_a_job_row_for_a_site_visit_is_dropped_not_resumed(monkeypatch):
+    """Belt and braces: even a row that should never exist must not make a restart contact the target."""
+    from casefile.cache import _job_start, pending_jobs
+    from casefile.fetchers import fetcher
+    from casefile.types import EntityType
+    from casefile.web.app import resume_jobs
+
+    started = []
+
+    @fetcher(id="resume-visit", accepts=[EntityType.DOMAIN], contacts_target=True)
+    async def _f(value, entity_type, client):
+        started.append(value)
+        return []
+
+    _job_start(("resume-visit", "domain", "example.com"))
+    await resume_jobs()
+    assert started == [] and pending_jobs() == []
+
+
 def test_the_resume_wrapper_is_what_serve_runs_not_the_bare_app():
     """`app` must stay hook-free for importers, so the resume can only ride on what serve hands uvicorn."""
     assert "with_resume(app)" in inspect.getsource(serve)

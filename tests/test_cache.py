@@ -355,6 +355,22 @@ async def test_no_cache_records_no_job_because_nothing_about_it_is_stored():
     assert seen == [[]]
 
 
+async def test_a_run_that_contacts_the_target_records_no_job_but_is_still_cached():
+    """No row means a restart can never visit a site unprompted; the 24h answer still spares a second visit."""
+    from casefile.cache import cached_result, pending_jobs
+
+    seen = []
+
+    @fetcher(id="job-visit", accepts=[EntityType.DOMAIN], contacts_target=True)
+    async def _f(value, entity_type, client):
+        seen.append(pending_jobs())
+        return [Finding(label="status", value="200 OK")]
+
+    await run_cached("job-visit", "example.com", EntityType.DOMAIN, None)
+    assert seen == [[]]
+    assert cached_result("job-visit", EntityType.DOMAIN, "example.com") is not None
+
+
 async def test_clear_cache_purges_jobs_too():
     """It unlinks the file, so the jobs table goes with it; a surviving row would name a purged search."""
     from casefile.cache import _job_start, pending_jobs
