@@ -42,6 +42,14 @@ document.addEventListener("click", (event) => {
   }).catch(() => announce("could not copy"));  // an unfocused document or a denied permission rejects silently
 });
 
+// One click, one event: the visit block's placeholders listen for it, so nothing else can start a visit.
+document.addEventListener("click", (event) => {
+  const button = event.target.closest(".visit-run");
+  if (!button) return;
+  button.disabled = true;
+  button.closest(".visit")?.dispatchEvent(new CustomEvent("visit"));
+});
+
 // htmx swaps nothing when a request never completes, so a blocked panel just sits there looking idle.
 function panelFailed(event, reason) {
   const star = event.detail.elt.closest(".star");

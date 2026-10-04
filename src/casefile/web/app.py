@@ -6,7 +6,7 @@ import re
 import threading
 from itertools import groupby
 from pathlib import Path
-from urllib.parse import parse_qs, quote
+from urllib.parse import parse_qs, quote, urlsplit
 
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -80,6 +80,10 @@ templates.env.globals["wmn"] = {"id": wmn.SOURCE_ID, "credit": wmn.CREDIT, "url"
 templates.env.filters["safe_url"] = safe_url
 
 
+def _host(candidate: Candidate) -> str:
+    return (urlsplit(candidate.value).hostname or "") if candidate.type is EntityType.URL else candidate.value
+
+
 def sections_for(raw: str, results: dict | None = None) -> list[dict]:
     """One entry per reading. `results` prefills the demo's panels; live, a cache hit prefills the same way.
 
@@ -95,7 +99,8 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
             stored = cached_results(candidate.type, candidate.value)  # one read for the panels and the link verdicts
             known = {r.id: stored[r.id] for r in panels if r.id in stored}
             # Still running from before a reload: render as loading so the page joins that run, not a second one.
-            running = {r.id for r in panels if r.on_demand and in_flight(r.id, candidate.type, candidate.value)}
+            ask_first = [r for r in panels if r.on_demand or r.contacts_target]
+            running = {r.id for r in ask_first if in_flight(r.id, candidate.type, candidate.value)}
             verdicts = verdicts_from(stored.get(LINKCHECK))
             checking = verdicts is None and in_flight(LINKCHECK, candidate.type, candidate.value)
         else:
@@ -114,6 +119,7 @@ def sections_for(raw: str, results: dict | None = None) -> list[dict]:
                 "case": None if results is not None else case_for_target(candidate.type, candidate.value),
                 "starred": frozenset() if results is not None else starred_keys(candidate.type, candidate.value),
                 "speculative": structured and candidate.type in FREE_FORM,
+                "visit_host": _host(candidate),  # named in the visit note, so the click says who will see it
             }
         )
     return sections

@@ -230,17 +230,19 @@ async def test_a_job_naming_nothing_resumable_is_dropped_rather_than_retried_on_
 async def test_a_job_row_for_a_site_visit_is_dropped_not_resumed(monkeypatch):
     """Belt and braces: even a row that should never exist must not make a restart contact the target."""
     from casefile.cache import _job_start, pending_jobs
-    from casefile.fetchers import fetcher
+    from casefile.fetchers import _REGISTRY, Registered
     from casefile.types import EntityType
     from casefile.web.app import resume_jobs
 
     started = []
 
-    @fetcher(id="resume-visit", accepts=[EntityType.DOMAIN], contacts_target=True)
     async def _f(value, entity_type, client):
         started.append(value)
         return []
 
+    # setitem, not @fetcher: undone after the test, so no later page grows a fourth visit panel
+    rec = Registered("resume-visit", (EntityType.DOMAIN,), _f, contacts_target=True)
+    monkeypatch.setitem(_REGISTRY, "resume-visit", rec)
     _job_start(("resume-visit", "domain", "example.com"))
     await resume_jobs()
     assert started == [] and pending_jobs() == []
@@ -260,3 +262,62 @@ def test_the_home_page_lists_recent_searches_from_the_cache():
     _store(SourceResult("dns", State.EMPTY), EntityType.DOMAIN, "example.com")
     text = client.get("/").text
     assert "Recent searches" in text and 'href="/q?v=example.com"' in text
+
+
+def _visit_block(html: str) -> str:
+    start = html.index('<div class="visit">')
+    ends = (html.find(marker, start) for marker in ('<h3 class="reading"', "</section>"))
+    return html[start : min(e for e in ends if e != -1)]  # up to the next reading's heading
+
+
+def test_a_domain_renders_one_visit_block_whose_panels_wait_for_its_one_button():
+    import casefile.fetchers.site  # noqa: F401 -- registers the visit
+
+    text = client.get("/q", params={"v": "example.com"}).text
+    assert text.count('<div class="visit">') == 1 and text.count("Visit the site") == 1
+    assert "about 5 requests to <code>example.com</code> from your IP; the" in text
+    block = _visit_block(text)
+    assert block.count('hx-trigger="visit from:closest .visit"') == 3
+    assert 'hx-trigger="load"' not in block and "onclick" not in block
+    for source_id in ("site-http", "site-tls", "site-files"):
+        assert f"/panel/{source_id}?v=example.com&amp;t=domain" in block
+
+
+def test_a_url_reading_names_its_host_in_the_visit_note():
+    import casefile.fetchers.site  # noqa: F401 -- registers the visit
+
+    text = client.get("/q", params={"v": "https://example.com/a?b=1"}).text
+    assert text.count('<div class="visit">') == 2  # the url and the domain it yields: each its own consent
+    assert text.count("about 5 requests to <code>example.com</code>") == 2
+
+
+def test_a_cached_visit_renders_prefilled_and_the_button_goes_once_nothing_is_left_to_visit():
+    import casefile.fetchers.site  # noqa: F401 -- registers the visit
+    from casefile.cache import _store
+    from casefile.fetchers import Finding, SourceResult, State
+    from casefile.types import EntityType
+
+    _store(SourceResult("site-tls", State.OK, (Finding("protocol", "TLSv1.3"),)), EntityType.DOMAIN, "example.com")
+    block = _visit_block(client.get("/q", params={"v": "example.com"}).text)
+    assert "TLSv1.3" in block and block.count('hx-trigger="visit from:closest .visit"') == 2
+    assert "Visit the site" in block
+    for source_id in ("site-http", "site-files"):
+        _store(SourceResult(source_id, State.EMPTY), EntityType.DOMAIN, "example.com")
+    block = _visit_block(client.get("/q", params={"v": "example.com"}).text)
+    assert "Visit the site" not in block and "hx-trigger" not in block
+
+
+def test_a_reload_mid_visit_joins_it_rather_than_asking_again():
+    import asyncio
+
+    import casefile.fetchers.site  # noqa: F401 -- registers the visit
+    from casefile import cache
+
+    loop = asyncio.new_event_loop()
+    try:
+        cache._IN_FLIGHT[("site-http", "domain", "example.com")] = loop.create_future()
+        block = _visit_block(client.get("/q", params={"v": "example.com"}).text)
+    finally:
+        cache._IN_FLIGHT.clear()
+        loop.close()
+    assert block.count('hx-trigger="load"') == 1 and block.count('hx-trigger="visit from:closest .visit"') == 2

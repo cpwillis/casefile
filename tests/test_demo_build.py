@@ -20,6 +20,15 @@ def test_build_writes_an_index_and_a_page_per_target(built):
         assert (built / f"{_slug(target.query)}.html").exists()
 
 
+def test_the_demo_shows_visit_panels_as_not_in_this_demo_with_no_button(tmp_path):
+    import casefile.fetchers.site  # noqa: F401 -- registers the visit
+
+    build_demo(tmp_path / "dist")
+    text = (tmp_path / "dist" / "example-com.html").read_text()
+    assert '<div class="visit">' in text and "Visit the site" not in text
+    assert "Run casefile locally to visit the site." in text
+
+
 def test_the_demo_is_inert(built):
     """No backend exists behind these pages, so nothing may try to call one."""
     for page in built.glob("*.html"):

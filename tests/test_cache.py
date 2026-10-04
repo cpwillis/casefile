@@ -355,17 +355,19 @@ async def test_no_cache_records_no_job_because_nothing_about_it_is_stored():
     assert seen == [[]]
 
 
-async def test_a_run_that_contacts_the_target_records_no_job_but_is_still_cached():
+async def test_a_run_that_contacts_the_target_records_no_job_but_is_still_cached(monkeypatch):
     """No row means a restart can never visit a site unprompted; the 24h answer still spares a second visit."""
     from casefile.cache import cached_result, pending_jobs
+    from casefile.fetchers import _REGISTRY, Registered
 
     seen = []
 
-    @fetcher(id="job-visit", accepts=[EntityType.DOMAIN], contacts_target=True)
     async def _f(value, entity_type, client):
         seen.append(pending_jobs())
         return [Finding(label="status", value="200 OK")]
 
+    # setitem, not @fetcher: undone after the test, so no page elsewhere in the run grows a visit panel
+    monkeypatch.setitem(_REGISTRY, "job-visit", Registered("job-visit", (EntityType.DOMAIN,), _f, contacts_target=True))
     await run_cached("job-visit", "example.com", EntityType.DOMAIN, None)
     assert seen == [[]]
     assert cached_result("job-visit", EntityType.DOMAIN, "example.com") is not None

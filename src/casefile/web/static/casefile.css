@@ -89,6 +89,9 @@ a { color: var(--accent); }
 .panel.htmx-request .panel-running { display: block; }
 .panel.htmx-request .panel-run, .panel.htmx-request .findings { opacity: .5; }
 .panel-run[disabled] { cursor: progress; opacity: .6; }
+.visit { border-top: 1px dashed var(--line); padding-top: 8px; }
+.visit-note { font-size: 12px; margin: 0 0 8px; }
+.visit-run { margin: 0 0 8px; }
 
 .intro.wide { max-width: 900px; margin: 4vh auto; }
 .rename { display: flex; gap: 8px; margin: 0 0 4px; }

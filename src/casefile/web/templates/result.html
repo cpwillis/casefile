@@ -57,7 +57,8 @@
         {% for p in section.panels %}
         {% set panel_url = '/panel/' ~ p.id ~ '?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type %}
         {% set prerendered = section.results.get(p.id) %}
-        {% if prerendered %}
+        {% if p.contacts_target %}{# in the visit block below, behind its one button #}
+        {% elif prerendered %}
         {# rendered exactly as a live swap would be; the demo passes no target, so no stars and no refresh #}
         {% with result = prerendered, t = (none if demo else section.type), v = (none if demo else section.value),
                 starred_keys = section.starred %}
@@ -89,6 +90,44 @@
         </div>
         {% endif %}
         {% endfor %}
+        {% set visits = section.panels | selectattr("contacts_target") | list %}
+        {% if visits %}
+        {# the only panels that contact the target: one click loads all three, nothing else ever does #}
+        <div class="visit">
+          {% if not demo %}
+          <p class="visit-note muted">about 5 requests to <code>{{ section.visit_host }}</code> from your IP; the
+            site will see them</p>
+          {% if visits | rejectattr("id", "in", section.results) | rejectattr("id", "in", section.running) | list %}
+          <button class="panel-run visit-run" type="button">Visit the site</button>
+          {% endif %}
+          {% endif %}
+          {% for p in visits %}
+          {% set panel_url = '/panel/' ~ p.id ~ '?v=' ~ (section.value | urlencode) ~ '&t=' ~ section.type %}
+          {% set prerendered = section.results.get(p.id) %}
+          {% if demo %}
+          <div class="panel" data-state="on-demand">
+            <div class="panel-head"><h4 class="panel-id">{{ source_name(p.id) }}</h4>
+              <span class="panel-state">not in this demo</span></div>
+            <p class="muted panel-cost">Run casefile locally to visit the site.</p>
+          </div>
+          {% elif prerendered %}
+          {% with result = prerendered, t = section.type, v = section.value, starred_keys = section.starred %}
+          {% include "panel.html" %}{% endwith %}
+          {% else %}
+          {# in flight from before a reload: load to join it; otherwise wait for the button's event #}
+          <div class="panel" data-state="{{ 'loading' if p.id in section.running else 'on-demand' }}"
+               aria-live="polite" tabindex="-1" id="{{ [section.type, section.value, p.id] | dom_id }}"
+               hx-get="{{ panel_url }}"
+               hx-trigger="{{ 'load' if p.id in section.running else 'visit from:closest .visit' }}"
+               hx-swap="outerHTML" hx-indicator="this">
+            <div class="panel-head"><h4 class="panel-id">{{ source_name(p.id) }}</h4>
+              <span class="panel-state">{{ 'loading…' if p.id in section.running else 'not visited' }}</span></div>
+            <p class="panel-running muted">visiting…</p>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
       {% endfor %}
     </section>
