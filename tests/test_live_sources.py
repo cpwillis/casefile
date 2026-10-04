@@ -11,6 +11,8 @@ pytestmark = pytest.mark.live
 KEYLESS = [
     ("dns", "example.com", EntityType.DOMAIN),
     ("rdap", "example.com", EntityType.DOMAIN),
+    ("mail", "example.com", EntityType.DOMAIN),
+    ("dnssec", "example.com", EntityType.DOMAIN),
     ("crtsh", "example.com", EntityType.DOMAIN),
     ("internetdb", "8.8.8.8", EntityType.IP),
     ("github", "octocat", EntityType.USERNAME),

@@ -7,9 +7,11 @@ from casefile.fetchers.sources import (  # noqa: F401 -- import registers them
     blockscout_tx,
     crtsh,
     dns,
+    dnssec,
     github,
     hashlookup,
     internetdb,
+    mail,
     malwarebazaar,
     mempool_address,
     mempool_tx,
@@ -645,3 +647,148 @@ async def test_dns_keeps_the_records_it_got_when_one_query_type_fails():
     values = [f.value for f in result.findings]
     assert "192.0.2.1" in values
     assert any(f.note and "TXT" in f.value for f in result.findings)
+
+
+def _txt_handler(records: dict[str, list[str]]):
+    """A DoH answerer: TXT rows (each already wrapped in quotes, as Cloudflare sends them) per queried name."""
+
+    def handler(request):
+        rows = [{"type": 16, "data": d} for d in records.get(request.url.params["name"], [])]
+        return httpx.Response(200, json={"Status": 0, "Answer": rows} if rows else {"Status": 0})
+
+    return handler
+
+
+async def test_mail_reads_spf_dmarc_mta_sts_and_bimi():
+    records = {
+        "example.com": ['"v=spf1 include:_spf.example.net include:mail.example.org ~all"', '"unrelated"'],
+        "_dmarc.example.com": ['"v=DMARC1; p=reject; sp=quarantine; rua=mailto:a@example.com,mailto:b@example.com"'],
+        "_mta-sts.example.com": ['"v=STSv1; id=20260101"'],
+        "default._bimi.example.com": ['"v=BIMI1; l=https://example.com/logo.svg"'],
+    }
+    async with mock_client(_txt_handler(records)) as client:
+        findings = await mail("example.com", EntityType.DOMAIN, client)
+    got = [(f.label, f.value) for f in findings]
+    assert ("SPF policy", "softfail (~all)") in got
+    assert [v for k, v in got if k == "SPF include"] == ["_spf.example.net", "mail.example.org"]
+    assert ("DMARC policy", "reject") in got
+    assert ("DMARC subdomain policy", "quarantine") in got
+    assert [v for k, v in got if k == "DMARC rua"] == ["mailto:a@example.com", "mailto:b@example.com"]
+    assert ("MTA-STS", "published") in got
+    assert ("BIMI", "published") in got
+
+
+async def test_mail_joins_a_txt_record_split_into_chunks():
+    records = {"example.com": ['"v=spf1 include:a.example.net " "include:b.example.net -all"']}
+    async with mock_client(_txt_handler(records)) as client:
+        findings = await mail("example.com", EntityType.DOMAIN, client)
+    got = [(f.label, f.value) for f in findings]
+    assert ("SPF policy", "fail (-all)") in got
+    assert ("SPF include", "b.example.net") in got
+
+
+async def test_mail_with_nothing_published_says_so_for_each():
+    async with responder(200, json={"Status": 0}) as client:
+        result = await run_fetcher("mail", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "ok"
+    assert {f.label: f.value for f in result.findings} == {
+        "SPF": "not published",
+        "DMARC": "not published",
+        "MTA-STS": "not published",
+        "BIMI": "not published",
+    }
+
+
+async def test_mail_queries_the_conventional_names_and_ignores_cname_rows():
+    seen = []
+
+    def handler(request):
+        seen.append(request.url.params["name"])
+        return httpx.Response(200, json={"Status": 0, "Answer": [{"type": 5, "data": "other.example.net."}]})
+
+    async with mock_client(handler) as client:
+        await mail("example.com", EntityType.DOMAIN, client)
+    assert sorted(seen) == sorted(
+        ["example.com", "_dmarc.example.com", "_mta-sts.example.com", "default._bimi.example.com"]
+    )
+
+
+async def test_mail_one_failed_query_is_a_note_and_the_rest_survive():
+    def handler(request):
+        if request.url.params["name"].startswith("_dmarc"):
+            return httpx.Response(200, json={"Status": 0})
+        if request.url.params["name"].startswith("_mta-sts"):
+            raise httpx.ConnectError("boom", request=request)
+        return httpx.Response(200, json={"Status": 0, "Answer": [{"type": 16, "data": '"v=spf1 -all"'}]})
+
+    async with mock_client(handler) as client:
+        findings = await mail("example.com", EntityType.DOMAIN, client)
+    assert any(f.note and "_mta-sts.example.com" in f.value for f in findings)
+    assert Finding(label="SPF policy", value="fail (-all)") in findings
+
+
+async def test_mail_total_failure_is_an_error_and_a_429_is_rate_limited():
+    async with responder(500) as client:
+        assert (await run_fetcher("mail", "example.com", EntityType.DOMAIN, client)).state == "error"
+    async with responder(429) as client:
+        assert (await run_fetcher("mail", "example.com", EntityType.DOMAIN, client)).state == "rate_limited"
+
+
+async def test_dnssec_signed_and_validated():
+    seen = {}
+
+    def handler(request):
+        seen["params"] = dict(request.url.params)
+        return httpx.Response(
+            200,
+            json={
+                "Status": 0,
+                "AD": True,
+                "Answer": [
+                    {"type": 43, "data": "2371 13 2 c988ec42"},
+                    {"type": 46, "data": "DS 13 2 86400 1791423135 1790814135 41446 com. sig=="},
+                ],
+            },
+        )
+
+    async with mock_client(handler) as client:
+        findings = await dnssec("example.com", EntityType.DOMAIN, client)
+    assert seen["params"] == {"name": "example.com", "type": "DS", "do": "1"}
+    got = {f.label: f.value for f in findings}
+    assert got["DNSSEC"].startswith("signed")
+    assert got["validated"] == "yes"
+    assert got["DS algorithm"] == "13 (ECDSAP256SHA256)"
+    assert got["DS key tag"] == "2371"
+
+
+async def test_dnssec_signed_without_the_ad_flag_is_not_validated():
+    async with responder(
+        200, json={"Status": 0, "AD": False, "Answer": [{"type": 43, "data": "1 8 2 abcd"}]}
+    ) as client:
+        findings = await dnssec("example.com", EntityType.DOMAIN, client)
+    assert {f.label: f.value for f in findings}["validated"].startswith("no")
+
+
+async def test_dnssec_unsigned_has_no_ds_record():
+    async with responder(200, json={"Status": 0, "AD": False}) as client:
+        findings = await dnssec("example.com", EntityType.DOMAIN, client)
+    assert [(f.label, f.value) for f in findings] == [("DNSSEC", "not signed (no DS record at the parent)")]
+
+
+async def test_dnssec_servfail_and_nxdomain_are_notes_not_errors():
+    async with responder(200, json={"Status": 2}) as client:
+        servfail = await run_fetcher("dnssec", "example.com", EntityType.DOMAIN, client)
+    assert servfail.state == "ok"
+    assert servfail.findings[0].note
+    async with responder(200, json={"Status": 3}) as client:
+        nxdomain = await run_fetcher("dnssec", "example.invalid", EntityType.DOMAIN, client)
+    assert "NXDOMAIN" in nxdomain.findings[0].value
+
+
+async def test_dnssec_refused_and_http_failure_are_errors():
+    async with responder(200, json={"Status": 5}) as client:
+        result = await run_fetcher("dnssec", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "error"
+    assert "REFUSED" in result.detail
+    async with responder(500) as client:
+        assert (await run_fetcher("dnssec", "example.com", EntityType.DOMAIN, client)).state == "error"

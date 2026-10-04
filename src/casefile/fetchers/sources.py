@@ -1,6 +1,8 @@
 """Concrete fetchers. Importing this module registers them; one of them needs a key."""
 
+import asyncio
 import ipaddress
+import re
 from urllib.parse import quote
 
 import httpx
@@ -499,4 +501,120 @@ async def mempool_address(value: str, entity_type: EntityType, client: httpx.Asy
     ]
     if unconfirmed := int(pending.get("tx_count") or 0):
         findings.append(Finding(label="unconfirmed", value=str(unconfirmed)))
+    return findings
+
+
+_CF_DOH = "https://cloudflare-dns.com/dns-query"
+
+
+async def _doh(client: httpx.AsyncClient, name: str, qtype: str, *, resolver=_CF_DOH, **extra) -> dict:
+    """One DoH JSON query. Returns the decoded answer; the caller reads Status, AD and Answer."""
+    resp = await http.fetch(
+        client, resolver, params={"name": name, "type": qtype, **extra}, headers={"accept": "application/dns-json"}
+    )
+    return resp.json()
+
+
+_TXT_CHUNK = re.compile(r'"((?:[^"\\]|\\.)*)"')
+
+
+async def _txt(client: httpx.AsyncClient, name: str) -> list[str]:
+    """TXT strings for a name. DoH quotes each 255-byte chunk of a record, so the chunks are joined back up."""
+    data = await _doh(client, name, "TXT")
+    rows = [r.get("data", "") for r in data.get("Answer") or [] if r.get("type") == 16]
+    return ["".join(_TXT_CHUNK.findall(raw)) or raw for raw in rows]
+
+
+def _tags(record: str) -> dict[str, str]:
+    """`k=v; k=v` as a dict, keys lowered: DMARC records use this shape."""
+    pairs = (part.strip().split("=", 1) for part in record.split(";") if "=" in part)
+    return {k.strip().lower(): v.strip() for k, v in pairs}
+
+
+_SPF_ALL = {"-all": "fail (-all)", "~all": "softfail (~all)", "?all": "neutral (?all)", "+all": "allows anyone (+all)"}
+
+
+@fetcher(
+    id="mail",
+    accepts=[EntityType.DOMAIN],
+    name="Email security (DNS)",
+    note="SPF, DMARC, MTA-STS and BIMI as published in DNS. Absent here means unpublished, not misconfigured.",
+)
+async def mail(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    names = (value, f"_dmarc.{value}", f"_mta-sts.{value}", f"default._bimi.{value}")
+    got = await asyncio.gather(*(_txt(client, n) for n in names), return_exceptions=True)
+    failed = [n for n, r in zip(names, got, strict=True) if isinstance(r, BaseException)]
+    if len(failed) == len(names):  # nothing answered: re-raise so a 429 still reads as rate-limited
+        raise got[0]
+    root, dmarc, mta_sts, bimi = (r if isinstance(r, list) else [] for r in got)
+    findings: list[Finding] = []
+    if failed:
+        findings.append(Finding(label="note", value=f"no answer for {', '.join(failed)}", note=True))
+    if spf := next((r for r in root if r.lower().startswith("v=spf1")), None):
+        terms = spf.lower().split()[1:]
+        # a bare `all` is `+all`
+        policy = next(
+            (_SPF_ALL.get(t if t[0] in "+-~?" else f"+{t}") for t in terms if t.lstrip("+-~?") == "all"), None
+        )
+        findings.append(Finding(label="SPF policy", value=policy or "no all mechanism"))
+        findings += [Finding(label="SPF include", value=t.split(":", 1)[1]) for t in terms if t.startswith("include:")]
+    else:
+        findings.append(Finding(label="SPF", value="not published"))
+    if rec := next((r for r in dmarc if r.lower().startswith("v=dmarc1")), None):
+        tags = _tags(rec)
+        findings.append(Finding(label="DMARC policy", value=tags.get("p", "none given")))
+        if sub := tags.get("sp"):
+            findings.append(Finding(label="DMARC subdomain policy", value=sub))
+        for key, label in (("rua", "DMARC rua"), ("ruf", "DMARC ruf")):
+            findings += [Finding(label=label, value=a.strip()) for a in tags.get(key, "").split(",") if a.strip()]
+    else:
+        findings.append(Finding(label="DMARC", value="not published"))
+    has_sts = any(r.lower().startswith("v=stsv1") for r in mta_sts)
+    findings.append(Finding(label="MTA-STS", value="published" if has_sts else "not published"))
+    has_bimi = any(r.lower().startswith("v=bimi1") for r in bimi)
+    findings.append(Finding(label="BIMI", value="published" if has_bimi else "not published"))
+    return findings
+
+
+_DS_ALGORITHMS = {
+    5: "RSASHA1",
+    7: "RSASHA1-NSEC3-SHA1",
+    8: "RSASHA256",
+    10: "RSASHA512",
+    13: "ECDSAP256SHA256",
+    14: "ECDSAP384SHA384",
+    15: "ED25519",
+    16: "ED448",
+}
+
+
+@fetcher(
+    id="dnssec",
+    accepts=[EntityType.DOMAIN],
+    name="DNSSEC (Cloudflare)",
+    note="Whether the parent zone holds a DS record, and whether Cloudflare's resolver validated the chain.",
+)
+async def dnssec(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    data = await _doh(client, value, "DS", do=1)
+    status = data.get("Status", 0)
+    if status == 3:
+        return [Finding(label="note", value="NXDOMAIN: this name does not exist in DNS", note=True)]
+    if status == 2:  # a validation failure and a dead nameserver look the same from here
+        note = "SERVFAIL: the resolver could not answer, a broken DNSSEC chain is one cause"
+        return [Finding(label="note", value=note, note=True)]
+    if status != 0:
+        raise RuntimeError(f"resolver returned {_DNS_RCODES.get(status, status)}")
+    ds = [r for r in data.get("Answer") or [] if r.get("type") == 43]  # do=1 also returns the RRSIG rows
+    if not ds:
+        return [Finding(label="DNSSEC", value="not signed (no DS record at the parent)")]
+    findings = [
+        Finding(label="DNSSEC", value="signed (DS record at the parent)"),
+        Finding(label="validated", value="yes" if data.get("AD") else "no, the resolver did not set AD"),
+    ]
+    for row in ds:
+        parts = str(row.get("data", "")).split()  # key tag, algorithm, digest type, digest
+        if len(parts) >= 3 and parts[1].isdigit():
+            algorithm = _DS_ALGORITHMS.get(int(parts[1]), "unassigned")
+            findings.append(Finding(label="DS algorithm", value=f"{parts[1]} ({algorithm})"))
+            findings.append(Finding(label="DS key tag", value=parts[0]))
     return findings
