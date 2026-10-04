@@ -129,8 +129,8 @@ subject to you and nothing alike to a detector.
 
 - Panels load over `fetch`, so a content blocker that matches the request URL kills one. A blocked panel reads
   **failed** with an explanation rather than sitting on "loading…". Allow `127.0.0.1` in the blocker.
-- MalwareBazaar is the one source needing a key: `ABUSECH_AUTH_KEY`, from the environment or a `.env` in the working
-  directory (see `.env.example`). Without it that panel reads "needs a key" and nothing else changes.
+- MalwareBazaar and URLhaus need one key between them: `ABUSECH_AUTH_KEY`, from the environment or a `.env` in the
+  working directory (see `.env.example`). Without it those panels read "needs a key" and nothing else changes.
 
 ## Demo and release
 

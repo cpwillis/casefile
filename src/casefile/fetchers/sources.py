@@ -618,3 +618,188 @@ async def dnssec(value: str, entity_type: EntityType, client: httpx.AsyncClient)
             findings.append(Finding(label="DS algorithm", value=f"{parts[1]} ({algorithm})"))
             findings.append(Finding(label="DS key tag", value=parts[0]))
     return findings
+
+
+# The CDX API measured 9-17s a call; httpx's 20s read timeout would cut the slow ones, so this request gets its own.
+_CDX_TIMEOUT = httpx.Timeout(40.0, connect=5.0)
+
+
+def _capture_date(stamp: str) -> str:
+    return f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:8]} {stamp[8:10]}:{stamp[10:12]}:{stamp[12:14]} UTC"
+
+
+@fetcher(
+    id="wayback",
+    accepts=[EntityType.DOMAIN, EntityType.URL],
+    name="Wayback Machine",
+    note="Internet Archive captures of this exact address. Slow: the archive can take 20s or more to answer.",
+)
+async def wayback(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    async def edge(limit: int) -> str | None:
+        resp = await http.fetch(
+            client,
+            "https://web.archive.org/cdx/search/cdx",
+            params={"url": value, "output": "json", "fl": "timestamp", "limit": limit},
+            timeout=_CDX_TIMEOUT,
+        )
+        rows = resp.json()
+        return rows[1][0] if len(rows) > 1 and rows[1] else None  # row 0 is the header; [] means never archived
+
+    async with asyncio.timeout(40):
+        first, last = await asyncio.gather(edge(1), edge(-1))
+    if not first or not last:
+        return []
+    return [
+        Finding(label="first capture", value=_capture_date(first), url=f"https://web.archive.org/web/{first}/{value}"),
+        Finding(label="last capture", value=_capture_date(last), url=f"https://web.archive.org/web/{last}/{value}"),
+        Finding(label="calendar", value="all captures", url=f"https://web.archive.org/web/*/{value}"),
+    ]
+
+
+@fetcher(
+    id="tranco",
+    accepts=[EntityType.DOMAIN],
+    name="Tranco rank",
+    note="A research ranking of the most visited domains. Unranked is common and says nothing about the domain.",
+)
+async def tranco(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    resp = await http.fetch(client, f"https://tranco-list.eu/api/ranks/domain/{quote(value, safe='')}")
+    ranks = resp.json().get("ranks") or []  # newest first; empty means not in the list
+    if not ranks:
+        return []
+    latest, oldest = ranks[0], ranks[-1]
+    findings = [Finding(label="rank", value=f"{latest['rank']:,} on {latest['date']}")]
+    if len(ranks) > 1:
+        delta = oldest["rank"] - latest["rank"]  # a smaller number is a better rank, so a drop in number is a rise
+        word = "rose" if delta > 0 else "fell"
+        trend = f"{word} from {oldest['rank']:,} on {oldest['date']}" if delta else f"unchanged since {oldest['date']}"
+        findings.append(Finding(label="trend", value=trend))
+    return findings
+
+
+@fetcher(
+    id="hsts-preload",
+    accepts=[EntityType.DOMAIN],
+    name="HSTS preload list",
+    note="Whether browsers ship this domain as HTTPS-only. Not on the list is the norm, not a fault.",
+)
+async def hsts_preload(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    resp = await http.fetch(client, "https://hstspreload.org/api/v2/status", params={"domain": value})
+    status = str(resp.json().get("status", "unknown"))
+    shown = {"unknown": "not on the preload list", "pending": "pending, submitted but not yet in browsers"}
+    url = f"https://hstspreload.org/?domain={quote(value, safe='')}"
+    return [Finding(label="HSTS preload", value=shown.get(status, status), url=url)]
+
+
+@fetcher(
+    id="ip-geo",
+    accepts=[EntityType.IP],
+    name="IP geolocation (ipwho.is)",
+    note="Where a database places the address. City is a guess, and a VPN or CDN address says nothing of the user.",
+)
+async def ip_geo(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    data = (await http.fetch(client, f"https://ipwho.is/{quote(value, safe='')}")).json()
+    if not data.get("success"):  # eg "Reserved range": an answer about the address, not a failure of the source
+        message = str(data.get("message") or "ipwho.is has no data for this address")
+        return [Finding(label="note", value=message, note=True)]
+    conn = data.get("connection") or {}
+    rows = (
+        ("country", data.get("country")),
+        ("region", data.get("region")),
+        ("city", data.get("city")),
+        ("ASN", f"AS{conn['asn']}" if conn.get("asn") else None),
+        ("org", conn.get("org")),
+        ("isp", conn.get("isp")),
+        ("domain", conn.get("domain")),
+        ("ip type", data.get("type")),
+    )
+    return [Finding(label=label, value=str(v)) for label, v in rows if v]
+
+
+@fetcher(
+    id="urlhaus",
+    accepts=[EntityType.DOMAIN, EntityType.URL, EntityType.IP],
+    name="URLhaus",
+    note="A known-BAD corpus of URLs reported for malware. A hit means it was reported, not that it is live now.",
+)
+async def urlhaus(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    """abuse.ch requires an Auth-Key for URLhaus too, so a key is needed, as for MalwareBazaar."""
+    key = get_key("ABUSECH_AUTH_KEY")
+    if not key:
+        raise NeedsKey("set ABUSECH_AUTH_KEY in .env to enable URLhaus")
+    is_url = entity_type is EntityType.URL
+    resp = await http.fetch(
+        client,
+        f"https://urlhaus-api.abuse.ch/v1/{'url' if is_url else 'host'}/",
+        method="POST",
+        data={"url" if is_url else "host": value},
+        headers={"Auth-Key": key},
+        allow=(401,),
+    )
+    payload = resp.json() if resp.status_code != 401 else {}
+    if resp.status_code == 401 or payload.get("query_status") == "unauthorized":
+        raise NeedsKey("ABUSECH_AUTH_KEY was rejected by abuse.ch")
+    if payload.get("query_status") != "ok":
+        return []  # no_results, invalid_host and friends mean looked-and-found-nothing
+    reference = payload.get("urlhaus_reference")
+    findings: list[Finding] = []
+    if not is_url:
+        findings.append(Finding(label="URL count", value=str(payload.get("url_count", 0)), url=reference))
+    rows = [payload] if is_url else payload.get("urls") or []
+    tags: set[str] = set()
+    for row in rows[:10]:
+        detail = ", ".join(str(row[k]) for k in ("url_status", "threat") if row.get(k))
+        link = row.get("urlhaus_link") or reference
+        findings.append(Finding(label="url", value=f"{row.get('url', '')} ({detail})", url=link))
+        tags.update(str(t) for t in row.get("tags") or [])
+    return findings + [Finding(label="tag", value=t) for t in sorted(tags)]
+
+
+_SINKHOLE = ipaddress.ip_network("0.0.0.0/8")
+_RESOLVERS = (
+    ("AdGuard", "https://dns.adguard-dns.com/resolve"),
+    ("Cloudflare Security", "https://security.cloudflare-dns.com/dns-query"),
+    ("Cloudflare Family", "https://family.cloudflare-dns.com/dns-query"),
+)
+
+
+def _addresses(data: dict) -> list[str]:
+    return [r.get("data", "") for r in data.get("Answer") or [] if r.get("type") in (1, 28)]
+
+
+def _is_sinkhole(address: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return False
+    return ip in _SINKHOLE if ip.version == 4 else ip.is_unspecified
+
+
+@fetcher(
+    id="blocklists",
+    accepts=[EntityType.DOMAIN],
+    name="DNS blocklists",
+    note="Whether filtering resolvers refuse to resolve it. Blocked is a resolver's policy, not proof of harm.",
+)
+async def blocklists(value: str, entity_type: EntityType, client: httpx.AsyncClient) -> list[Finding]:
+    queries = [_doh(client, value, "A")] + [_doh(client, value, "A", resolver=url) for _, url in _RESOLVERS]
+    control, *filtered = await asyncio.gather(*queries, return_exceptions=True)
+    resolves = (
+        isinstance(control, dict)
+        and control.get("Status") == 0
+        and any(not _is_sinkhole(a) for a in _addresses(control))
+    )
+    if not resolves:  # without a resolving control a block cannot be told from a name that never resolved
+        return [Finding(label="note", value="cannot tell: the unfiltered resolver gave no real answer", note=True)]
+    findings = []
+    for (name, _), data in zip(_RESOLVERS, filtered, strict=True):
+        if not isinstance(data, dict) or data.get("Status") not in (0, 3):
+            verdict = "no answer from this resolver"
+        elif data["Status"] == 3:
+            verdict = "blocked (NXDOMAIN)"
+        elif addresses := _addresses(data):
+            verdict = "blocked (sinkhole)" if all(_is_sinkhole(a) for a in addresses) else "not blocked"
+        else:
+            verdict = "no answer from this resolver"
+        findings.append(Finding(label=name, value=verdict))
+    return findings

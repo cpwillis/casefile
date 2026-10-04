@@ -1,16 +1,22 @@
+import asyncio
+from urllib.parse import parse_qs
+
 import httpx
 import pytest
 from helpers import mock_client, responder
 
 from casefile.fetchers import Finding, run_fetcher
 from casefile.fetchers.sources import (  # noqa: F401 -- import registers them
+    blocklists,
     blockscout_tx,
     crtsh,
     dns,
     dnssec,
     github,
     hashlookup,
+    hsts_preload,
     internetdb,
+    ip_geo,
     mail,
     malwarebazaar,
     mempool_address,
@@ -18,6 +24,9 @@ from casefile.fetchers.sources import (  # noqa: F401 -- import registers them
     nvd_cve,
     phone_meta,
     rdap,
+    tranco,
+    urlhaus,
+    wayback,
     wikidata,
 )
 from casefile.types import EntityType
@@ -792,3 +801,414 @@ async def test_dnssec_refused_and_http_failure_are_errors():
     assert "REFUSED" in result.detail
     async with responder(500) as client:
         assert (await run_fetcher("dnssec", "example.com", EntityType.DOMAIN, client)).state == "error"
+
+
+async def test_wayback_reports_first_and_last_capture_with_links():
+    seen = []
+
+    def handler(request):
+        seen.append(dict(request.url.params))
+        stamp = "20020120142510" if request.url.params["limit"] == "1" else "20260901000000"
+        return httpx.Response(200, json=[["timestamp"], [stamp]])
+
+    async with mock_client(handler) as client:
+        findings = await wayback("example.com", EntityType.DOMAIN, client)
+    assert sorted(p["limit"] for p in seen) == ["-1", "1"]
+    assert all(p["url"] == "example.com" and p["output"] == "json" and p["fl"] == "timestamp" for p in seen)
+    assert findings[0] == Finding(
+        label="first capture",
+        value="2002-01-20 14:25:10 UTC",
+        url="https://web.archive.org/web/20020120142510/example.com",
+    )
+    assert findings[1].value == "2026-09-01 00:00:00 UTC"
+    assert findings[2].url == "https://web.archive.org/web/*/example.com"
+
+
+async def test_wayback_never_archived_is_empty():
+    async with responder(200, json=[]) as client:
+        result = await run_fetcher("wayback", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "empty"
+
+
+async def test_wayback_accepts_a_url_and_sends_it_whole():
+    seen = {}
+
+    def handler(request):
+        seen["url"] = request.url.params["url"]
+        return httpx.Response(200, json=[])
+
+    async with mock_client(handler) as client:
+        await wayback("https://example.com/a?b=1&c=2", EntityType.URL, client)
+    assert seen["url"] == "https://example.com/a?b=1&c=2"
+
+
+async def test_wayback_gives_the_request_its_own_timeout():
+    seen = []
+
+    def handler(request):
+        seen.append(request.extensions["timeout"])
+        return httpx.Response(200, json=[])
+
+    async with mock_client(handler) as client:
+        await wayback("example.com", EntityType.DOMAIN, client)
+    assert seen and all(t["read"] == 40.0 and t["connect"] == 5.0 for t in seen)
+
+
+async def test_wayback_over_its_own_budget_is_a_timeout(monkeypatch):
+    real = asyncio.timeout
+    monkeypatch.setattr("casefile.fetchers.sources.asyncio.timeout", lambda _: real(0.05))
+
+    async def handler(request):
+        await asyncio.sleep(1)
+        return httpx.Response(200, json=[])
+
+    async with mock_client(handler) as client:
+        result = await run_fetcher("wayback", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "timeout"
+
+
+async def test_wayback_failure_and_rate_limit_paths():
+    async with responder(500) as client:
+        assert (await run_fetcher("wayback", "example.com", EntityType.DOMAIN, client)).state == "error"
+    async with responder(429) as client:
+        assert (await run_fetcher("wayback", "example.com", EntityType.DOMAIN, client)).state == "rate_limited"
+
+
+def _tranco(*ranks):
+    return {"ranks": [{"date": d, "rank": r} for d, r in ranks]}
+
+
+async def test_tranco_reports_the_latest_rank_and_a_rise():
+    body = _tranco(("2026-10-03", 166), ("2026-10-02", 167), ("2026-09-04", 200))
+    async with responder(200, json=body) as client:
+        findings = await tranco("example.com", EntityType.DOMAIN, client)
+    assert findings == [
+        Finding(label="rank", value="166 on 2026-10-03"),
+        Finding(label="trend", value="rose from 200 on 2026-09-04"),
+    ]
+
+
+async def test_tranco_a_larger_number_is_a_fall_and_equal_is_unchanged():
+    async with responder(200, json=_tranco(("2026-10-03", 1500), ("2026-09-04", 1200))) as client:
+        findings = await tranco("example.com", EntityType.DOMAIN, client)
+    assert findings[0].value == "1,500 on 2026-10-03"
+    assert findings[1].value == "fell from 1,200 on 2026-09-04"
+    async with responder(200, json=_tranco(("2026-10-03", 9), ("2026-09-04", 9))) as client:
+        findings = await tranco("example.com", EntityType.DOMAIN, client)
+    assert findings[1].value == "unchanged since 2026-09-04"
+
+
+async def test_tranco_a_single_day_has_no_trend():
+    async with responder(200, json=_tranco(("2026-10-03", 5))) as client:
+        findings = await tranco("example.com", EntityType.DOMAIN, client)
+    assert [f.label for f in findings] == ["rank"]
+
+
+async def test_tranco_unranked_is_empty_not_an_error():
+    async with responder(200, json={"ranks": []}) as client:
+        result = await run_fetcher("tranco", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "empty"
+
+
+async def test_tranco_failure_paths():
+    async with responder(500) as client:
+        assert (await run_fetcher("tranco", "example.com", EntityType.DOMAIN, client)).state == "error"
+    async with responder(429) as client:
+        assert (await run_fetcher("tranco", "example.com", EntityType.DOMAIN, client)).state == "rate_limited"
+
+
+async def test_hsts_preload_statuses():
+    seen = {}
+
+    def handler(request):
+        seen["domain"] = request.url.params["domain"]
+        return httpx.Response(200, json={"status": seen["status"]})
+
+    async with mock_client(handler) as client:
+        for status, shown in (
+            ("preloaded", "preloaded"),
+            ("pending", "pending, submitted but not yet in browsers"),
+            ("unknown", "not on the preload list"),
+        ):
+            seen["status"] = status
+            findings = await hsts_preload("example.com", EntityType.DOMAIN, client)
+            assert findings == [
+                Finding(label="HSTS preload", value=shown, url="https://hstspreload.org/?domain=example.com")
+            ]
+    assert seen["domain"] == "example.com"
+
+
+async def test_hsts_preload_not_listed_is_a_finding_not_empty():
+    async with responder(200, json={"status": "unknown"}) as client:
+        result = await run_fetcher("hsts-preload", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "ok"
+
+
+async def test_hsts_preload_failure_path():
+    async with responder(500) as client:
+        assert (await run_fetcher("hsts-preload", "example.com", EntityType.DOMAIN, client)).state == "error"
+
+
+_IPWHO_OK = {
+    "success": True,
+    "type": "IPv4",
+    "country": "Exampleland",
+    "region": "Sample Region",
+    "city": "Sampleton",
+    "connection": {"asn": 64496, "org": "Example Org", "isp": "Example ISP", "domain": "example.net"},
+}
+
+
+async def test_ip_geo_reads_location_and_network():
+    def handler(request):
+        assert str(request.url) == "https://ipwho.is/192.0.2.10"
+        return httpx.Response(200, json=_IPWHO_OK)
+
+    async with mock_client(handler) as client:
+        findings = await ip_geo("192.0.2.10", EntityType.IP, client)
+    got = {f.label: f.value for f in findings}
+    assert got == {
+        "country": "Exampleland",
+        "region": "Sample Region",
+        "city": "Sampleton",
+        "ASN": "AS64496",
+        "org": "Example Org",
+        "isp": "Example ISP",
+        "domain": "example.net",
+        "ip type": "IPv4",
+    }
+
+
+async def test_ip_geo_skips_fields_the_source_left_out():
+    async with responder(200, json={"success": True, "country": "Exampleland"}) as client:
+        findings = await ip_geo("192.0.2.10", EntityType.IP, client)
+    assert findings == [Finding(label="country", value="Exampleland")]
+
+
+async def test_ip_geo_failure_message_is_a_note_not_an_error():
+    async with responder(200, json={"success": False, "message": "Reserved range"}) as client:
+        result = await run_fetcher("ip-geo", "10.0.0.1", EntityType.IP, client)
+    assert result.state == "ok"
+    assert result.findings == (Finding(label="note", value="Reserved range", note=True),)
+
+
+async def test_ip_geo_failure_paths():
+    async with responder(500) as client:
+        assert (await run_fetcher("ip-geo", "192.0.2.10", EntityType.IP, client)).state == "error"
+    async with responder(429) as client:
+        assert (await run_fetcher("ip-geo", "192.0.2.10", EntityType.IP, client)).state == "rate_limited"
+
+
+async def test_urlhaus_without_a_key_is_needs_key(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: None)
+
+    def handler(request):
+        raise AssertionError("no request should be made without a key")
+
+    async with mock_client(handler) as client:
+        result = await run_fetcher("urlhaus", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "needs_key"
+    assert "ABUSECH_AUTH_KEY" in result.detail
+
+
+async def test_urlhaus_host_posts_the_host_with_the_key_and_parses(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: "secret")
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        seen["auth"] = request.headers.get("auth-key")
+        seen["body"] = request.content.decode()
+        return httpx.Response(
+            200,
+            json={
+                "query_status": "ok",
+                "urlhaus_reference": "https://urlhaus.example/host/example.com/",
+                "url_count": "2",
+                "urls": [
+                    {
+                        "url": "http://example.com/a.exe",
+                        "url_status": "online",
+                        "threat": "malware_download",
+                        "tags": ["exe", "trojan"],
+                        "urlhaus_link": "https://urlhaus.example/url/1/",
+                    },
+                    {
+                        "url": "http://example.com/b",
+                        "url_status": "offline",
+                        "threat": "malware_download",
+                        "tags": None,
+                    },
+                ],
+            },
+        )
+
+    async with mock_client(handler) as client:
+        findings = await urlhaus("example.com", EntityType.DOMAIN, client)
+    assert seen["url"] == "https://urlhaus-api.abuse.ch/v1/host/"
+    assert seen["auth"] == "secret"
+    assert seen["body"] == "host=example.com"
+    assert findings[0] == Finding(label="URL count", value="2", url="https://urlhaus.example/host/example.com/")
+    assert findings[1] == Finding(
+        label="url", value="http://example.com/a.exe (online, malware_download)", url="https://urlhaus.example/url/1/"
+    )
+    assert (
+        findings[2].url == "https://urlhaus.example/host/example.com/"
+    )  # no per-url link: falls back to the host page
+    assert [f.value for f in findings if f.label == "tag"] == ["exe", "trojan"]
+
+
+async def test_urlhaus_ip_uses_the_host_endpoint_and_url_uses_the_url_endpoint(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: "secret")
+    seen = []
+
+    def handler(request):
+        seen.append((str(request.url), parse_qs(request.content.decode())))
+        return httpx.Response(200, json={"query_status": "no_results"})
+
+    async with mock_client(handler) as client:
+        await urlhaus("192.0.2.10", EntityType.IP, client)
+        await urlhaus("http://example.com/a?b=1", EntityType.URL, client)
+    assert seen == [
+        ("https://urlhaus-api.abuse.ch/v1/host/", {"host": ["192.0.2.10"]}),
+        ("https://urlhaus-api.abuse.ch/v1/url/", {"url": ["http://example.com/a?b=1"]}),
+    ]
+
+
+async def test_urlhaus_url_answer_is_one_row_with_status_threat_and_tags(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: "secret")
+    body = {
+        "query_status": "ok",
+        "urlhaus_reference": "https://urlhaus.example/url/9/",
+        "url": "http://example.com/a",
+        "url_status": "online",
+        "threat": "malware_download",
+        "tags": ["elf"],
+    }
+    async with responder(200, json=body) as client:
+        findings = await urlhaus("http://example.com/a", EntityType.URL, client)
+    assert findings == [
+        Finding(
+            label="url",
+            value="http://example.com/a (online, malware_download)",
+            url="https://urlhaus.example/url/9/",
+        ),
+        Finding(label="tag", value="elf"),
+    ]
+
+
+async def test_urlhaus_no_results_is_empty(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: "secret")
+    async with responder(200, json={"query_status": "no_results"}) as client:
+        result = await run_fetcher("urlhaus", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "empty"
+
+
+async def test_urlhaus_a_401_is_needs_key_not_an_error(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: "bad")
+    async with responder(401, text="Unauthorized") as client:
+        result = await run_fetcher("urlhaus", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "needs_key"
+    assert "rejected" in result.detail
+
+
+async def test_urlhaus_unauthorized_payload_is_needs_key(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: "bad")
+    async with responder(200, json={"query_status": "unauthorized"}) as client:
+        result = await run_fetcher("urlhaus", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "needs_key"
+
+
+async def test_urlhaus_server_failure_is_an_error(monkeypatch):
+    monkeypatch.setattr("casefile.fetchers.sources.get_key", lambda name: "secret")
+    async with responder(500) as client:
+        assert (await run_fetcher("urlhaus", "example.com", EntityType.DOMAIN, client)).state == "error"
+
+
+def _resolvers(control, adguard, security, family):
+    """A handler answering per resolver host; each argument is a DoH JSON body, or an Exception to raise."""
+    bodies = {
+        "cloudflare-dns.com": control,
+        "dns.adguard-dns.com": adguard,
+        "security.cloudflare-dns.com": security,
+        "family.cloudflare-dns.com": family,
+    }
+
+    def handler(request):
+        body = bodies[request.url.host]
+        if isinstance(body, Exception):
+            raise body
+        return httpx.Response(200, json=body)
+
+    return handler
+
+
+_REAL = {"Status": 0, "Answer": [{"type": 1, "data": "192.0.2.10"}]}
+_SINK = {"Status": 0, "Answer": [{"type": 1, "data": "0.0.0.0"}]}
+_NXDOMAIN = {"Status": 3}
+
+
+async def test_blocklists_reports_each_resolver():
+    async with mock_client(_resolvers(_REAL, _SINK, _NXDOMAIN, _REAL)) as client:
+        findings = await blocklists("example.com", EntityType.DOMAIN, client)
+    assert findings == [
+        Finding(label="AdGuard", value="blocked (sinkhole)"),
+        Finding(label="Cloudflare Security", value="blocked (NXDOMAIN)"),
+        Finding(label="Cloudflare Family", value="not blocked"),
+    ]
+
+
+async def test_blocklists_sinkholes_are_the_unspecified_addresses_only():
+    seen = {}
+
+    def handler(request):
+        seen[request.url.host] = dict(request.url.params), request.headers.get("accept")
+        answer = {"cloudflare-dns.com": "192.0.2.10", "dns.adguard-dns.com": "0.1.2.3"}.get(request.url.host, "::")
+        return httpx.Response(200, json={"Status": 0, "Answer": [{"type": 28 if ":" in answer else 1, "data": answer}]})
+
+    async with mock_client(handler) as client:
+        findings = await blocklists("example.com", EntityType.DOMAIN, client)
+    assert [f.value for f in findings] == ["blocked (sinkhole)", "blocked (sinkhole)", "blocked (sinkhole)"]
+    assert set(seen) == {
+        "cloudflare-dns.com",
+        "dns.adguard-dns.com",
+        "security.cloudflare-dns.com",
+        "family.cloudflare-dns.com",
+    }
+    assert all(params == {"name": "example.com", "type": "A"} for params, _ in seen.values())
+    assert all(accept == "application/dns-json" for _, accept in seen.values())
+
+
+async def test_blocklists_a_filtered_resolver_that_fails_is_reported_not_fatal():
+    boom = httpx.ConnectError("boom")
+    async with mock_client(_resolvers(_REAL, boom, _REAL, {"Status": 2})) as client:
+        findings = await blocklists("example.com", EntityType.DOMAIN, client)
+    assert [f.value for f in findings] == [
+        "no answer from this resolver",
+        "not blocked",
+        "no answer from this resolver",
+    ]
+
+
+async def test_blocklists_control_nxdomain_means_cannot_tell_and_nothing_else():
+    async with mock_client(_resolvers(_NXDOMAIN, _NXDOMAIN, _NXDOMAIN, _NXDOMAIN)) as client:
+        findings = await blocklists("example.invalid", EntityType.DOMAIN, client)
+    assert len(findings) == 1
+    assert findings[0].note
+    assert "cannot tell" in findings[0].value
+
+
+async def test_blocklists_control_failure_or_sinkhole_means_cannot_tell():
+    boom = httpx.ConnectError("boom")
+    for control in (boom, _SINK, {"Status": 2}, {"Status": 0}):
+        async with mock_client(_resolvers(control, _SINK, _SINK, _SINK)) as client:
+            findings = await blocklists("example.com", EntityType.DOMAIN, client)
+        assert [f.note for f in findings] == [True]
+        assert "cannot tell" in findings[0].value
+
+
+async def test_blocklists_total_http_failure_still_never_raises():
+    async with responder(500) as client:
+        result = await run_fetcher("blocklists", "example.com", EntityType.DOMAIN, client)
+    assert result.state == "ok"
+    assert "cannot tell" in result.findings[0].value
