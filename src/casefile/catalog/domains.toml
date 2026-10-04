@@ -208,3 +208,250 @@ accepts = ["ip"]
 url = "https://www.nslookup.io/ip/{value}/"
 provenance = "verified live 2026-08-29"
 
+[[source]]
+id = "gist-search"
+name = "GitHub Gist"
+accepts = ["domain", "email", "username", "hash"]
+url = "https://gist.github.com/search?q={value}"
+notes = "Searches public GitHub gists for the text."
+provenance = "awesome-osint"
+
+[[source]]
+id = "grep-app-code"
+name = "grep.app"
+accepts = ["domain", "email", "username"]
+url = "https://grep.app/search?q={value}"
+notes = "Full-text search across public GitHub repositories."
+provenance = "awesome-osint"
+
+[[source]]
+id = "publicwww-source"
+name = "PublicWWW"
+accepts = ["domain", "email", "username"]
+url = "https://publicwww.com/websites/{value}/"
+notes = "Sites whose HTML source contains the text; free tier caps results."
+provenance = "awesome-osint"
+
+[[source]]
+id = "sourcegraph-code"
+name = "Sourcegraph"
+accepts = ["domain", "email", "username", "hash"]
+url = "https://sourcegraph.com/search?q={value}"
+notes = "Code search across public repositories on sourcegraph.com."
+provenance = "awesome-osint"
+
+[[source]]
+id = "findsecuritycontacts-domain"
+name = "Find Security Contacts"
+accepts = ["domain"]
+url = "https://findsecuritycontacts.com/query?domain={value}"
+notes = "Scans a domain for published security contact details."
+provenance = "awesome-osint"
+
+[[source]]
+id = "completedns-dns-history"
+name = "CompleteDNS"
+accepts = ["domain"]
+url = "https://completedns.com/dns-history/?domain={value}"
+notes = "Historical DNS records seen for the domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "dnsviz-dnssec"
+name = "DNSViz"
+accepts = ["domain"]
+url = "https://dnsviz.net/d/{value}/dnssec/"
+notes = "Graph of the DNSSEC chain of trust and any validation errors."
+provenance = "awesome-osint"
+
+[[source]]
+id = "fullhunt-search"
+name = "FullHunt"
+accepts = ["domain"]
+url = "https://fullhunt.io/search/?query={value}"
+notes = "Hosts, services and technologies discovered under the domain. Detail may need an account."
+provenance = "awesome-osint"
+
+[[source]]
+id = "hypestat-info"
+name = "HypeStat"
+accepts = ["domain"]
+url = "https://hypestat.com/info/{value}"
+notes = "Traffic estimates, IP, hosting, DNS and WHOIS summary for the site."
+provenance = "awesome-osint"
+
+[[source]]
+id = "intodns-scan"
+name = "IntoDNS.ai"
+accepts = ["domain"]
+url = "https://intodns.ai/scan/{value}"
+notes = "DNS, SPF, DKIM, DMARC and DNSSEC check report."
+provenance = "awesome-osint"
+
+[[source]]
+id = "statscrop-website"
+name = "StatsCrop"
+accepts = ["domain"]
+url = "https://www.statscrop.com/www/{value}"
+notes = "Site stats, IP, DNS, WHOIS and technologies for the domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "website-informer-domain"
+name = "Website Informer"
+accepts = ["domain"]
+url = "https://website.informer.com/{value}"
+notes = "Site overview with WHOIS, DNS, IP and traffic estimate."
+provenance = "awesome-osint"
+
+[[source]]
+id = "whoisology-domain"
+name = "Whoisology"
+accepts = ["domain"]
+url = "https://whoisology.com/{value}"
+notes = "Archived WHOIS record for the domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "web-check-domain"
+name = "Web-Check"
+accepts = ["domain"]
+url = "https://web-check.as93.net/check/{value}"
+notes = "Run of many checks on the site: DNS, headers, TLS, ports, tech stack."
+provenance = "awesome-osint"
+
+[[source]]
+id = "urlquery-search"
+name = "urlquery"
+accepts = ["domain", "ip", "url"]
+url = "https://urlquery.net/search?q={value}"
+notes = "Past sandbox scans of the URL, domain or IP."
+provenance = "awesome-osint"
+
+[[source]]
+id = "crawlgraph-backlinks"
+name = "CrawlGraph"
+accepts = ["domain"]
+url = "https://crawlgraph.com/{value}"
+notes = "Backlinks to the domain from Common Crawl data."
+provenance = "awesome-osint"
+
+[[source]]
+id = "majestic-site-explorer"
+name = "Majestic"
+accepts = ["domain"]
+url = "https://majestic.com/reports/site-explorer?q={value}"
+notes = "Backlink and referring domain summary for the site."
+provenance = "awesome-osint"
+
+[[source]]
+id = "similarweb-website"
+name = "Similarweb"
+accepts = ["domain"]
+url = "https://www.similarweb.com/website/{value}/"
+notes = "Traffic, audience and ranking estimates for the site."
+provenance = "awesome-osint"
+
+[[source]]
+id = "archive-today-search"
+name = "Archive.today"
+accepts = ["domain"]
+url = "https://archive.is/search/?q={value}"
+notes = "Archive.today snapshots saved for the domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "cc-la-whois"
+name = "CC.LA"
+accepts = ["domain"]
+url = "https://cc.la/whois/{value}"
+notes = "WHOIS and RDAP record for the domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "digga-lookup"
+name = "digga"
+accepts = ["domain"]
+url = "https://digga.dev/lookup/{value}"
+notes = "DNS records, IPs, ASN and related infrastructure for the domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "ismalicious-report"
+name = "isMalicious"
+accepts = ["domain", "ip", "email", "url", "btc_address", "eth_address"]
+url = "https://ismalicious.com/report?query={value}"
+notes = "Threat report with reputation and blocklist hits for the indicator."
+provenance = "awesome-osint"
+
+[[source]]
+id = "scanmalware-search"
+name = "ScanMalware"
+accepts = ["domain"]
+url = "https://scanmalware.com/s/{value}"
+notes = "Past URL scan results for the domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "verisign-dnssec-debugger"
+name = "Verisign DNSSEC Debugger"
+accepts = ["domain"]
+url = "https://dnssec-debugger.verisignlabs.com/{value}"
+notes = "DNSSEC chain validation report for the domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "dnsai-dns-lookup"
+name = "DNSai"
+accepts = ["domain"]
+url = "https://dnsai.com/dns-lookup/?domain={value}"
+notes = "All common DNS record types for the domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "emailformat-domain"
+name = "Email Format"
+accepts = ["domain"]
+url = "https://www.email-format.com/d/{value}/"
+notes = "Common email address formats and sample addresses seen for a company domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "certkit-ct-logs"
+name = "CertKit CT Logs"
+accepts = ["domain"]
+url = "https://www.certkit.io/tools/ct-logs/?query={value}"
+notes = "Certificate transparency log entries for a domain."
+provenance = "awesome-osint"
+
+[[source]]
+id = "fullhunt-domain"
+name = "FullHunt"
+accepts = ["domain"]
+url = "https://fullhunt.io/search/?query=domain%3A{value}"
+notes = "Discovered subdomains and exposed services; some domains are enterprise only."
+provenance = "awesome-osint"
+
+[[source]]
+id = "grayhatwarfare-files"
+name = "GrayhatWarfare"
+accepts = ["domain", "username", "company"]
+url = "https://buckets.grayhatwarfare.com/files?keywords={value}"
+notes = "Files found in open cloud storage buckets matching the keyword."
+provenance = "awesome-osint"
+
+[[source]]
+id = "islegitsite-check"
+name = "IsLegitSite"
+accepts = ["domain"]
+url = "https://www.islegitsite.com/check/{value}/"
+notes = "Reputation and legitimacy report for a website."
+provenance = "awesome-osint"
+
+[[source]]
+id = "similarsites-site"
+name = "SimilarSites"
+accepts = ["domain"]
+url = "https://www.similarsites.com/site/{value}"
+notes = "Sites similar to the given domain, with traffic estimates."
+provenance = "awesome-osint"

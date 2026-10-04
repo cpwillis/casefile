@@ -160,3 +160,212 @@ accepts = ["person", "company"]
 url = "https://www.wikidata.org/w/index.php?search={value}"
 notes = "MediaWiki search results page; a link fallback for the wikidata fetcher."
 provenance = "verified 2026-08-28"
+
+[[source]]
+id = "courtlistener-search"
+name = "CourtListener"
+accepts = ["person", "company"]
+url = "https://www.courtlistener.com/?q={value}"
+notes = "Search of US court opinions and RECAP federal docket filings."
+provenance = "awesome-osint"
+
+[[source]]
+id = "offshoreleaks-search"
+name = "ICIJ Offshore Leaks Database"
+accepts = ["person", "company"]
+url = "https://offshoreleaks.icij.org/search?q={value}"
+notes = "Offshore entities, officers and intermediaries from leaked datasets."
+provenance = "awesome-osint"
+
+[[source]]
+id = "scribd-search"
+name = "Scribd"
+accepts = ["person", "company"]
+url = "https://www.scribd.com/search?query={value}"
+notes = "Full-text search of user-uploaded documents and books."
+provenance = "awesome-osint"
+
+[[source]]
+id = "expertpages-search"
+name = "ExpertPages"
+accepts = ["person"]
+url = "https://www.expertpages.com/search_results?q={value}"
+notes = "Expert witness directory searched by name or keyword."
+provenance = "awesome-osint"
+
+[[source]]
+id = "scholar-search"
+name = "Google Scholar"
+accepts = ["person"]
+url = "https://scholar.google.com/scholar?q={value}"
+notes = "Scholarly papers, theses and citations matching the name."
+provenance = "awesome-osint"
+
+[[source]]
+id = "pubmed-search"
+name = "PubMed"
+accepts = ["person"]
+url = "https://pubmed.ncbi.nlm.nih.gov/?term={value}"
+notes = "Biomedical literature matching the name or author."
+provenance = "awesome-osint"
+
+[[source]]
+id = "scirp-articles"
+name = "Scientific Research Publishing"
+accepts = ["person"]
+url = "https://www.scirp.org/journal/Articles?searchCode={value}"
+notes = "Open access journal articles matching the name."
+provenance = "awesome-osint"
+
+[[source]]
+id = "ajol-search"
+name = "African Journals Online"
+accepts = ["person"]
+url = "https://www.ajol.info/index.php/ajol/search/search?query={value}"
+notes = "African journal articles matching the name."
+provenance = "awesome-osint"
+
+[[source]]
+id = "leakcheck-breach"
+name = "LeakCheck"
+accepts = ["email"]
+url = "https://leakcheck.io/?check={value}"
+notes = "Breach check that lists leak sources for an identifier; full report needs sign up."
+provenance = "awesome-osint"
+
+[[source]]
+id = "canada411-person"
+name = "Canada411"
+accepts = ["person"]
+url = "https://www.canada411.ca/search/?stype=si&what={value}&where="
+notes = "Canadian white pages name search."
+provenance = "awesome-osint"
+
+[[source]]
+id = "spokeo-person"
+name = "Spokeo"
+accepts = ["person"]
+url = "https://www.spokeo.com/search?q={value}"
+notes = "US people search; the match list is free, full reports are paid."
+provenance = "awesome-osint"
+
+
+[[source]]
+id = "mugshots-search"
+name = "Mugshots.com"
+accepts = ["person"]
+url = "https://mugshots.com/search.html?q={value}"
+notes = "Search of arrest and mugshot listings by name."
+provenance = "awesome-osint"
+
+[[source]]
+id = "blackbook-person"
+name = "Black Book Online"
+accepts = ["person"]
+url = "https://www.blackbookonline.info/searchresults.aspx?q={value}"
+notes = "Free public records name search; often returns no record."
+provenance = "awesome-osint"
+
+[[source]]
+id = "tna-discovery"
+name = "UK National Archives Discovery"
+accepts = ["person", "company"]
+url = "https://discovery.nationalarchives.gov.uk/results/r?_q={value}"
+notes = "UK archive catalogue records that mention the name."
+provenance = "awesome-osint"
+
+[[source]]
+id = "brave-search"
+name = "Brave Search"
+accepts = ["person", "company", "username", "domain"]
+url = "https://search.brave.com/search?q={value}"
+notes = "Web results from Brave's independent search index."
+provenance = "awesome-osint"
+
+[[source]]
+id = "mojeek-search"
+name = "Mojeek"
+accepts = ["person", "company", "username", "domain"]
+url = "https://www.mojeek.com/search?q={value}"
+notes = "Web results from Mojeek's own crawler index, no tracking."
+provenance = "awesome-osint"
+
+[[source]]
+id = "baidu-search"
+name = "Baidu"
+accepts = ["person", "company", "username", "domain"]
+url = "https://www.baidu.com/s?wd={value}"
+notes = "Chinese-language web results, useful for China-linked names and sites."
+provenance = "awesome-osint"
+
+[[source]]
+id = "daum-search"
+name = "Daum Search"
+accepts = ["person", "company", "username", "domain"]
+url = "https://search.daum.net/search?q={value}"
+notes = "Korean web, blog and cafe results from Daum."
+provenance = "awesome-osint"
+
+[[source]]
+id = "naver-search"
+name = "Naver Search"
+accepts = ["person", "company", "username", "domain"]
+url = "https://search.naver.com/search.naver?query={value}"
+notes = "Korean web, blog and news results from Naver."
+provenance = "awesome-osint"
+
+[[source]]
+id = "searchch-all"
+name = "search.ch"
+accepts = ["person", "company", "phone"]
+url = "https://search.ch/?q={value}"
+notes = "Swiss phone book, business and web results."
+provenance = "awesome-osint"
+
+[[source]]
+id = "seznam-search"
+name = "Seznam"
+accepts = ["person", "company", "username", "domain"]
+url = "https://search.seznam.cz/?q={value}"
+notes = "Czech web results from Seznam's own index."
+provenance = "awesome-osint"
+
+[[source]]
+id = "sogou-search"
+name = "Sogou"
+accepts = ["person", "company", "username", "domain"]
+url = "https://www.sogou.com/web?query={value}"
+notes = "Chinese web results, including WeChat-indexed pages."
+provenance = "awesome-osint"
+
+[[source]]
+id = "zarebin-search"
+name = "Zarebin"
+accepts = ["person", "company", "username", "domain"]
+url = "https://zarebin.ir/search?q={value}"
+notes = "Persian-language web results from an Iranian engine."
+provenance = "awesome-osint"
+
+[[source]]
+id = "qwant-search"
+name = "Qwant"
+accepts = ["person", "company", "username", "domain"]
+url = "https://www.qwant.com/?q={value}"
+notes = "Web results from Qwant, a French privacy-focused engine."
+provenance = "awesome-osint"
+
+[[source]]
+id = "duckduckgo-search"
+name = "DuckDuckGo"
+accepts = ["person", "company", "username", "domain"]
+url = "https://duckduckgo.com/?q={value}"
+notes = "Web results from DuckDuckGo."
+provenance = "awesome-osint"
+
+[[source]]
+id = "archive-org-search"
+name = "Internet Archive Search"
+accepts = ["person", "company", "username", "domain"]
+url = "https://archive.org/search?query={value}"
+notes = "Archived books, media and web items matching the text."
+provenance = "awesome-osint"

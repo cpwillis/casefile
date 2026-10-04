@@ -121,3 +121,18 @@ url = "https://www.linkedin.com/search/results/companies/?keywords={value}"
 notes = "Company pages by name; login-gated view but public deep link."
 provenance = "LinkedIn company directory"
 
+[[source]]
+id = "scoot-business-search"
+name = "Scoot"
+accepts = ["company"]
+url = "https://www.scoot.co.uk/serps.php?what={value}"
+notes = "UK business finder listing matching businesses with address and phone."
+provenance = "awesome-osint"
+
+[[source]]
+id = "wolframalpha-input"
+name = "Wolfram Alpha"
+accepts = ["company", "ip", "coordinates"]
+url = "https://www.wolframalpha.com/input?i={value}"
+notes = "Computed facts for companies, IP addresses and map coordinates."
+provenance = "awesome-osint"

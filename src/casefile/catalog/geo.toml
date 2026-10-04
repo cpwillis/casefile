@@ -73,3 +73,26 @@ url = "https://yandex.com/maps/?text={value}"
 notes = "text accepts a 'lat,lon' string and centres the map with a location card."
 provenance = "verified 2026-08-28"
 
+[[source]]
+id = "instantstreetview-coordinates"
+name = "Instant Google Street View"
+accepts = ["coordinates"]
+url = "https://www.instantstreetview.com/@{value},0h,0p,1z"
+notes = "Street View imagery at the coordinates."
+provenance = "awesome-osint"
+
+[[source]]
+id = "mapquest-latlng"
+name = "MapQuest"
+accepts = ["coordinates"]
+url = "https://www.mapquest.com/latlng/{value}"
+notes = "Map centred on the coordinates with the nearest address."
+provenance = "awesome-osint"
+
+[[source]]
+id = "here-wego-coordinates"
+name = "HERE WeGo"
+accepts = ["coordinates"]
+url = "https://wego.here.com/?map={value},15,normal"
+notes = "Map centred on the coordinates."
+provenance = "awesome-osint"

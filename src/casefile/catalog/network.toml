@@ -248,3 +248,75 @@ accepts = ["domain", "ip"]
 url = "https://www.whois.com/whois/{value}"
 notes = "verified 2026-08-29"
 provenance = "verified live 2026-08-29"
+
+[[source]]
+id = "iplocation-net-lookup"
+name = "IP Location"
+accepts = ["ip"]
+url = "https://www.iplocation.net/ip-lookup?query={value}"
+notes = "Geolocation, ISP and ASN for the address from several providers."
+provenance = "awesome-osint"
+
+[[source]]
+id = "iplocation-io-lookup"
+name = "IPLocation.io"
+accepts = ["ip"]
+url = "https://iplocation.io/ip/{value}"
+notes = "IP geolocation, ISP and network details."
+provenance = "awesome-osint"
+
+[[source]]
+id = "ip2location-lookup"
+name = "IP2Location"
+accepts = ["ip"]
+url = "https://www.ip2location.com/{value}"
+notes = "Geolocation, ASN, domain and VPN/proxy flag for the address."
+provenance = "awesome-osint"
+
+[[source]]
+id = "ipvoid-scan"
+name = "IPVoid"
+accepts = ["ip"]
+url = "https://www.ipvoid.com/scan/{value}/"
+notes = "IP info plus blacklist reputation checks."
+provenance = "awesome-osint"
+
+[[source]]
+id = "arin-whois-ip"
+name = "ARIN Whois"
+accepts = ["ip"]
+url = "https://whois.arin.net/rest/ip/{value}"
+notes = "ARIN network record covering the address, as XML."
+provenance = "awesome-osint"
+
+[[source]]
+id = "arin-whois-asn"
+name = "ARIN Whois"
+accepts = ["asn"]
+url = "https://whois.arin.net/rest/asn/{value}"
+notes = "ARIN autonomous system record, as XML."
+provenance = "awesome-osint"
+
+[[source]]
+id = "honeylabs-ip"
+name = "HoneyLabs"
+accepts = ["ip"]
+url = "https://honeylabs.net/lookup/{value}"
+notes = "Honeypot events, ASN and activity seen from the address."
+provenance = "awesome-osint"
+
+[[source]]
+id = "whoismind-ip"
+name = "WhoisMind"
+accepts = ["ip"]
+url = "https://whoismind.com/search?ipAddress={value}"
+notes = "WHOIS and registration details for the address range."
+provenance = "awesome-osint"
+
+[[source]]
+id = "multirbl-lookup"
+name = "MultiRBL"
+accepts = ["ip", "domain"]
+url = "https://multirbl.valli.org/lookup/{value}.html"
+notes = "Checks an IP or domain against many DNS blacklists and reports FCrDNS."
+provenance = "awesome-osint"

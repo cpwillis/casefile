@@ -104,3 +104,107 @@ accepts = ["phone"]
 url = "https://nuwber.com/search?phone={value}"
 notes = "US people-search reverse phone lookup."
 provenance = "public people/phone directory"
+
+[[source]]
+id = "canada411-reverse-phone"
+name = "Canada411 reverse phone"
+accepts = ["phone"]
+url = "https://www.canada411.ca/search/?stype=re&what={value}"
+notes = "Reverse phone lookup for Canadian numbers via YellowPages.ca."
+provenance = "awesome-osint"
+
+[[source]]
+id = "reversephonelookup-phone"
+name = "Reverse Phone Lookup"
+accepts = ["phone"]
+url = "https://www.reversephonelookup.com/?phone={value}"
+notes = "US reverse phone lookup results."
+provenance = "awesome-osint"
+
+[[source]]
+id = "pinterest-profile"
+name = "Pinterest"
+accepts = ["username"]
+url = "https://www.pinterest.com/{value}/"
+notes = "Public Pinterest profile page for the handle, with boards and pins."
+provenance = "awesome-osint"
+
+[[source]]
+id = "tumblr-profile"
+name = "Tumblr"
+accepts = ["username"]
+url = "https://www.tumblr.com/{value}"
+notes = "Tumblr blog for the handle, showing public posts."
+provenance = "awesome-osint"
+
+[[source]]
+id = "vk-profile"
+name = "VKontakte"
+accepts = ["username"]
+url = "https://vk.com/{value}"
+notes = "VK profile or community page for the short name, if one exists."
+provenance = "awesome-osint"
+
+[[source]]
+id = "telegram-profile"
+name = "Telegram"
+accepts = ["username"]
+url = "https://t.me/{value}"
+notes = "Telegram public profile, channel or group preview for the handle."
+provenance = "awesome-osint"
+
+[[source]]
+id = "threads-profile"
+name = "Threads"
+accepts = ["username"]
+url = "https://www.threads.com/@{value}"
+notes = "Public Threads profile for the handle."
+provenance = "awesome-osint"
+
+[[source]]
+id = "redditmetis-user"
+name = "RedditMetis"
+accepts = ["username"]
+url = "https://redditmetis.com/user/{value}"
+notes = "Activity stats and posting patterns for a Reddit account."
+provenance = "awesome-osint"
+
+[[source]]
+id = "ghnames-search"
+name = "GHNames"
+accepts = ["username"]
+url = "https://ghnames.com/search?u={value}"
+notes = "GitHub account ID and name lookup for a username."
+provenance = "awesome-osint"
+
+[[source]]
+id = "tgstat-channel"
+name = "TGStat"
+accepts = ["username"]
+url = "https://tgstat.com/channel/@{value}"
+notes = "Statistics and post history for a public Telegram channel handle."
+provenance = "awesome-osint"
+
+[[source]]
+id = "tgramsearch-search"
+name = "TGramSearch"
+accepts = ["username"]
+url = "https://tgramsearch.com/search?query={value}"
+notes = "Directory search of public Telegram channels and groups by name."
+provenance = "awesome-osint"
+
+[[source]]
+id = "telesearch-search"
+name = "TeleSearch"
+accepts = ["username"]
+url = "https://telesearch.me/?s={value}"
+notes = "Directory search of Telegram channels, groups and bots by keyword."
+provenance = "awesome-osint"
+
+[[source]]
+id = "social-searcher-search"
+name = "Social Searcher"
+accepts = ["username", "person"]
+url = "https://www.social-searcher.com/google-social-search/?q={value}"
+notes = "Public social media posts and profiles mentioning the query, free tier."
+provenance = "awesome-osint"

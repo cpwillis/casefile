@@ -65,3 +65,10 @@ url = "https://www.macvendorlookup.com/api/v2/{value}"
 notes = "Returns vendor name and registered address JSON; MAC in path."
 provenance = "Well-known MAC vendor lookup"
 
+[[source]]
+id = "faxvin-vin-decode"
+name = "FaxVIN"
+accepts = ["vin"]
+url = "https://www.faxvin.com/order/decoding?vin={value}"
+notes = "Free VIN decode (year, make, model, trim, engine); full history report is paid."
+provenance = "awesome-osint"
