@@ -19,7 +19,7 @@ from casefile.types import EntityType
 # ponytail: a pinned string ages; CASEFILE_VISIT_USER_AGENT overrides it, bump on a release that touches this file.
 CHROME_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/141.0.0.0 Safari/537.36"
+    "Chrome/156.0.0.0 Safari/537.36"
 )
 MAX_HOPS = 5
 TLS_TIMEOUT = 15.0
