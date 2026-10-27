@@ -7,6 +7,9 @@ sources will give up, and lists the rest as links you open yourself.
 Local only: binds `127.0.0.1`, no account, no telemetry, nothing hosted. casefile never contacts the target itself
 unless you click **Visit the site** or pass `--visit`; everything else asks a third party about it.
 
+Demo: [casefile.cpwillis.dev](https://casefile.cpwillis.dev), the real templates against canned data. It cannot look
+anything up.
+
 ## Run
 
 On [PyPI](https://pypi.org/project/casefile/). With [uv](https://docs.astral.sh/uv/), which fetches its own Python:
